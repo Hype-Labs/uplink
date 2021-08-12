@@ -206,6 +206,8 @@ class BleBrowser extends BrowserCommons implements BluetoothStateListener.Observ
             ParcelUuid uuid = new ParcelUuid(coreServiceUuid);
             ScanFilter filter = new ScanFilter.Builder().setServiceUuid(uuid).build();
 
+            Log.i(getClass().getCanonicalName(), String.format("ULX Bluetooth LE scanner is using %s as a service UUID filter", uuid.toString()));
+
             this.scanFilters.add(filter);
         }
         return this.scanFilters;
@@ -290,8 +292,8 @@ class BleBrowser extends BrowserCommons implements BluetoothStateListener.Observ
         UlxError error = new UlxError(
                 UlxErrorCode.ADAPTER_UNAUTHORIZED,
                 "Could not start the Bluetooth service.",
-                "The app does not have the necessary permissions to use Bluetooth.",
-                "Please give the necessary permissions."
+                "The app does not have the necessary permissions or the Bluetooth adapter is off.",
+                "Please give the necessary permissions and turn the adapter on."
         );
 
         onFailedStart(this, error);
@@ -337,7 +339,7 @@ class BleBrowser extends BrowserCommons implements BluetoothStateListener.Observ
      * @param scanRecord The ScanRecord corresponding to the given device.
      */
     private synchronized void handleDeviceFound(BluetoothDevice device, ScanRecord scanRecord) {
-        Log.i(getClass().getCanonicalName(), "Found device");
+        Log.i(getClass().getCanonicalName(), String.format("ULX Bluetooth LE scanner found a device [%s]", device.toString()));
     }
 
     @Override
@@ -350,8 +352,8 @@ class BleBrowser extends BrowserCommons implements BluetoothStateListener.Observ
 
     @Override
     public void onAdapterEnabled(BluetoothStateListener bluetoothStateListener) {
-        if (super.getState() != Browser.State.RUNNING) {
-            super.onReady(this);
+        if (getState() != Browser.State.RUNNING) {
+            onReady(this);
         }
     }
 
@@ -364,7 +366,7 @@ class BleBrowser extends BrowserCommons implements BluetoothStateListener.Observ
                     UlxErrorCode.ADAPTER_DISABLED,
                     "Could not start or maintain the Bluetooth scanner.",
                     "The adapter was turned off.",
-                    "Turn the adapter on."
+                    "Turn the Bluetooth adapter on."
             );
 
             onStop(this, error);

@@ -89,6 +89,7 @@ public class BleDriver extends DriverCommons implements Driver {
                     getDomesticService(),
                     getContext()
             );
+            this.browser.setStateDelegate(this);
         }
         return this.browser;
     }

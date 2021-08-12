@@ -77,6 +77,6 @@ public class UlxError {
     @SuppressLint("DefaultLocale")
     @Override
     public String toString() {
-        return String.format("Error(Reason: %s, Code: %d, Description: %s)", getReason(), getCode(), getDescription());
+        return String.format("Error(Code: %d, Reason: %s, Description: %s, Suggestion: %s)", getCode(), getReason(), getDescription(), getSuggestion());
     }
 }

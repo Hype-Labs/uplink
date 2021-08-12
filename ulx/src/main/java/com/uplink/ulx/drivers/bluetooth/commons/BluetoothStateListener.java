@@ -142,14 +142,18 @@ public class BluetoothStateListener extends AbstractStateListener implements Bro
     @Override
     public void onAdapterEnabled(BroadcastReceiver broadcastReceiver) {
         for (final Observer observer : getObservers()) {
-            ExecutorPool.getExecutor(TransportType.BLUETOOTH_LOW_ENERGY).execute(() -> observer.onAdapterEnabled(BluetoothStateListener.this));
+            ExecutorPool.getExecutor(TransportType.BLUETOOTH_LOW_ENERGY).execute(
+                    () -> observer.onAdapterEnabled(BluetoothStateListener.this)
+            );
         }
     }
 
     @Override
     public void onAdapterDisabled(BroadcastReceiver broadcastReceiver) {
         for (final Observer observer : getObservers()) {
-            ExecutorPool.getExecutor(TransportType.BLUETOOTH_LOW_ENERGY).execute(() -> observer.onAdapterDisabled(BluetoothStateListener.this));
+            ExecutorPool.getExecutor(TransportType.BLUETOOTH_LOW_ENERGY).execute(
+                    () -> observer.onAdapterDisabled(BluetoothStateListener.this)
+            );
         }
     }
 }

@@ -142,12 +142,12 @@ public abstract class BrowserCommons implements
 
     @Override
     public void requestStart(StateManager stateManager) {
-        this.requestAdapterToStart();
+        requestAdapterToStart();
     }
 
     @Override
     public void onStart(StateManager stateManager) {
-        Browser.StateDelegate stateDelegate = this.getStateDelegate();
+        Browser.StateDelegate stateDelegate = getStateDelegate();
         if (stateDelegate != null) {
             stateDelegate.onStart(this);
         }
@@ -155,7 +155,7 @@ public abstract class BrowserCommons implements
 
     @Override
     public void onStop(StateManager stateManager, UlxError error) {
-        Browser.StateDelegate stateDelegate = this.getStateDelegate();
+        Browser.StateDelegate stateDelegate = getStateDelegate();
         if (stateDelegate != null) {
             stateDelegate.onStop(this, error);
         }
@@ -168,15 +168,15 @@ public abstract class BrowserCommons implements
 
     @Override
     public void onFailedStart(StateManager stateManager, UlxError error) {
-        Browser.StateDelegate stateDelegate = this.getStateDelegate();
-        if (stateDelegate != null){
+        Browser.StateDelegate stateDelegate = getStateDelegate();
+        if (stateDelegate != null) {
             stateDelegate.onFailedStart(this, error);
         }
     }
 
     @Override
     public void onStateChange(StateManager stateManager) {
-        Browser.StateDelegate stateDelegate = this.getStateDelegate();
+        Browser.StateDelegate stateDelegate = getStateDelegate();
         if (stateDelegate != null) {
             stateDelegate.onStateChange(this);
         }

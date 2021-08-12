@@ -42,10 +42,10 @@ public class Bridge implements Connector.StateDelegate, InputStream.Delegate, Ou
          * the service to start making calls to the bridge, including crossing
          * the JNI bridge.
          * @param bridge The bridge (singleton) instance making the call.
-         * @param domesticInstance The domestic Instance created as a result of
-         *                         the initialization process.
+         * @param hostInstance The domestic Instance created as a result of
+         *                     the initialization process.
          */
-        void onInitialization(Bridge bridge, Instance domesticInstance);
+        void onInitialization(Bridge bridge, Instance hostInstance);
     }
 
     private static Bridge instance = null;

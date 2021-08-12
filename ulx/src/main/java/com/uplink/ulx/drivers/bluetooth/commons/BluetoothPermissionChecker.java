@@ -65,7 +65,7 @@ public class BluetoothPermissionChecker {
      * @param context The Android environment Context.
      * @return Whether the permission was granted.
      */
-    public static boolean isLocationPermissionGranted(final Context context) {
+    public static boolean isLocationPermissionGranted(Context context) {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
             return context.checkSelfPermission(Manifest.permission.ACCESS_COARSE_LOCATION) == PackageManager.PERMISSION_GRANTED;
         }

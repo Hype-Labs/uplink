@@ -4,15 +4,14 @@ import android.content.Context;
 import android.content.Intent;
 import android.os.Binder;
 import android.os.IBinder;
-import android.util.Log;
 
-import com.uplink.ulx.model.State;
 import com.uplink.ulx.UlxError;
 import com.uplink.ulx.bridge.Bridge;
 import com.uplink.ulx.drivers.controller.Driver;
 import com.uplink.ulx.drivers.controller.DriverManager;
 import com.uplink.ulx.drivers.model.Device;
 import com.uplink.ulx.model.Instance;
+import com.uplink.ulx.model.State;
 
 import java.lang.ref.WeakReference;
 import java.util.UUID;
@@ -108,7 +107,7 @@ public class Service extends android.app.Service implements Driver.StateDelegate
      * This is service Binder, specifically for the Service calls, that is used
      * for the RPC mechanism used by the service to communicate with the app.
      */
-    /* package */ class LocalBinder extends Binder {
+    public class LocalBinder extends Binder {
 
         /**
          * Returns the Service instance associated with the Binder. This is
@@ -150,8 +149,8 @@ public class Service extends android.app.Service implements Driver.StateDelegate
      * no delegate was set, this returns a weak reference to null.
      * @return The service's delegate.
      */
-    public final WeakReference<Delegate> getDelegate() {
-        return this.delegate != null ? this.delegate : new WeakReference<>(null);
+    public final Delegate getDelegate() {
+        return this.delegate != null ? this.delegate.get() : null;
     }
 
     /**
@@ -195,14 +194,11 @@ public class Service extends android.app.Service implements Driver.StateDelegate
 
     @Override
     public IBinder onBind(Intent intent) {
-        Log.d("ULX", "onBind(Intent)");
         return this.binder;
     }
 
     @Override
     public void onTaskRemoved(Intent rootIntent) {
-        super.onTaskRemoved(rootIntent);
-        Log.d("ULX", "onTaskRemoved(Intent)");
 
         // Destroy everything and stop the service
         getDriverManager().destroy();
@@ -248,7 +244,7 @@ public class Service extends android.app.Service implements Driver.StateDelegate
 
     @Override
     public void onInitialization(Bridge bridge, Instance hostInstance) {
-        Delegate delegate = getDelegate().get();
+        Delegate delegate = getDelegate();
 
         if (delegate != null) {
             delegate.onInitialization(this, hostInstance);
@@ -257,7 +253,7 @@ public class Service extends android.app.Service implements Driver.StateDelegate
 
     @Override
     public void onStart(Driver driver) {
-        Delegate delegate = getDelegate().get();
+        Delegate delegate = getDelegate();
 
         if (delegate != null) {
             delegate.onStart(this);
@@ -266,7 +262,7 @@ public class Service extends android.app.Service implements Driver.StateDelegate
 
     @Override
     public void onStop(Driver driver, UlxError error) {
-        Delegate delegate = getDelegate().get();
+        Delegate delegate = getDelegate();
 
         if (delegate != null) {
             delegate.onStop(this, error);
@@ -275,7 +271,7 @@ public class Service extends android.app.Service implements Driver.StateDelegate
 
     @Override
     public void onFailedStart(Driver driver, UlxError error) {
-        Delegate delegate = getDelegate().get();
+        Delegate delegate = getDelegate();
 
         if (delegate != null) {
             delegate.onFailedStart(this, error);
@@ -284,7 +280,7 @@ public class Service extends android.app.Service implements Driver.StateDelegate
 
     @Override
     public void onReady(Driver driver) {
-        Delegate delegate = getDelegate().get();
+        Delegate delegate = getDelegate();
 
         if (delegate != null) {
             delegate.onReady(this);
@@ -293,7 +289,7 @@ public class Service extends android.app.Service implements Driver.StateDelegate
 
     @Override
     public void onStateChange(Driver driver) {
-        Delegate delegate = getDelegate().get();
+        Delegate delegate = getDelegate();
 
         if (delegate != null) {
             delegate.onStateChange(this);

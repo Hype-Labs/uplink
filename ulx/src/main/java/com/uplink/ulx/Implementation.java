@@ -6,6 +6,7 @@ import android.content.Intent;
 import android.content.ServiceConnection;
 import android.os.IBinder;
 
+import com.uplink.ulx.drivers.commons.StateManager;
 import com.uplink.ulx.model.Instance;
 import com.uplink.ulx.model.State;
 import com.uplink.ulx.observers.MessageObserver;
@@ -13,7 +14,6 @@ import com.uplink.ulx.observers.NetworkObserver;
 import com.uplink.ulx.observers.StateObserver;
 import com.uplink.ulx.service.Service;
 import com.uplink.ulx.threading.ExecutorPool;
-import com.uplink.ulx.drivers.commons.StateManager;
 
 import java.lang.ref.WeakReference;
 import java.util.ArrayList;
@@ -37,7 +37,7 @@ import java.util.Objects;
  * delegates. This makes it a facade implementation as well, since it exposes
  * an API that enables consuming all features within the SDK.
  */
-public class Implementation implements ServiceConnection, StateManager.Delegate, Service.Delegate {
+public class Implementation implements StateManager.Delegate, Service.Delegate {
 
     private static Implementation instance;
 
@@ -306,28 +306,12 @@ public class Implementation implements ServiceConnection, StateManager.Delegate,
 
     @Override
     public void requestStart(StateManager stateManager) {
-        // Initializing the framework will result on the service being started
-        // as soon as the process is complete.
-        bindService();
-    }
 
-    /**
-     * Requests the connection to the application service, creating one if
-     * needed. The service is then started, which will enable the framework to
-     * run in the background.
-     */
-    private synchronized void bindService() {
-        Intent intent = new Intent(getContext(), Service.class);
-
-        getContext().bindService(intent, this, Context.BIND_AUTO_CREATE);
-        getContext().startService(intent);
-    }
-
-    @Override
-    public void onServiceConnected(ComponentName name, IBinder iBinder) {
-        Service.LocalBinder binder = (Service.LocalBinder) iBinder;
-
-        this.service = binder.getService();
+        // This initialization shouldn't be here; when we have the service is
+        // in place, the service will be constructed by the system. Instead,
+        // this method should bind the service, and wait for the bind to occur
+        // before proceeding with the initialization.
+        this.service = new Service();
         this.service.setDelegate(this);
         this.service.setContext(getContext());
 
@@ -416,14 +400,9 @@ public class Implementation implements ServiceConnection, StateManager.Delegate,
     }
 
     @Override
-    public void onServiceDisconnected(ComponentName name) {
-        getStateManager().notifyStop(null);
-    }
-
-    @Override
     public void requestStop(StateManager stateManager) {
         // The driver manager stops first. When that's done, the service
-        // should also stop and be destroyed, but the stoppage in done in
+        // should also stop and be destroyed, but the stoppage is done in
         // reverse order with respect to starting.
         getService().stop();
     }

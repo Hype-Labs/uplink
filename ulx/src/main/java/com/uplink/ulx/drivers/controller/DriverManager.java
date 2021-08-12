@@ -35,9 +35,19 @@ public class DriverManager implements Driver, Driver.NetworkDelegate, StateManag
     private WeakReference<Driver.NetworkDelegate> networkDelegate;
     private WeakReference<StateDelegate> stateDelegate;
     private int transportType;
-    private boolean ready;
     private HashMap<String, Driver> failedDrivers;
     private final WeakReference<Context> context;
+
+    // TODO this boolean flag appears to be a workaround for duplicate
+    //  notifications when the adapter becomes ready. This can be motivated by
+    //  two things: (1) both the browser and the advertiser give a ready
+    //  notification, and (2) the implementation did not unsubscribe from
+    //  adapter state change events. I'm not sure how the former can be fixed
+    //  other than only one of the two giving a notification, but the latter
+    //  should be fixed because it's documented that the implementation
+    //  unsubscribed from adapter state change events. Ideally, this problem
+    //  is not solved by the driver manager, but by the subscription listener.
+    private boolean ready;
 
     /**
      * Constructor initializes the driver manager with given parameters. The
@@ -121,7 +131,7 @@ public class DriverManager implements Driver, Driver.NetworkDelegate, StateManag
         if (this.driverFactory == null) {
             this.driverFactory = new DriverFactory(getContext(), this, this);
         }
-        return driverFactory;
+        return this.driverFactory;
     }
 
     /**
@@ -294,50 +304,60 @@ public class DriverManager implements Driver, Driver.NetworkDelegate, StateManag
 
     @Override
     public void onDeviceFound(Driver driver, Device provider) {
-        getNetworkDelegate().onDeviceFound(this, provider);
+        NetworkDelegate networkDelegate = getNetworkDelegate();
+        if (networkDelegate != null) {
+            networkDelegate.onDeviceFound(this, provider);
+        }
     }
 
     @Override
     public void onDeviceLost(Driver driver, Device provider, UlxError error) {
-        getNetworkDelegate().onDeviceLost(this, provider, error);
+        NetworkDelegate networkDelegate = getNetworkDelegate();
+        if (networkDelegate != null) {
+            networkDelegate.onDeviceLost(this, provider, error);
+        }
     }
 
     @Override
     public void requestStart(StateManager stateManager) {
-        this.requestAllDriversToStart();
+        requestAllDriversToStart();
     }
 
     @Override
     public void onStart(StateManager stateManager) {
-        if (getStateDelegate()!=null) {
-            getStateDelegate().onStart(this);
+        StateDelegate stateDelegate = getStateDelegate();
+        if (stateDelegate != null) {
+            stateDelegate.onStart(this);
         }
     }
 
     @Override
     public void onFailedStart(StateManager stateManager, UlxError error) {
-        if (getStateDelegate()!=null) {
-            getStateDelegate().onFailedStart(this, error);
+        StateDelegate stateDelegate = getStateDelegate();
+        if (stateDelegate != null) {
+            stateDelegate.onFailedStart(this, error);
         }
     }
 
     @Override
     public void onStop(StateManager stateManager, UlxError error) {
-        if (getStateDelegate()!=null) {
-            getStateDelegate().onStop(this, error);
+        StateDelegate stateDelegate = getStateDelegate();
+        if (stateDelegate != null) {
+            stateDelegate.onStop(this, error);
+        }
+    }
+
+    @Override
+    public void onStateChange(StateManager stateManager) {
+        StateDelegate stateDelegate = getStateDelegate();
+        if (stateDelegate != null) {
+            stateDelegate.onStateChange(this);
         }
     }
 
     @Override
     public void requestStop(StateManager stateManager) {
         this.requestAllDriversToStop();
-    }
-
-    @Override
-    public void onStateChange(StateManager stateManager) {
-        if (getStateDelegate()!=null) {
-            getStateDelegate().onStateChange(this);
-        }
     }
 
     @Override
@@ -354,13 +374,9 @@ public class DriverManager implements Driver, Driver.NetworkDelegate, StateManag
         ExecutorPool.getDriverManagerExecutor().execute(() -> {
             addFailedDriver(driver);
 
-            ExecutorPool.getScheduledExecutor(getTransportType()).schedule(new Runnable() {
-                @Override
-                public void run() {
-                    if(getDriverFactory().allDriversHaveState(State.IDLE)){
-                        final UlxError e = error;
-                        getStateManager().notifyFailedStart(e);
-                    }
+            ExecutorPool.getScheduledExecutor(getTransportType()).schedule(() -> {
+                if (getDriverFactory().allDriversHaveState(State.IDLE)) {
+                    getStateManager().notifyFailedStart(error);
                 }
             }, 1, TimeUnit.SECONDS);
         });
@@ -368,7 +384,6 @@ public class DriverManager implements Driver, Driver.NetworkDelegate, StateManag
 
     @Override
     public void onStop(final Driver driver, final UlxError error) {
-
         ExecutorPool.getDriverManagerExecutor().execute(() -> {
             if (getDriverFactory().allDriversHaveState(State.IDLE)) {
                 getStateManager().notifyStop(error);
@@ -387,7 +402,12 @@ public class DriverManager implements Driver, Driver.NetworkDelegate, StateManag
                 driver.start();
             } else if (!isReady()) {
                 setReady(true);
-                getStateDelegate().onReady(this);
+
+                // Notify the delegate
+                StateDelegate stateDelegate = getStateDelegate();
+                if (stateDelegate != null) {
+                    stateDelegate.onReady(this);
+                }
             }
         });
     }

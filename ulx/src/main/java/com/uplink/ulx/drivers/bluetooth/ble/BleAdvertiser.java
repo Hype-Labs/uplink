@@ -17,6 +17,8 @@ import android.os.ParcelUuid;
 import com.uplink.ulx.TransportType;
 import com.uplink.ulx.UlxError;
 import com.uplink.ulx.UlxErrorCode;
+import com.uplink.ulx.drivers.controller.Advertiser;
+import com.uplink.ulx.drivers.controller.Browser;
 import com.uplink.ulx.drivers.model.Connector;
 import com.uplink.ulx.drivers.bluetooth.ble.gattServer.GattServer;
 import com.uplink.ulx.drivers.bluetooth.commons.BluetoothStateListener;
@@ -276,10 +278,25 @@ class BleAdvertiser extends AdvertiserCommons implements
 
     @Override
     public void onAdapterEnabled(BluetoothStateListener bluetoothStateListener) {
+        if (getState() != Advertiser.State.RUNNING) {
+            onReady(this);
+        }
     }
 
     @Override
     public void onAdapterDisabled(BluetoothStateListener bluetoothStateListener) {
+
+        if (getState() == Advertiser.State.RUNNING || getState() == Advertiser.State.STARTING) {
+
+            UlxError error = new UlxError(
+                    UlxErrorCode.ADAPTER_DISABLED,
+                    "Could not start or maintain the Bluetooth advertiser.",
+                    "The adapter was turned off.",
+                    "Turn the Bluetooth adapter on."
+            );
+
+            onStop(this, error);
+        }
     }
 
     @Override

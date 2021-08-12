@@ -145,7 +145,7 @@ public abstract class AdvertiserCommons implements
 
     @Override
     public void requestStart(StateManager stateManager) {
-        this.requestAdapterToStart();
+        requestAdapterToStart();
     }
 
     @Override
@@ -172,7 +172,7 @@ public abstract class AdvertiserCommons implements
     @Override
     public void onFailedStart(StateManager stateManager, UlxError error) {
         StateDelegate stateDelegate = this.getStateDelegate();
-        if (stateDelegate != null){
+        if (stateDelegate != null) {
             stateDelegate.onFailedStart(this, error);
         }
     }
