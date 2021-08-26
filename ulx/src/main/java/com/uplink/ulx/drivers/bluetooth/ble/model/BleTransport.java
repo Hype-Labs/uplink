@@ -1,4 +1,4 @@
-package com.uplink.ulx.drivers.bluetooth.ble;
+package com.uplink.ulx.drivers.bluetooth.ble.model;
 
 import com.uplink.ulx.TransportType;
 import com.uplink.ulx.drivers.model.Channel;
@@ -11,7 +11,7 @@ import com.uplink.ulx.drivers.commons.model.TransportCommons;
  * doesn't do much, other than creating the space for future revisions of
  * transport-specific logic.
  */
-class BleTransport extends TransportCommons {
+public class BleTransport extends TransportCommons {
 
     /**
      * Constructor. Initializes with the given arguments.

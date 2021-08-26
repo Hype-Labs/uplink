@@ -126,7 +126,7 @@ public interface Connector extends Stream.InvalidationDelegate {
          * and prepared for I/O.
          * @param connector The connector issuing the notification.
          */
-        void onConnect(Connector connector);
+        void onConnected(Connector connector);
 
         /**
          * This event notification is triggered when the connection is dropped,
@@ -139,7 +139,7 @@ public interface Connector extends Stream.InvalidationDelegate {
          * @param connector The connector issuing the notification.
          * @param error An error, indicating a probable cause.
          */
-        void onDisconnect(Connector connector, UlxError error);
+        void onDisconnection(Connector connector, UlxError error);
 
         /**
          * This notification is issued to the delegate when a requested
@@ -152,7 +152,7 @@ public interface Connector extends Stream.InvalidationDelegate {
          * @param connector The connector issuing the notification.
          * @param error An error, indicating a probable cause.
          */
-        void onFailedConnect(Connector connector, UlxError error);
+        void onConnectionFailure(Connector connector, UlxError error);
 
         /**
          * State change events are useful for tracking the connector's

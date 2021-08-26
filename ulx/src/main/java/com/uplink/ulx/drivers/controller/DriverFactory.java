@@ -3,13 +3,14 @@ package com.uplink.ulx.drivers.controller;
 import android.content.Context;
 
 import com.uplink.ulx.TransportType;
-import com.uplink.ulx.drivers.bluetooth.ble.BleDriver;
+import com.uplink.ulx.drivers.bluetooth.ble.controller.BleDriver;
 import com.uplink.ulx.drivers.bluetooth.commons.BluetoothPermissionChecker;
 import com.uplink.ulx.utils.StringUtils;
 
 import java.lang.ref.WeakReference;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 
 /**
  * A DriverFactory is a helper class that instantiates drivers. It iterates
@@ -35,6 +36,11 @@ class DriverFactory {
      * @param networkDelegate The Driver.NetworkDelegate for all drivers.
      */
     public DriverFactory(Context context, Driver.StateDelegate stateDelegate, Driver.NetworkDelegate networkDelegate) {
+
+        Objects.requireNonNull(context);
+        Objects.requireNonNull(stateDelegate);
+        Objects.requireNonNull(networkDelegate);
+
         this.context = context;
         this.stateDelegate = new WeakReference<>(stateDelegate);
         this.networkDelegate = new WeakReference<>(networkDelegate);

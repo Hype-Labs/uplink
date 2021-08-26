@@ -79,4 +79,34 @@ public class StringUtils {
     public static String generateRandomIdentifier() {
         return UUID.randomUUID().toString();
     }
+
+    /**
+     * Compares the first `size` bytes of the given blocks of memory, returning
+     * zero if they match or a value different from zero representing which is
+     * greater if they do not. If the given byte arrays are shorter than the
+     * given size, the buffer will be read beyond its size.
+     * @param lhs A byte sequence.
+     * @param rhs Another byte sequence.
+     * @param size The amount of bytes to compare.
+     * @return A comparison value, indicating whether the two buffers are equal.
+     */
+    public static int compare(byte[] lhs, byte[] rhs, int size) {
+
+        for (int i = 0 ; i < size ; i++) {
+            if (lhs[i] != rhs[i]) {
+                if (lhs[i] >= 0 && rhs[i] >= 0)
+                    return lhs[i] - rhs[i];
+                if (lhs[i] < 0 && rhs[i] >= 0)
+                    return 1;
+                if (rhs[i] < 0 && lhs[i] >= 0)
+                    return -1;
+                if (lhs[i] < 0 && rhs[i] < 0) {
+                    byte x1 = (byte) (256 + lhs[i]);
+                    byte x2 = (byte) (256 + rhs[i]);
+                    return x1 - x2;
+                }
+            }
+        }
+        return 0;
+    }
 }

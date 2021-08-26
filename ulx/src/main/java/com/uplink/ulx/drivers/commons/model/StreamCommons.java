@@ -4,7 +4,9 @@ import com.uplink.ulx.UlxError;
 import com.uplink.ulx.drivers.commons.StateManager;
 import com.uplink.ulx.drivers.model.Stream;
 
+import java.io.ObjectStreamClass;
 import java.lang.ref.WeakReference;
+import java.util.Objects;
 
 /**
  * A StreamCommons is an abstraction of a stream base class that implements
@@ -41,6 +43,10 @@ public abstract class StreamCommons implements
      * @param invalidationDelegate The stream's InvalidationDelegate.
      */
     public StreamCommons(String identifier, int transportType, boolean reliable, Stream.InvalidationDelegate invalidationDelegate) {
+
+        Objects.requireNonNull(identifier);
+        Objects.requireNonNull(invalidationDelegate);
+
         this.identifier = identifier;
         this.stateManager = new StateManager(this);
         this.transportType = transportType;

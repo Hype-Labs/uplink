@@ -4,6 +4,9 @@ import com.uplink.ulx.drivers.model.IOResult;
 import com.uplink.ulx.drivers.model.OutputStream;
 import com.uplink.ulx.drivers.model.Stream;
 
+import java.lang.ref.WeakReference;
+import java.util.Objects;
+
 /**
  * This class implements the part of functionality that is shared by all
  * OutputStream implementations. It will mostly handle buffering, and enable
@@ -13,6 +16,8 @@ import com.uplink.ulx.drivers.model.Stream;
  */
 public abstract class OutputStreamCommons extends StreamCommons implements OutputStream, OutputStream.Delegate {
 
+    private WeakReference<OutputStream.Delegate> delegate;
+
     /**
      * Constructor. Initializes with given arguments.
      * @param identifier An identifier used for JNI bridging and debugging.
@@ -20,8 +25,25 @@ public abstract class OutputStreamCommons extends StreamCommons implements Outpu
      * @param reliable A boolean flag, indicating whether the stream is reliable.
      * @param invalidationDelegate The stream's InvalidationDelegate.
      */
-    public OutputStreamCommons(String identifier, int transportType, boolean reliable, Stream.InvalidationDelegate invalidationDelegate) {
+    public OutputStreamCommons(
+            String identifier,
+            int transportType,
+            boolean reliable,
+            Stream.InvalidationDelegate invalidationDelegate
+    ) {
         super(identifier, transportType, reliable, invalidationDelegate);
+
+        this.delegate = null;
+    }
+
+    @Override
+    public final void setDelegate(OutputStream.Delegate delegate) {
+        this.delegate = new WeakReference<>(delegate);
+    }
+
+    @Override
+    public final OutputStream.Delegate getDelegate() {
+        return this.delegate.get();
     }
 
     @Override

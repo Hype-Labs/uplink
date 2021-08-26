@@ -5,7 +5,10 @@ import com.uplink.ulx.drivers.model.InputStream;
 import com.uplink.ulx.drivers.model.Stream;
 import com.uplink.ulx.utils.ByteUtils;
 
+import java.lang.ref.WeakReference;
 import java.util.Arrays;
+import java.util.Objects;
+import java.util.WeakHashMap;
 
 /**
  * InputStreamCommons extends on the StreamCommons abstraction to include input
@@ -16,7 +19,7 @@ import java.util.Arrays;
  */
 public abstract class InputStreamCommons extends StreamCommons implements InputStream, InputStream.Delegate {
 
-    private Delegate delegate;
+    private WeakReference<Delegate> delegate;
     private boolean dataAvailableNeeded;
 
     /**
@@ -28,7 +31,12 @@ public abstract class InputStreamCommons extends StreamCommons implements InputS
      * @param reliable A boolean flag, indicating whether the stream is reliable.
      * @param invalidationDelegate The stream's InvalidationDelegate.
      */
-    public InputStreamCommons(String identifier, int transportType, boolean reliable, Stream.InvalidationDelegate invalidationDelegate) {
+    public InputStreamCommons(
+            String identifier,
+            int transportType,
+            boolean reliable,
+            Stream.InvalidationDelegate invalidationDelegate
+    ) {
         super(identifier, transportType, reliable, invalidationDelegate);
 
         this.delegate = null;
@@ -139,13 +147,13 @@ public abstract class InputStreamCommons extends StreamCommons implements InputS
     }
 
     @Override
-    public final void setDelegate(InputStream.Delegate delegate) {
-        this.delegate = delegate;
+    public void setDelegate(InputStream.Delegate delegate) {
+        this.delegate = new WeakReference<>(delegate);
     }
 
     @Override
     public final InputStream.Delegate getDelegate() {
-        return this.delegate;
+        return this.delegate.get();
     }
 
     @Override

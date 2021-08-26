@@ -2,16 +2,20 @@ package com.uplink.ulx.drivers.bluetooth.ble.gattServer;
 
 import android.annotation.TargetApi;
 import android.bluetooth.BluetoothDevice;
+import android.bluetooth.BluetoothGatt;
+import android.bluetooth.BluetoothGattDescriptor;
 import android.bluetooth.BluetoothGattServer;
+import android.bluetooth.BluetoothGattServerCallback;
 import android.bluetooth.BluetoothGattService;
 import android.bluetooth.BluetoothManager;
 import android.content.Context;
 import android.os.Build;
+import android.util.Log;
 
 import com.uplink.ulx.TransportType;
 import com.uplink.ulx.UlxError;
 import com.uplink.ulx.UlxErrorCode;
-import com.uplink.ulx.drivers.bluetooth.ble.BleDomesticService;
+import com.uplink.ulx.drivers.bluetooth.ble.model.domestic.BleDomesticService;
 import com.uplink.ulx.threading.ExecutorPool;
 
 import java.lang.ref.WeakReference;
@@ -25,7 +29,7 @@ import java.util.Objects;
  * events.
  */
 @TargetApi(Build.VERSION_CODES.JELLY_BEAN_MR2)
-public class GattServer implements GattServerCallback.Delegate {
+public class GattServer extends BluetoothGattServerCallback {
 
     /**
      * The GattServer.Delegate interface is used to keep track of weak reference
@@ -74,7 +78,6 @@ public class GattServer implements GattServerCallback.Delegate {
     private final WeakReference<Context> context;
 
     private BluetoothGattServer bluetoothGattServer;
-    private GattServerCallback gattServerCallback;
 
     /**
      * Constructor. Initializes with the given parameters.
@@ -133,24 +136,10 @@ public class GattServer implements GattServerCallback.Delegate {
         if (this.bluetoothGattServer == null) {
             this.bluetoothGattServer = getBluetoothManager().openGattServer(
                     getContext(),
-                    getGattServerCallback()
+                    this
             );
         }
         return this.bluetoothGattServer;
-    }
-
-    /**
-     * Returns the GattServerCallback instance and acts as a factory, while
-     * setting itself (this) as the delegate for the callback. This means that
-     * the GattServer will get notifications from the GattServerCallback, which
-     * in turn listen to events from the BluetoothGattServer connection.
-     * @return The GattServerCallback.
-     */
-    private GattServerCallback getGattServerCallback() {
-        if (this.gattServerCallback == null) {
-            this.gattServerCallback = new GattServerCallback(this);
-        }
-        return this.gattServerCallback;
     }
 
     /**
@@ -182,23 +171,42 @@ public class GattServer implements GattServerCallback.Delegate {
      */
     public void addService() {
 
+        Delegate delegate = getDelegate();
+
+        // Don't proceed without the delegate; is there any clean up to do?
+        if (delegate == null) {
+            return;
+        }
+
+        BluetoothGattService coreService = getDomesticService().getCoreService();
+
+        // Try adding the service, or fail. This will result in either
+        // serviceAdded() or serviceFailedToAdd() to be called, in both of
+        // which cases the lock must be released.
+        if (!getBluetoothGattServer().addService(coreService)) {
+
+            // We should check the service status for better error info
+            UlxError error = new UlxError(
+                    UlxErrorCode.UNKNOWN,
+                    "Could not advertise using Bluetooth Low Energy.",
+                    "The service could not be properly registered to initiate the activity.",
+                    "Try restarting the Bluetooth adapter."
+            );
+
+            notifyFailedServiceAddition(error);
+        }
+    }
+
+    @Override
+    public void onServiceAdded(final int status, final BluetoothGattService service) {
+        super.onServiceAdded(status, service);
+
         ExecutorPool.getExecutor(TransportType.BLUETOOTH_LOW_ENERGY).execute(() -> {
 
-            Delegate delegate = getDelegate();
+            if (status == BluetoothGatt.GATT_SUCCESS) {
+                notifyOnServiceAdded(service);
+            } else {
 
-            // Don't proceed without the delegate; is there any clean up to do?
-            if (delegate == null) {
-                return;
-            }
-
-            BluetoothGattService coreService = getDomesticService().getCoreService();
-
-            // Try adding the service, or fail. This will result in either
-            // serviceAdded() or serviceFailedToAdd() to be called, in both of
-            // which cases the lock must be released.
-            if (!getBluetoothGattServer().addService(coreService)) {
-
-                // We should check the service status for better error info
                 UlxError error = new UlxError(
                         UlxErrorCode.UNKNOWN,
                         "Could not advertise using Bluetooth Low Energy.",
@@ -206,24 +214,181 @@ public class GattServer implements GattServerCallback.Delegate {
                         "Try restarting the Bluetooth adapter."
                 );
 
-                onServiceAdditionFailed(coreService, error);
+                notifyFailedServiceAddition(error);
             }
         });
     }
 
-    @Override
-    public void onServiceAdded(BluetoothGattService service) {
+    /**
+     * This method will notify the delegate of a successful service registration
+     * within the GATT server.
+     * @param service The service that was registered.
+     */
+    private void notifyOnServiceAdded(BluetoothGattService service) {
         Delegate delegate = getDelegate();
         if (delegate != null) {
             delegate.onServiceAdded(this, service);
         }
     }
 
-    @Override
-    public void onServiceAdditionFailed(BluetoothGattService service, UlxError error) {
+    /**
+     * This method will notify the delegate of a failed process when attempting
+     * to add the service to the GATT server.
+     * @param error An error, describing the cause for the failure.
+     */
+    private void notifyFailedServiceAddition(UlxError error) {
         Delegate delegate = getDelegate();
         if (delegate != null) {
             delegate.onServiceFailedToAdd(this, error);
         }
     }
+
+    /*
+     * device The remote device that has requested the write operation
+     * requestId The Id of the request
+     * descriptor Descriptor to be written to.
+     * preparedWrite true, if this write operation should be queued for later execution.
+     * responseNeeded true, if the remote device requires a response
+     * offset The offset given for the value
+     * value The value the client wants to assign to the descriptor
+     */
+    @Override
+    public void onDescriptorWriteRequest(
+            BluetoothDevice device,
+            int requestId,
+            BluetoothGattDescriptor descriptor,
+            boolean preparedWrite,
+            boolean responseNeeded,
+            int offset,
+            byte[] value
+    ) {
+        Log.i(getClass().getCanonicalName(), "ULX descriptor got a write request");
+
+        // Respond to the requester
+        if (responseNeeded) {
+            getBluetoothGattServer().sendResponse(
+                    device,
+                    requestId,
+                    BluetoothGatt.GATT_SUCCESS,
+                    offset,
+                    value
+            );
+        }
+
+        // The connection process is completed when the reliable control
+        // characteristic is subscribed
+        if (getDomesticService().isReliableControl(descriptor)) {
+            handleDeviceConnected(device);
+        }
+
+        // When subscribing the reliable output characteristic, the devices
+        // are already connected and preparing the streams for I/O
+        else if (getDomesticService().isReliableOutput(descriptor)) {
+            Log.i(getClass().getCanonicalName(), "ULX Streams OPEN");
+        }
+/*
+
+
+        if (preparedWrite) {
+            //if this write operation should be queued for later execution.
+        } else {
+            getPeripheralBridge().add(device.getAddress(), descriptor);
+            if (characteristicUuid.equalsIgnoreCase(getDomesticService().getReliableControl().getUuid().toString())) {
+                if (descriptor.getUuid().toString().equalsIgnoreCase(getDomesticService().getDescriptorReliableControl().getUuid().toString())) {
+
+                    if (getProvider(device) != null) {
+                        // Sometimes, when a lost occurs, a value is written to the control characteristic; bug?
+                        return;
+                    }
+
+                    getPeripheralBridge().add(device, this);
+                    getDelegate().onDeviceConnected(this, device);
+                }
+            } else if (descriptor.getCharacteristic().getUuid().toString().equalsIgnoreCase(getDomesticService().getReliableOutputCharacteristic().getUuid().toString())) {
+                if (descriptor.getUuid().toString().equalsIgnoreCase(getDomesticService().getDescriptorReliableOutputRead().getUuid().toString())) {
+                    _Device provider = getProvider(device);
+                    if (provider == null) {
+                        getBluetoothGattServer().cancelConnection(device);
+                        return;
+                    }
+
+                    _InputStream inputStream = provider.getTransport().getReliableChannel().getInputStream();
+                    _OutputStream outputStream = provider.getTransport().getReliableChannel().getOutputStream();
+
+                    ((BLEDomesticInputStream) inputStream).opened();
+                    ((BLEDomesticOutputStream) outputStream).opened();
+                }
+            } else if (descriptor.getCharacteristic().getUuid().toString().equalsIgnoreCase(getDomesticService().getUnreliableOutputCharacteristic().getUuid().toString())) {
+                if (descriptor.getUuid().toString().equalsIgnoreCase(getDomesticService().getDescriptorUnreliableOutputRead().getUuid().toString())) {
+                    // Unreliable I/O not supported yet
+                }
+            }
+        }
+ */
+    }
+
+    /**
+     * Propagates a delegate notification for onDeviceConnected(), indicating
+     * that the given BluetoothDevice has subscribed the control characteristic.
+     * @param device The device that connected.
+     */
+    private void handleDeviceConnected(BluetoothDevice device) {
+        Delegate delegate = getDelegate();
+        if (delegate != null) {
+            delegate.onDeviceConnected(this, device);
+        }
+    }
+
+    /*
+    @Override
+    public void onConnectionStateChange(BluetoothDevice device, int status,
+                                        int newState) {
+        Log.i(getClass().getCanonicalName(), new Throwable().getStackTrace()[0].getMethodName());
+    }
+
+    @Override
+    public void onCharacteristicReadRequest(BluetoothDevice device, int requestId,
+                                            int offset, BluetoothGattCharacteristic characteristic) {
+        Log.i(getClass().getCanonicalName(), new Throwable().getStackTrace()[0].getMethodName());
+    }
+
+    @Override
+    public void onCharacteristicWriteRequest(BluetoothDevice device, int requestId,
+                                             BluetoothGattCharacteristic characteristic,
+                                             boolean preparedWrite, boolean responseNeeded,
+                                             int offset, byte[] value) {
+        Log.i(getClass().getCanonicalName(), new Throwable().getStackTrace()[0].getMethodName());
+    }
+
+    @Override
+    public void onDescriptorReadRequest(BluetoothDevice device, int requestId,
+                                        int offset, BluetoothGattDescriptor descriptor) {
+        Log.i(getClass().getCanonicalName(), new Throwable().getStackTrace()[0].getMethodName());
+    }
+
+    @Override
+    public void onExecuteWrite(BluetoothDevice device, int requestId, boolean execute) {
+        Log.i(getClass().getCanonicalName(), new Throwable().getStackTrace()[0].getMethodName());
+    }
+
+    @Override
+    public void onNotificationSent(BluetoothDevice device, int status) {
+        Log.i(getClass().getCanonicalName(), new Throwable().getStackTrace()[0].getMethodName());
+    }
+
+    @Override
+    public void onMtuChanged(BluetoothDevice device, int mtu) {
+        Log.i(getClass().getCanonicalName(), new Throwable().getStackTrace()[0].getMethodName());
+    }
+
+    @Override
+    public void onPhyUpdate(BluetoothDevice device, int txPhy, int rxPhy, int status) {
+        Log.i(getClass().getCanonicalName(), new Throwable().getStackTrace()[0].getMethodName());
+    }
+
+    @Override
+    public void onPhyRead(BluetoothDevice device, int txPhy, int rxPhy, int status) {
+        Log.i(getClass().getCanonicalName(), new Throwable().getStackTrace()[0].getMethodName());
+    }
+     */
 }

@@ -1,8 +1,12 @@
-package com.uplink.ulx.drivers.bluetooth.ble;
+package com.uplink.ulx.drivers.bluetooth.ble.model.foreign;
 
 import android.bluetooth.BluetoothGattCharacteristic;
 import android.bluetooth.BluetoothGattDescriptor;
 import android.bluetooth.BluetoothGattService;
+
+import com.uplink.ulx.drivers.bluetooth.ble.model.domestic.BleDomesticService;
+
+import java.util.UUID;
 
 /**
  * This class represents a service that is published by another device, hence
@@ -52,8 +56,8 @@ public class BleForeignService {
     /**
      * This method receives a BluetoothGattService and validates whether the
      * service is in accordance with the service specification given by the
-     * domesticService argument. This means that the BLE characteristics and
-     * descriptors must match the given specification. This should be called
+     * BleDomesticService specification. This means that the BLE characteristics
+     * and descriptors must match the given specification. This should be called
      * on discovered services in order to validate whether the service matches
      * the specification. If it doesn't, this method returns null and, if it
      * does, it returns an instance of BleForeignService with the parsed
@@ -62,33 +66,24 @@ public class BleForeignService {
      * that's not relevant; any form of mismatch with the specification is
      * considered a protocol violation.
      * @param bluetoothGattService The BluetoothGattService to validate.
-     * @param domesticService The domestic service specification.
      * @return A BleForeignService instance if the service validates, or null.
      */
     public static BleForeignService validateAndMake(
-            BluetoothGattService bluetoothGattService,
-            BleDomesticService domesticService
+            BluetoothGattService bluetoothGattService
     ) {
-
         // Characteristics that will be passed to the constructor
         BluetoothGattCharacteristic reliableInputWrite = null;
         BluetoothGattCharacteristic reliableOutputRead = null;
         BluetoothGattCharacteristic reliableControl = null;
-        BluetoothGattDescriptor descriptorReliableOutputRead = null;
-        BluetoothGattDescriptor descriptorReliableControl = null;
-
-        // Descriptors
-        BluetoothGattDescriptor domesticReliableOutputReadDescriptor = domesticService.getDescriptorReliableOutputRead();
-        BluetoothGattDescriptor domesticReliableControlDescriptor = domesticService.getDescriptorReliableControl();
+        BluetoothGattDescriptor descriptorReliableOutputRead;
+        BluetoothGattDescriptor descriptorReliableControl;
 
         for (BluetoothGattCharacteristic characteristic : bluetoothGattService.getCharacteristics()) {
 
             String characteristicUuid = characteristic.getUuid().toString();
-            String reliableInputUuid = domesticService.getReliableInputCharacteristic().getUuid().toString();
-            String reliableOutputUuid = domesticService.getReliableOutputCharacteristic().getUuid().toString();
 
             // Does the reliable input characteristic display reliable input properties?
-            if (reliableInputUuid.equalsIgnoreCase(characteristicUuid)) {
+            if (characteristicUuid.equalsIgnoreCase(BleDomesticService.RELIABLE_INPUT_IDENTIFIER)) {
                 if (!hasReliableInputProperties(characteristic)) {
                     return null;
                 }
@@ -97,7 +92,7 @@ public class BleForeignService {
             }
 
             // Does the reliable output characteristic display reliable output properties?
-            else if (reliableOutputUuid.equalsIgnoreCase(characteristicUuid)) {
+            else if (characteristicUuid.equalsIgnoreCase(BleDomesticService.RELIABLE_OUTPUT_IDENTIFIER)) {
                 if (!hasReliableOutputProperties(characteristic)) {
                     return null;
                 }
@@ -122,9 +117,11 @@ public class BleForeignService {
             return null;
         }
 
+        UUID descriptorUuid = UUID.fromString(BleDomesticService.DESCRIPTOR_CONFIGURATION);
+
         // Extract the descriptors
-        descriptorReliableOutputRead = reliableOutputRead.getDescriptor(domesticReliableOutputReadDescriptor.getUuid());
-        descriptorReliableControl = reliableControl.getDescriptor(domesticReliableControlDescriptor.getUuid());
+        descriptorReliableOutputRead = reliableOutputRead.getDescriptor(descriptorUuid);
+        descriptorReliableControl = reliableControl.getDescriptor(descriptorUuid);
 
         // Are the descriptors present?
         if (descriptorReliableOutputRead == null || descriptorReliableControl == null) {

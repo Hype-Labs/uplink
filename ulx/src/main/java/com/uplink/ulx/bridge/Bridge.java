@@ -1,16 +1,21 @@
 package com.uplink.ulx.bridge;
 
-import com.uplink.ulx.model.Instance;
+import android.util.Log;
+
 import com.uplink.ulx.UlxError;
-import com.uplink.ulx.threading.ExecutorPool;
-import com.uplink.ulx.utils.StringUtils;
 import com.uplink.ulx.drivers.model.Connector;
+import com.uplink.ulx.drivers.model.Device;
 import com.uplink.ulx.drivers.model.InputStream;
 import com.uplink.ulx.drivers.model.OutputStream;
 import com.uplink.ulx.drivers.model.Stream;
+import com.uplink.ulx.model.Instance;
+import com.uplink.ulx.threading.ExecutorPool;
+import com.uplink.ulx.utils.ByteUtils;
+import com.uplink.ulx.utils.StringUtils;
 
 import java.lang.ref.WeakReference;
 import java.nio.ByteBuffer;
+import java.util.HashMap;
 import java.util.UUID;
 
 /**
@@ -31,7 +36,7 @@ public class Bridge implements Connector.StateDelegate, InputStream.Delegate, Ou
      * include all sorts of events coming from the Core. For example, this will
      * include connection events, I/O, and device discovery lifecycle.
      */
-    public interface Delegate {
+    public interface StateDelegate {
 
         /**
          * This delegate notification is triggered by the Bridge when the
@@ -48,14 +53,50 @@ public class Bridge implements Connector.StateDelegate, InputStream.Delegate, Ou
         void onInitialization(Bridge bridge, Instance hostInstance);
     }
 
+    /**
+     * The NetworkDelegate gets notifications for network events coming from
+     * the bridge, such as instances being found and lost on the network.
+     */
+    public interface NetworkDelegate {
+
+        /**
+         * A new instance has been found on the network. This differs from
+         * "finding a device" in the sense that instances may correspond to
+         * a device over multiple transports, while a Device corresponds to
+         * only a single transport. For example, a device being found over
+         * Bluetooth LE corresponds to a device; if the device is also found
+         * over Infrastructure WiFi, it will be a different instance, but
+         * both will be encapsulated under the same Instance. In order to
+         * solve this problem, the implementation will have to negotiate with
+         * the remote device for some sort of proof-of-identity.
+         * @param bridge The Bridge issuing the notification.
+         * @param instance The instance that was found.
+         */
+        void onInstanceFound(Bridge bridge, Instance instance);
+
+        /**
+         * When this delegate method is called, the given instance cannot be
+         * reached over any type of transport. This means that the last
+         * transport to be aware of it also lost it, and thus the instance
+         * is not reachable in any way.
+         * @param bridge The Bridge issuing the notification.
+         * @param instance The instance that was lost.
+         * @param error An error, providing an explanation for the loss.
+         */
+        void onInstanceLost(Bridge bridge, Instance instance, UlxError error);
+    }
+
     private static Bridge instance = null;
-    private WeakReference<Delegate> delegate;
+
+    private WeakReference<StateDelegate> stateDelegate;
+    private WeakReference<NetworkDelegate> networkDelegate;
 
     /**
      * Private constructor prevents instantiation.
      */
     private Bridge() {
-        this.delegate = null;
+        this.stateDelegate = null;
+        this.networkDelegate = null;
     }
 
     /**
@@ -70,22 +111,42 @@ public class Bridge implements Connector.StateDelegate, InputStream.Delegate, Ou
     }
 
     /**
-     * Sets the delegate that will receive notifications from the bridge, while
-     * keeping a weak reference to it.
-     * @param delegate The delegate to set.
+     * Sets the state delegate that will receive notifications from the bridge,
+     * while keeping a weak reference to it.
+     * @param stateDelegate The state delegate (StateDelegate) to set.
      */
-    public final void setDelegate(Delegate delegate) {
-        this.delegate = new WeakReference<>(delegate);
+    public final void setStateDelegate(StateDelegate stateDelegate) {
+        this.stateDelegate = new WeakReference<>(stateDelegate);
     }
 
     /**
-     * Returns the delegate that has previously been set. It's notable that if
-     * the delegate was not previously set, this method will raise a null
-     * pointer exception.
+     * Returns the state delegate that has previously been set. It's notable
+     * that if the delegate was not previously set, this method will raise a
+     * null pointer exception.
      * @return The bridge's delegate.
      */
-    private Delegate getDelegate() {
-        return this.delegate.get();
+    private StateDelegate getStateDelegate() {
+        return this.stateDelegate.get();
+    }
+
+    /**
+     * Sets the network delegate that will receive notifications from the
+     * bridge with respect to network events. The delegate is kept as a weak
+     * reference.
+     * @param networkDelegate The network delegate (NetworkDelegate) to set.
+     */
+    public final void setNetworkDelegate(NetworkDelegate networkDelegate) {
+        this.networkDelegate = new WeakReference<>(networkDelegate);
+    }
+
+    /**
+     * Returns the delegate that has previously been set for receiving network
+     * event notifications. If none has been set, this method raises a null
+     * pointer exception.
+     * @return The network delegate ({@code NetworkDelegate}).
+     */
+    private NetworkDelegate getNetworkDelegate() {
+        return this.networkDelegate.get();
     }
 
     /**
@@ -118,7 +179,7 @@ public class Bridge implements Connector.StateDelegate, InputStream.Delegate, Ou
 
             // If the Bridge was deallocated in the meanwhile, do nothing.
             if (strongSelf != null) {
-                strongSelf.getDelegate().onInitialization(strongSelf, hostInstance);
+                strongSelf.getStateDelegate().onInitialization(strongSelf, hostInstance);
             }
         });
     }
@@ -195,15 +256,16 @@ public class Bridge implements Connector.StateDelegate, InputStream.Delegate, Ou
     }
 
     @Override
-    public void onConnect(Connector connector) {
+    public void onConnected(Connector connector) {
+        Log.i(getClass().getCanonicalName(), "ULX bridge connector connected");
     }
 
     @Override
-    public void onDisconnect(Connector connector, UlxError error) {
+    public void onDisconnection(Connector connector, UlxError error) {
     }
 
     @Override
-    public void onFailedConnect(Connector connector, UlxError error) {
+    public void onConnectionFailure(Connector connector, UlxError error) {
     }
 
     @Override
@@ -232,5 +294,33 @@ public class Bridge implements Connector.StateDelegate, InputStream.Delegate, Ou
 
     @Override
     public void onStateChange(Stream stream) {
+    }
+
+    /**
+     * This is a temporary data structure that is currently being managed by
+     * this bridge, but that in the future will be implemented by the native
+     * bridge. This happens in this way because the current version does not
+     * yet implement the native JNI bridge. When it does, the native
+     * implementation will be the one managing Device-to-Instance mappings.
+     * This is also simplified over the fact that the implementation currently
+     * only supports BLE.
+     */
+    private HashMap<Device, Instance> instanceRegistry;
+
+    private HashMap<Device, Instance> getInstanceRegistry() {
+        if (this.instanceRegistry == null) {
+            this.instanceRegistry = new HashMap<>();
+        }
+        return this.instanceRegistry;
+    }
+
+    public void addDevice(Device device) {
+
+        byte[] identifier = ByteUtils.uuidToBytes(UUID.fromString(device.getIdentifier()));
+        Instance instance = new Instance(identifier);
+
+        getInstanceRegistry().put(device, instance);
+
+        getNetworkDelegate().onInstanceFound(this, instance);
     }
 }

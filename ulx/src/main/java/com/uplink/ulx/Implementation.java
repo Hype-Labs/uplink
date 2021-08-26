@@ -1,12 +1,10 @@
 package com.uplink.ulx;
 
-import android.content.ComponentName;
 import android.content.Context;
-import android.content.Intent;
-import android.content.ServiceConnection;
-import android.os.IBinder;
+import android.util.Log;
 
 import com.uplink.ulx.drivers.commons.StateManager;
+import com.uplink.ulx.drivers.model.Device;
 import com.uplink.ulx.model.Instance;
 import com.uplink.ulx.model.State;
 import com.uplink.ulx.observers.MessageObserver;
@@ -37,7 +35,11 @@ import java.util.Objects;
  * delegates. This makes it a facade implementation as well, since it exposes
  * an API that enables consuming all features within the SDK.
  */
-public class Implementation implements StateManager.Delegate, Service.Delegate {
+public class Implementation implements
+        StateManager.Delegate,
+        Service.StateDelegate,
+        Service.NetworkDelegate
+{
 
     private static Implementation instance;
 
@@ -312,7 +314,8 @@ public class Implementation implements StateManager.Delegate, Service.Delegate {
         // this method should bind the service, and wait for the bind to occur
         // before proceeding with the initialization.
         this.service = new Service();
-        this.service.setDelegate(this);
+        this.service.setStateDelegate(this);
+        this.service.setNetworkDelegate(this);
         this.service.setContext(getContext());
 
         getService().initialize(getAppIdentifier());
@@ -469,5 +472,15 @@ public class Implementation implements StateManager.Delegate, Service.Delegate {
                 stateObserver.onUlxStateChange();
             }
         });
+    }
+
+    @Override
+    public void onInstanceFound(Service service, Instance instance) {
+        Log.i(getClass().getCanonicalName(), String.format("ULX found instance %s", instance.getStringIdentifier()));
+    }
+
+    @Override
+    public void onInstanceLost(Service service, Instance instance, UlxError error) {
+        Log.i(getClass().getCanonicalName(), String.format("ULX lost instance %s", instance.getStringIdentifier()));
     }
 }

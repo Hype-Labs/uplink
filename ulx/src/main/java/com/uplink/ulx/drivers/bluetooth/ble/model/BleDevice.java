@@ -1,4 +1,4 @@
-package com.uplink.ulx.drivers.bluetooth.ble;
+package com.uplink.ulx.drivers.bluetooth.ble.model;
 
 import com.uplink.ulx.TransportType;
 import com.uplink.ulx.drivers.model.Connector;
@@ -12,7 +12,7 @@ import com.uplink.ulx.drivers.commons.model.DeviceCommons;
  * the abstraction simply serves as a means to identify the transport over
  * which the device was found. This, however, may change in the future.
  */
-class BleDevice extends DeviceCommons {
+public class BleDevice extends DeviceCommons {
 
     /**
      * Constructor. Initializes with the given arguments.

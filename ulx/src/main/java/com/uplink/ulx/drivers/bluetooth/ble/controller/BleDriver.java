@@ -1,9 +1,10 @@
-package com.uplink.ulx.drivers.bluetooth.ble;
+package com.uplink.ulx.drivers.bluetooth.ble.controller;
 
 import android.bluetooth.BluetoothManager;
 import android.content.Context;
 
 import com.uplink.ulx.TransportType;
+import com.uplink.ulx.drivers.bluetooth.ble.model.domestic.BleDomesticService;
 import com.uplink.ulx.drivers.controller.Advertiser;
 import com.uplink.ulx.drivers.bluetooth.commons.BluetoothStateListener;
 import com.uplink.ulx.drivers.controller.Browser;
@@ -76,6 +77,7 @@ public class BleDriver extends DriverCommons implements Driver {
                     getContext()
             );
             this.advertiser.setStateDelegate(this);
+            this.advertiser.setNetworkDelegate(this);
         }
         return this.advertiser;
     }
@@ -90,6 +92,7 @@ public class BleDriver extends DriverCommons implements Driver {
                     getContext()
             );
             this.browser.setStateDelegate(this);
+            this.browser.setNetworkDelegate(this);
         }
         return this.browser;
     }

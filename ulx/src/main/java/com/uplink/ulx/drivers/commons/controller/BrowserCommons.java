@@ -7,6 +7,7 @@ import com.uplink.ulx.drivers.commons.StateManager;
 import com.uplink.ulx.drivers.controller.Browser;
 import com.uplink.ulx.drivers.model.Connector;
 import com.uplink.ulx.drivers.model.Device;
+import com.uplink.ulx.drivers.model.Stream;
 
 import java.lang.ref.WeakReference;
 import java.util.Objects;
@@ -27,8 +28,9 @@ public abstract class BrowserCommons implements
         Browser.StateDelegate,
         Browser.NetworkDelegate,
         StateManager.Delegate,
-        Connector.InvalidationDelegate {
-
+        Connector.InvalidationDelegate,
+        Stream.InvalidationDelegate
+{
     private final String identifier;
     private final int transportType;
     private final StateManager stateManager;
@@ -229,5 +231,10 @@ public abstract class BrowserCommons implements
         if (stateDelegate != null) {
             stateDelegate.onReady(this);
         }
+    }
+
+    @Override
+    public void onInvalidation(Stream stream, UlxError error) {
+        // TODO
     }
 }

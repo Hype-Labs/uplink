@@ -4,6 +4,7 @@ import android.content.Context;
 import android.content.Intent;
 import android.os.Binder;
 import android.os.IBinder;
+import android.util.Log;
 
 import com.uplink.ulx.UlxError;
 import com.uplink.ulx.bridge.Bridge;
@@ -24,7 +25,12 @@ import java.util.UUID;
  * of RPC calls, and the Service will notify those components back through
  * means of a delegate.
  */
-public class Service extends android.app.Service implements Driver.StateDelegate, Driver.NetworkDelegate, Bridge.Delegate {
+public class Service extends android.app.Service implements
+        Driver.StateDelegate,
+        Driver.NetworkDelegate,
+        Bridge.StateDelegate,
+        Bridge.NetworkDelegate
+{
 
     /**
      * The Service Delegate receives notifications from the background service
@@ -32,7 +38,7 @@ public class Service extends android.app.Service implements Driver.StateDelegate
      * of state changes on the SDK, ranging from lifecycle, device discovery,
      * and I/O, since all of those run on the background service.
      */
-    public interface Delegate {
+    public interface StateDelegate {
 
         /**
          * This method is called by the Service once the background service has
@@ -104,6 +110,37 @@ public class Service extends android.app.Service implements Driver.StateDelegate
     }
 
     /**
+     * The NetworkDelegate gets notifications for network events coming from
+     * the service, such as instances being found and lost on the network.
+     */
+    public interface NetworkDelegate {
+
+        /**
+         * A new instance has been found on the network. This differs from
+         * "finding a device" in the sense that instances may correspond to
+         * a device over multiple transports, while a Device corresponds to
+         * only a single transport. For example, a device being found over
+         * Bluetooth LE corresponds to a device; if the device is also found
+         * over Infrastructure WiFi, it will be a different instance, but
+         * both will be encapsulated under the same Instance.
+         * @param service The Service issuing the notification.
+         * @param instance The instance that was found.
+         */
+        void onInstanceFound(Service service, Instance instance);
+
+        /**
+         * When this delegate method is called, the given instance cannot be
+         * reached over any type of transport. This means that the last
+         * transport to be aware of it also lost it, and thus the instance
+         * is not reachable in any way.
+         * @param service The Service issuing the notification.
+         * @param instance The instance that was lost.
+         * @param error An error, providing an explanation for the loss.
+         */
+        void onInstanceLost(Service service, Instance instance, UlxError error);
+    }
+
+    /**
      * This is service Binder, specifically for the Service calls, that is used
      * for the RPC mechanism used by the service to communicate with the app.
      */
@@ -123,34 +160,56 @@ public class Service extends android.app.Service implements Driver.StateDelegate
     private Context context;
     private final IBinder binder;
     private DriverManager driverManager;
-    private WeakReference<Delegate> delegate;
+    private WeakReference<StateDelegate> stateDelegate;
+    private WeakReference<NetworkDelegate> networkDelegate;
 
     /**
      * Sole constructor, initializes some variables.
      */
     public Service() {
 
-        this.delegate = null;
+        this.stateDelegate = null;
+        this.networkDelegate = null;
+
         this.binder = new LocalBinder();
     }
 
     /**
-     * Sets the delegate for the service, which will get notifications from it.
-     * This delegate is not initialized at construction time because of the way
-     * in which services are instantiated, so it must be set after that.
-     * @param delegate The delegate to set.
+     * Sets the state delegate for the service, which will get notifications
+     * from it. This delegate is not initialized at construction time because
+     * of the way in which services are instantiated, so it must be set after
+     * that.
+     * @param stateDelegate The delegate to set.
      */
-    public final void setDelegate(Delegate delegate) {
-        this.delegate = new WeakReference<>(delegate);
+    public final void setStateDelegate(StateDelegate stateDelegate) {
+        this.stateDelegate = new WeakReference<>(stateDelegate);
     }
 
     /**
-     * Returns the delegate for the service. A weak reference is returned. If
-     * no delegate was set, this returns a weak reference to null.
+     * Returns the state delegate for the service. A strong reference is
+     * returned if the delegate has been set; if not, this method returns
+     * null.
      * @return The service's delegate.
      */
-    public final Delegate getDelegate() {
-        return this.delegate != null ? this.delegate.get() : null;
+    private StateDelegate getStateDelegate() {
+        return this.stateDelegate != null ? this.stateDelegate.get() : null;
+    }
+
+    /**
+     * Sets the network delegate ({@code NetworkDelegate}) that will get
+     * notifications from the service.
+     */
+    public final void setNetworkDelegate(NetworkDelegate networkDelegate) {
+        this.networkDelegate = new WeakReference<>(networkDelegate);
+    }
+
+    /**
+     * Returns the network delegate ({@code NetworkDelegate}) that will get
+     * notifications from the service.
+     * @return The network delegate ({@code NetworkDelegate}).
+     */
+    private NetworkDelegate getNetworkDelegate() {
+        return this.networkDelegate != null ? this.networkDelegate.get() : null;
     }
 
     /**
@@ -238,69 +297,89 @@ public class Service extends android.app.Service implements Driver.StateDelegate
      * @param appIdentifier The app identifier for the SDK instance.
      */
     public void initialize(String appIdentifier) {
-        Bridge.getInstance().setDelegate(this);
+        Bridge.getInstance().setStateDelegate(this);
+        Bridge.getInstance().setNetworkDelegate(this);
         Bridge.getInstance().initialize(appIdentifier);
     }
 
     @Override
     public void onInitialization(Bridge bridge, Instance hostInstance) {
-        Delegate delegate = getDelegate();
+        StateDelegate stateDelegate = getStateDelegate();
 
-        if (delegate != null) {
-            delegate.onInitialization(this, hostInstance);
+        if (stateDelegate != null) {
+            stateDelegate.onInitialization(this, hostInstance);
         }
     }
 
     @Override
     public void onStart(Driver driver) {
-        Delegate delegate = getDelegate();
+        StateDelegate stateDelegate = getStateDelegate();
 
-        if (delegate != null) {
-            delegate.onStart(this);
+        if (stateDelegate != null) {
+            stateDelegate.onStart(this);
         }
     }
 
     @Override
     public void onStop(Driver driver, UlxError error) {
-        Delegate delegate = getDelegate();
+        StateDelegate stateDelegate = getStateDelegate();
 
-        if (delegate != null) {
-            delegate.onStop(this, error);
+        if (stateDelegate != null) {
+            stateDelegate.onStop(this, error);
         }
     }
 
     @Override
     public void onFailedStart(Driver driver, UlxError error) {
-        Delegate delegate = getDelegate();
+        StateDelegate stateDelegate = getStateDelegate();
 
-        if (delegate != null) {
-            delegate.onFailedStart(this, error);
+        if (stateDelegate != null) {
+            stateDelegate.onFailedStart(this, error);
         }
     }
 
     @Override
     public void onReady(Driver driver) {
-        Delegate delegate = getDelegate();
-
-        if (delegate != null) {
-            delegate.onReady(this);
+        StateDelegate stateDelegate = getStateDelegate();
+        if (stateDelegate != null) {
+            stateDelegate.onReady(this);
         }
     }
 
     @Override
     public void onStateChange(Driver driver) {
-        Delegate delegate = getDelegate();
-
-        if (delegate != null) {
-            delegate.onStateChange(this);
+        StateDelegate stateDelegate = getStateDelegate();
+        if (stateDelegate != null) {
+            stateDelegate.onStateChange(this);
         }
     }
 
     @Override
     public void onDeviceFound(Driver driver, Device device) {
+        Log.i(getClass().getCanonicalName(), String.format("ULX found device %s", device.getIdentifier()));
+
+        // Register the device with the bridge
+        Bridge.getInstance().addDevice(device);
     }
 
     @Override
     public void onDeviceLost(Driver driver, Device device, UlxError error) {
+        Log.i(getClass().getCanonicalName(), String.format("ULX lost device %s", device.getIdentifier()));
+    }
+
+    @Override
+    public void onInstanceFound(Bridge bridge, Instance instance) {
+        NetworkDelegate networkDelegate = getNetworkDelegate();
+        if (networkDelegate != null) {
+            networkDelegate.onInstanceFound(this, instance);
+        }
+    }
+
+    @Override
+    public void onInstanceLost(Bridge bridge, Instance instance, UlxError error) {
+        NetworkDelegate networkDelegate = getNetworkDelegate();
+        if (networkDelegate != null) {
+            networkDelegate.onInstanceLost(this, instance, error);
+        }
     }
 }

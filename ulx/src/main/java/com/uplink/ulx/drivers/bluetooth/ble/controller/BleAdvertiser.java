@@ -1,4 +1,4 @@
-package com.uplink.ulx.drivers.bluetooth.ble;
+package com.uplink.ulx.drivers.bluetooth.ble.controller;
 
 import android.annotation.TargetApi;
 import android.bluetooth.BluetoothAdapter;
@@ -13,12 +13,14 @@ import android.content.Context;
 import android.os.Build;
 import android.os.Handler;
 import android.os.ParcelUuid;
+import android.util.Log;
 
 import com.uplink.ulx.TransportType;
 import com.uplink.ulx.UlxError;
 import com.uplink.ulx.UlxErrorCode;
+import com.uplink.ulx.drivers.bluetooth.ble.model.domestic.BleDomesticConnector;
+import com.uplink.ulx.drivers.bluetooth.ble.model.domestic.BleDomesticService;
 import com.uplink.ulx.drivers.controller.Advertiser;
-import com.uplink.ulx.drivers.controller.Browser;
 import com.uplink.ulx.drivers.model.Connector;
 import com.uplink.ulx.drivers.bluetooth.ble.gattServer.GattServer;
 import com.uplink.ulx.drivers.bluetooth.commons.BluetoothStateListener;
@@ -305,6 +307,14 @@ class BleAdvertiser extends AdvertiserCommons implements
 
     @Override
     public void onDeviceConnected(GattServer gattServer, BluetoothDevice device) {
+        Log.i(getClass().getCanonicalName(), String.format("ULX bluetooth device connected %s", device.getAddress()));
+
+        Connector connector = new BleDomesticConnector("", gattServer, device, getDomesticService());
+
+        //connector.setStateDelegate(this);
+        connector.setInvalidationDelegate(this);
+
+        connector.connect();
     }
 
     @Override
@@ -385,13 +395,15 @@ class BleAdvertiser extends AdvertiserCommons implements
 
         // Advertise data with the service UUID so that the browser is capable
         // of recognizing the service.
-        return new AdvertiseData.Builder()
+        AdvertiseData advertiseData = new AdvertiseData.Builder()
                 .setIncludeDeviceName(false)
                 .setIncludeTxPowerLevel(false)
                 .addServiceUuid(parcelUuidService)
                 .addServiceData(parcelUuid16BitsService, controlValue)
                 .build()
                 ;
+
+        return advertiseData;
     }
 
     /**

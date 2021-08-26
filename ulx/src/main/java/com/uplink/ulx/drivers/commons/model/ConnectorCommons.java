@@ -133,7 +133,9 @@ public abstract class ConnectorCommons implements
 
     @Override
     public void connect() {
-        getExecutorService().execute(() -> getStateManager().start());
+        getExecutorService().execute(
+                () -> getStateManager().start()
+        );
     }
 
     @Override
@@ -150,7 +152,7 @@ public abstract class ConnectorCommons implements
     public void onStart(StateManager stateManager) {
         StateDelegate stateDelegate = this.getStateDelegate();
         if (stateDelegate != null) {
-            stateDelegate.onConnect(this);
+            stateDelegate.onConnected(this);
         }
     }
 
@@ -158,7 +160,7 @@ public abstract class ConnectorCommons implements
     public void onStop(StateManager stateManager, UlxError error) {
         StateDelegate stateDelegate = this.getStateDelegate();
         if (stateDelegate != null) {
-            stateDelegate.onDisconnect(this, error);
+            stateDelegate.onDisconnection(this, error);
         }
     }
 
@@ -171,7 +173,7 @@ public abstract class ConnectorCommons implements
     public void onFailedStart(StateManager stateManager, UlxError error) {
         StateDelegate stateDelegate = this.getStateDelegate();
         if (stateDelegate != null) {
-            stateDelegate.onFailedConnect(this, error);
+            stateDelegate.onConnectionFailure(this, error);
         }
     }
 
@@ -184,18 +186,17 @@ public abstract class ConnectorCommons implements
     }
 
     @Override
-    public void onConnect(Connector connector) {
+    public void onConnected(Connector connector) {
         getStateManager().notifyStart();
     }
 
     @Override
-    public void onDisconnect(Connector connector, UlxError error) {
+    public void onDisconnection(Connector connector, UlxError error) {
         getStateManager().notifyStop(error);
-
     }
 
     @Override
-    public void onFailedConnect(Connector connector, UlxError error) {
+    public void onConnectionFailure(Connector connector, UlxError error) {
         getStateManager().notifyFailedStart(error);
     }
 

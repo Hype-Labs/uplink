@@ -1,12 +1,14 @@
-package com.uplink.ulx.drivers.bluetooth.ble;
+package com.uplink.ulx.drivers.bluetooth.ble.model.domestic;
 
 import android.bluetooth.BluetoothGattCharacteristic;
 import android.bluetooth.BluetoothGattDescriptor;
 import android.bluetooth.BluetoothGattService;
+import android.util.Log;
 
 import com.uplink.ulx.utils.StringUtils;
 
 import java.util.Arrays;
+import java.util.Objects;
 import java.util.UUID;
 
 /**
@@ -33,12 +35,12 @@ public class BleDomesticService {
     private static final String GATT_SERVICE_IDENTIFIER = "B7912165-5ABC-4EE0-9F33-835FE8D8DE1A";
 
     // Characteristic identifiers (the unreliable ones are not used yet)
-    private static final String RELIABLE_INPUT_IDENTIFIER = "6BD2F771-CA1E-4D8F-AC93-79129E5D8A30";
-    private static final String RELIABLE_OUTPUT_IDENTIFIER = "C869D972-E667-49BA-A0D2-1EC2BD45D6B7";
+    public static final String RELIABLE_INPUT_IDENTIFIER = "6BD2F771-CA1E-4D8F-AC93-79129E5D8A30";
+    public static final String RELIABLE_OUTPUT_IDENTIFIER = "C869D972-E667-49BA-A0D2-1EC2BD45D6B7";
     private static final String UNRELIABLE_INPUT_IDENTIFIER = "00AA86C3-9BB1-48C2-A4C4-6A575BA43E35";
     private static final String UNRELIABLE_OUTPUT_IDENTIFIER = "4E6EFC38-6A36-4822-A863-6CC415C7C86C";
 
-    private static final String DESCRIPTOR_CONFIGURATION = "00002902-0000-1000-8000-00805F9B34FB";
+    public static final String DESCRIPTOR_CONFIGURATION = "00002902-0000-1000-8000-00805F9B34FB";
 
     private String gattServiceCharacteristicControlIdentifier;
     private byte [] controlValue;
@@ -224,6 +226,28 @@ public class BleDomesticService {
             );
         }
         return this.reliableDescriptorControl;
+    }
+
+    public boolean isReliableControl(BluetoothGattCharacteristic characteristic) {
+        String characteristicUuid = characteristic.getUuid().toString();
+        String reliableControlUuid = Objects.requireNonNull(getReliableControl()).getUuid().toString();
+
+        return characteristicUuid.equalsIgnoreCase(reliableControlUuid);
+    }
+
+    public boolean isReliableOutput(BluetoothGattCharacteristic characteristic) {
+        String characteristicUuid = characteristic.getUuid().toString();
+        String reliableOutputUuid = Objects.requireNonNull(getReliableOutputCharacteristic()).getUuid().toString();
+
+        return characteristicUuid.equalsIgnoreCase(reliableOutputUuid);
+    }
+
+    public boolean isReliableControl(BluetoothGattDescriptor descriptor) {
+        return isReliableControl(descriptor.getCharacteristic());
+    }
+
+    public boolean isReliableOutput(BluetoothGattDescriptor descriptor) {
+        return isReliableOutput(descriptor.getCharacteristic());
     }
 
     /**
