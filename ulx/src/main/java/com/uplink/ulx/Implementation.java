@@ -1,11 +1,13 @@
 package com.uplink.ulx;
 
 import android.content.Context;
+import android.net.Network;
 import android.util.Log;
 
 import com.uplink.ulx.drivers.commons.StateManager;
-import com.uplink.ulx.drivers.model.Device;
 import com.uplink.ulx.model.Instance;
+import com.uplink.ulx.model.Message;
+import com.uplink.ulx.model.MessageInfo;
 import com.uplink.ulx.model.State;
 import com.uplink.ulx.observers.MessageObserver;
 import com.uplink.ulx.observers.NetworkObserver;
@@ -53,6 +55,9 @@ public class Implementation implements
 
     private StateManager stateManager;
     private Service service;
+
+    private static final int MAX_MESSAGE_IDENTIFIER = 65536;
+    private static int messageIdentifier = 0;
 
     /**
      * Private constructor prevents instantiation.
@@ -367,9 +372,7 @@ public class Implementation implements
      */
     private void notifyStart() {
         ExecutorPool.getMainExecutor().execute(() -> {
-            ArrayList<StateObserver> allStateObservers = new ArrayList<>(getStateObservers());
-
-            for (StateObserver stateObserver : allStateObservers) {
+            for (StateObserver stateObserver : getStateObservers()) {
                 stateObserver.onUlxStart();
             }
         });
@@ -381,9 +384,7 @@ public class Implementation implements
      */
     private void notifyReady() {
         ExecutorPool.getMainExecutor().execute(() -> {
-            ArrayList<StateObserver> allStateObservers = new ArrayList<>(getStateObservers());
-
-            for (StateObserver stateObserver : allStateObservers) {
+            for (StateObserver stateObserver : getStateObservers()) {
                 stateObserver.onUlxReady();
             }
         });
@@ -424,9 +425,7 @@ public class Implementation implements
      */
     private void notifyStop(final UlxError error) {
         ExecutorPool.getMainExecutor().execute(() -> {
-            ArrayList<StateObserver> allStateObservers = new ArrayList<>(getStateObservers());
-
-            for (StateObserver stateObserver : allStateObservers) {
+            for (StateObserver stateObserver : getStateObservers()) {
                 stateObserver.onUlxStop(error);
             }
         });
@@ -446,9 +445,7 @@ public class Implementation implements
      */
     private void notifyFailedStart(final UlxError error) {
         ExecutorPool.getMainExecutor().execute(() -> {
-            ArrayList<StateObserver> allStateObservers = new ArrayList<>(getStateObservers());
-
-            for (StateObserver stateObserver : allStateObservers) {
+            for (StateObserver stateObserver : getStateObservers()) {
                 stateObserver.onUlxFailedStarting(error);
             }
         });
@@ -466,9 +463,7 @@ public class Implementation implements
      */
     private void notifyStateChange() {
         ExecutorPool.getMainExecutor().execute(() -> {
-            ArrayList<StateObserver> allStateObservers = new ArrayList<>(getStateObservers());
-
-            for (StateObserver stateObserver : allStateObservers) {
+            for (StateObserver stateObserver : getStateObservers()) {
                 stateObserver.onUlxStateChange();
             }
         });
@@ -477,10 +472,105 @@ public class Implementation implements
     @Override
     public void onInstanceFound(Service service, Instance instance) {
         Log.i(getClass().getCanonicalName(), String.format("ULX found instance %s", instance.getStringIdentifier()));
+        notifyInstanceFound(instance);
+    }
+
+    /**
+     * Propagates the notification of an {@code Instance} being found to all
+     * network observers.
+     * @param instance The {@code Instance} that was found.
+     */
+    private void notifyInstanceFound(Instance instance) {
+        ExecutorPool.getMainExecutor().execute(() -> {
+            for (NetworkObserver networkObserver : getNetworkObservers()) {
+                networkObserver.onUlxInstanceFound(instance);
+            }
+        });
     }
 
     @Override
     public void onInstanceLost(Service service, Instance instance, UlxError error) {
         Log.i(getClass().getCanonicalName(), String.format("ULX lost instance %s", instance.getStringIdentifier()));
+        notifyInstanceLost(instance, error);
+    }
+
+    /**
+     * Propagates the notification of an {@code Instance} being lost to all
+     * network observers.
+     * @param instance The {@code Instance} that was lost.
+     * @param error An error, describing the cause for the loss.
+     */
+    private void notifyInstanceLost(Instance instance, UlxError error) {
+        ExecutorPool.getMainExecutor().execute(() -> {
+            for (NetworkObserver networkObserver : getNetworkObservers()) {
+                networkObserver.onUlxInstanceLost(instance, error);
+            }
+        });
+    }
+
+    /**
+     * This method attempts to send a message to a given instance. The instance
+     * must be a previously found and not lost instance, or else this method
+     * fails with an error. It returns immediately (non blocking), queues the
+     * data to be sent, and returns the message (Message) that was created for
+     * wrapping the data.
+     * @param data The data to be sent.
+     * @param instance The destination instance.
+     * @param trackProgress Whether to track delivery progress.
+     * @return A message wrapper containing some metadata.
+     */
+    public synchronized Message send(byte [] data, Instance instance, boolean trackProgress) {
+
+        Objects.requireNonNull(data);
+        Objects.requireNonNull(instance);
+
+        // Create the Message container
+        int messageIdentifier = generateMessageIdentifier();
+        MessageInfo messageInfo = new MessageInfo(messageIdentifier);
+        Message message = new Message(messageInfo, data);
+
+        if (getState() == State.RUNNING) {
+            getService().send(messageInfo.getIdentifier(), data, instance, trackProgress);
+        } else {
+
+            // The service is not available
+            UlxError error = new UlxError(
+                    UlxErrorCode.NOT_CONNECTED,
+                    "Failed to send data to the given destination.",
+                    "The background service was not initialized or failed to start.",
+                    "Try restarting the app."
+            );
+
+            // Notify the delegate
+            notifyMessageSendFailure(messageInfo, instance, error);
+        }
+
+        return message;
+    }
+
+    private void notifyMessageSendFailure(final MessageInfo messageInfo, Instance instance, UlxError error) {
+        ExecutorPool.getMainExecutor().execute(() -> {
+            for (MessageObserver messageObserver : getMessageObservers()) {
+                messageObserver.onUlxMessageFailedSending(messageInfo, instance, error);
+            }
+        });
+    }
+
+    /**
+     * Incrementally generates message identifiers. Everytime this is called, a
+     * new message identifier is returned, equal to the previous one added by 1.
+     * When the maximum message ID is reached, the values cycle back to zero,
+     * effectively restarting the numeration sequence.
+     * @return A new message identifier.
+     */
+    private static int generateMessageIdentifier() {
+
+        Implementation.messageIdentifier++;
+
+        if (Implementation.messageIdentifier == MAX_MESSAGE_IDENTIFIER) {
+            Implementation.messageIdentifier = 0;
+        }
+
+        return Implementation.messageIdentifier;
     }
 }

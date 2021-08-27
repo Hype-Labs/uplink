@@ -18,14 +18,27 @@ import android.util.Log;
 import com.uplink.ulx.TransportType;
 import com.uplink.ulx.UlxError;
 import com.uplink.ulx.UlxErrorCode;
+import com.uplink.ulx.drivers.bluetooth.ble.model.BleChannel;
+import com.uplink.ulx.drivers.bluetooth.ble.model.BleDevice;
+import com.uplink.ulx.drivers.bluetooth.ble.model.BleTransport;
 import com.uplink.ulx.drivers.bluetooth.ble.model.domestic.BleDomesticConnector;
+import com.uplink.ulx.drivers.bluetooth.ble.model.domestic.BleDomesticInputStream;
+import com.uplink.ulx.drivers.bluetooth.ble.model.domestic.BleDomesticOutputStream;
 import com.uplink.ulx.drivers.bluetooth.ble.model.domestic.BleDomesticService;
 import com.uplink.ulx.drivers.controller.Advertiser;
+import com.uplink.ulx.drivers.model.Channel;
 import com.uplink.ulx.drivers.model.Connector;
 import com.uplink.ulx.drivers.bluetooth.ble.gattServer.GattServer;
 import com.uplink.ulx.drivers.bluetooth.commons.BluetoothStateListener;
 import com.uplink.ulx.drivers.commons.controller.AdvertiserCommons;
+import com.uplink.ulx.drivers.model.Device;
+import com.uplink.ulx.drivers.model.InputStream;
+import com.uplink.ulx.drivers.model.OutputStream;
+import com.uplink.ulx.drivers.model.Stream;
+import com.uplink.ulx.drivers.model.Transport;
 import com.uplink.ulx.threading.ExecutorPool;
+
+import java.util.UUID;
 
 /**
  * The BleAdvertiser is the implementation of the Advertiser interface that
@@ -38,8 +51,10 @@ import com.uplink.ulx.threading.ExecutorPool;
 @TargetApi(Build.VERSION_CODES.LOLLIPOP)
 class BleAdvertiser extends AdvertiserCommons implements
         GattServer.Delegate,
-        BluetoothStateListener.Observer {
-
+        BluetoothStateListener.Observer,
+        Connector.StateDelegate,
+        Stream.InvalidationDelegate
+{
     private final BluetoothManager bluetoothManager;
     private BluetoothAdapter bluetoothAdapter;
     private BluetoothLeAdvertiser bluetoothLeAdvertiser;
@@ -303,18 +318,29 @@ class BleAdvertiser extends AdvertiserCommons implements
 
     @Override
     public void destroy() {
+        // TODO
     }
 
     @Override
     public void onDeviceConnected(GattServer gattServer, BluetoothDevice device) {
         Log.i(getClass().getCanonicalName(), String.format("ULX bluetooth device connected %s", device.getAddress()));
 
-        Connector connector = new BleDomesticConnector("", gattServer, device, getDomesticService());
+        Connector connector = new BleDomesticConnector(
+                UUID.randomUUID().toString(),
+                gattServer,
+                device,
+                getDomesticService()
+        );
 
-        //connector.setStateDelegate(this);
+        connector.setStateDelegate(this);
         connector.setInvalidationDelegate(this);
 
         connector.connect();
+    }
+
+    @Override
+    public void onOutputStreamSubscribed(GattServer gattServer, BluetoothDevice device) {
+        throw new RuntimeException("Continue from here on Monday");
     }
 
     @Override
@@ -332,6 +358,10 @@ class BleAdvertiser extends AdvertiserCommons implements
 
     @Override
     public void onInvalidation(Connector connector, UlxError error) {
+    }
+
+    @Override
+    public void onInvalidation(Stream stream, UlxError error) {
     }
 
     /**
@@ -395,15 +425,12 @@ class BleAdvertiser extends AdvertiserCommons implements
 
         // Advertise data with the service UUID so that the browser is capable
         // of recognizing the service.
-        AdvertiseData advertiseData = new AdvertiseData.Builder()
+        return new AdvertiseData.Builder()
                 .setIncludeDeviceName(false)
                 .setIncludeTxPowerLevel(false)
                 .addServiceUuid(parcelUuidService)
                 .addServiceData(parcelUuid16BitsService, controlValue)
-                .build()
-                ;
-
-        return advertiseData;
+                .build();
     }
 
     /**
@@ -420,7 +447,48 @@ class BleAdvertiser extends AdvertiserCommons implements
     }
 
     @Override
-    public void onServiceFailedToAdd(GattServer gattServer, UlxError error) {
+    public void onServiceAdditionFailed(GattServer gattServer, UlxError error) {
         onFailedStart(this, error);
+    }
+
+    @Override
+    public void onConnected(Connector connector) {
+
+        InputStream inputStream = new BleDomesticInputStream(
+                connector.getIdentifier(),
+                this
+        );
+
+        OutputStream outputStream = new BleDomesticOutputStream(
+                connector.getIdentifier(),
+                this
+        );
+
+        Channel reliableChannel = new BleChannel(
+                connector.getIdentifier(),
+                inputStream,
+                outputStream
+        );
+
+        Transport transport = new BleTransport(
+                connector.getIdentifier(),
+                reliableChannel
+        );
+
+        Device device = new BleDevice(
+                connector.getIdentifier(),
+                connector,
+                transport
+        );
+
+        super.onDeviceFound(this, device);
+    }
+
+    @Override
+    public void onDisconnection(Connector connector, UlxError error) {
+    }
+
+    @Override
+    public void onConnectionFailure(Connector connector, UlxError error) {
     }
 }

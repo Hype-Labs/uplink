@@ -545,7 +545,7 @@ public class GattClient extends BluetoothGattCallback {
         // Reliable output
         if (getDomesticService().isReliableOutput(characteristic)) {
             if (0 != (characteristic.getProperties() & BluetoothGattCharacteristic.PROPERTY_INDICATE)) {
-                descriptorUuid = UUID.fromString(BleDomesticService.RELIABLE_OUTPUT_IDENTIFIER);
+                descriptorUuid = getDomesticService().getDescriptorReliableOutputRead().getUuid();
             }
         }
 
@@ -620,5 +620,13 @@ public class GattClient extends BluetoothGattCallback {
         if (connectorDelegate != null) {
             connectorDelegate.onConnectionFailure(this, error);
         }
+    }
+
+    public BluetoothGattService getServiceMatching(BluetoothGattService service) {
+        return getServiceMatching(service.getUuid());
+    }
+
+    public BluetoothGattService getServiceMatching(UUID uuid) {
+        return getBluetoothGatt().getService(uuid);
     }
 }

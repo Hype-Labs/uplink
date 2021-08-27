@@ -1,5 +1,6 @@
 package com.uplink.ulx.bridge;
 
+import android.icu.util.Output;
 import android.util.Log;
 
 import com.uplink.ulx.UlxError;
@@ -9,6 +10,8 @@ import com.uplink.ulx.drivers.model.InputStream;
 import com.uplink.ulx.drivers.model.OutputStream;
 import com.uplink.ulx.drivers.model.Stream;
 import com.uplink.ulx.model.Instance;
+import com.uplink.ulx.model.Message;
+import com.uplink.ulx.model.MessageInfo;
 import com.uplink.ulx.threading.ExecutorPool;
 import com.uplink.ulx.utils.ByteUtils;
 import com.uplink.ulx.utils.StringUtils;
@@ -27,7 +30,12 @@ import java.util.UUID;
  * This also means that the bridge must handle the thread context changes that
  * occur between those processes.
  */
-public class Bridge implements Connector.StateDelegate, InputStream.Delegate, OutputStream.Delegate, Stream.StateDelegate {
+public class Bridge implements
+        Connector.StateDelegate,
+        InputStream.Delegate,
+        OutputStream.Delegate,
+        Stream.StateDelegate
+{
 
     /**
      * The Bridge Delegate gets notifications for bridge-related events, which
@@ -282,6 +290,7 @@ public class Bridge implements Connector.StateDelegate, InputStream.Delegate, Ou
 
     @Override
     public void onOpen(Stream stream) {
+        Log.i(getClass().getCanonicalName(), "ULX stream is now open");
     }
 
     @Override
@@ -290,10 +299,29 @@ public class Bridge implements Connector.StateDelegate, InputStream.Delegate, Ou
 
     @Override
     public void onFailedOpen(Stream stream, UlxError error) {
+        Log.e(getClass().getCanonicalName(), String.format("ULX stream failed to open [%s]", error.toString()));
     }
 
     @Override
     public void onStateChange(Stream stream) {
+    }
+
+    public void addDevice(Device device) {
+
+        InputStream inputStream = device.getTransport().getReliableChannel().getInputStream();
+        OutputStream outputStream = device.getTransport().getReliableChannel().getOutputStream();
+
+        // Assume the state delegates
+        inputStream.setStateDelegate(this);
+        outputStream.setStateDelegate(this);
+
+        // Assume the stream-specific delegates as well
+        inputStream.setDelegate(this);
+        outputStream.setDelegate(this);
+
+        // Open the streams
+        inputStream.open();
+        outputStream.open();
     }
 
     /**
@@ -313,14 +341,36 @@ public class Bridge implements Connector.StateDelegate, InputStream.Delegate, Ou
         }
         return this.instanceRegistry;
     }
-
+/*
     public void addDevice(Device device) {
 
         byte[] identifier = ByteUtils.uuidToBytes(UUID.fromString(device.getIdentifier()));
         Instance instance = new Instance(identifier);
 
+        // Associate
         getInstanceRegistry().put(device, instance);
 
-        getNetworkDelegate().onInstanceFound(this, instance);
+
+
+        /*
+        NetworkDelegate networkDelegate = getNetworkDelegate();
+        if (networkDelegate != null) {
+            networkDelegate.onInstanceFound(this, instance);
+        }
+         *
+    }
+*/
+    public Message send(int messageId, byte[] data, Instance instance, boolean acknowledge) {
+
+        Message message = new Message(new MessageInfo(messageId), data);
+
+        ExecutorPool.getCoreExecutor().execute(
+                () -> sendData(messageId, data, instance.getIdentifier(), acknowledge)
+        );
+
+        return message;
+    }
+
+    public void sendData(int messageId, byte[] data, byte[] instance, boolean acknowledge) {
     }
 }

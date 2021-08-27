@@ -19,7 +19,6 @@ public class BleForeignOutputStream extends OutputStreamCommons implements GattC
      * @param identifier An identifier used for JNI bridging and debugging.
      * @param gattClient
      * @param outputCharacteristic
-     * @param delegate The OutputStream's delegate.
      * @param invalidationDelegate The stream's InvalidationDelegate.
      */
     public BleForeignOutputStream(

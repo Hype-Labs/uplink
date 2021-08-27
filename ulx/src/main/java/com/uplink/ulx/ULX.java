@@ -3,7 +3,9 @@ package com.uplink.ulx;
 import android.content.Context;
 
 import com.uplink.ulx.model.Instance;
+import com.uplink.ulx.model.Message;
 import com.uplink.ulx.model.State;
+import com.uplink.ulx.observers.NetworkObserver;
 import com.uplink.ulx.observers.StateObserver;
 
 /**
@@ -101,6 +103,31 @@ public class ULX {
     }
 
     /**
+     * Adds a network observer. Network observers get notifications for network
+     * events, such as instances being found and lost on the network. If the
+     * observer has already been registered it will not be registered twice,
+     * preventing the observer from getting duplicate notifications.
+     * @param networkObserver The network observer ({@code NetworkObserver})
+     *                        to register.
+     */
+    public static void addNetworkObserver(NetworkObserver networkObserver) {
+        Implementation.getInstance().addNetworkObserver(networkObserver);
+    }
+
+    /**
+     * Removes a previously registered network observer ({@code NetworkObserver}).
+     * If the observer is not present on the registry, because it was not added
+     * or because it has already been removed, this method will do nothing.
+     * After being removed, the observer will no longer get notifications for
+     * network-related events.
+     * @param networkObserver The network observer ({@code NetworkObserver} to
+     *                        remove.
+     */
+    public static void removeNetworkObserver(NetworkObserver networkObserver) {
+        Implementation.getInstance().removeNetworkObserver(networkObserver);
+    }
+
+    /**
      * Calling this method requests the framework to start its services, by
      * publishing itself on the network and browsing for other devices. In case
      * of success, network observers will get a `onStart` notification,
@@ -132,5 +159,59 @@ public class ULX {
      */
     public static void stop() {
         Implementation.getInstance().stop();
+    }
+
+    /**
+     * This method attempts to send a message to a given instance. The instance
+     * must be a previously found and not lost instance, or else this method
+     * fails with an error. It returns immediately (non blocking), queues the
+     * data to be sent, and returns the message (Message) that was created for
+     * wrapping the data. That data structure is helpful for tracking the
+     * progress of messages as they are being sent over the network. The message
+     * or the data are not strongly kept by the framework. The data is copied
+     * and kept while it's queued, but the memory is released as its fragments
+     * are sent. If the data is needed for later use, it should be kept at this
+     * point, or otherwise it won't be recoverable. Progress notifications are
+     * issued to message observers (MessageObserver). When listening to progress
+     * tracking notifications, two concepts are important to distinguish:
+     * sending and delivering. A message being sent
+     * (MessageObserver.onULXMessageSent(MessageInfo, Instance, float, boolean))
+     * indicates that the data was buffered, but has not necessarily arrived to
+     * its destination. Delivery
+     * (MessageObserver.onULXMessageDelivered(MessageInfo, Instance, float, boolean))
+     * on the other hand, indicates that the content has reached its destination
+     * and that has been acknowledged by the receiving instance. This
+     * distinction is especially important in mesh, when the proxy device may
+     * not be the same as the one the data is intended to. The trackProgress
+     * argument indicates whether to track delivery. The data being queued to
+     * the output stream (sent) is always notified, regardless of that setting.
+     * Notice that passing true to this parameter incurs extra overhead on the
+     * network, as it implies acknowledgements from the destination back to the
+     * origin. If progress tracking is not needed, this should always be set to
+     * false. In case an error occurs that prevents the message from reaching
+     * the destination, the delegate gets a failure notification
+     * (MessageObserver.onULXMessageFailedSending(MessageInfo, Instance, Error))
+     * with an appropriate error message describing the reasons. If a proper
+     * reason cannot be determined, a probable one is used instead.
+     * @param data The data to be sent.
+     * @param instance The destination instance.
+     * @param trackProgress Whether to track delivery progress.
+     * @return A message wrapper containing some metadata.
+     */
+    public static Message send(byte [] data, Instance instance, boolean trackProgress) {
+        return Implementation.getInstance().send(data,instance,trackProgress);
+    }
+
+    /**
+     * Sends a message to a given instance without tracking progress. This
+     * method calls send(byte [], Instance, boolean) with the progress tracking
+     * option set to false. All other technicalities described for that method
+     * also apply.
+     * @param data The data to send.
+     * @param instance The instance to send the data to.
+     * @return A message wrapper containing some metadata.
+     */
+    public static Message send(byte [] data, Instance instance) {
+        return send(data, instance, false);
     }
 }

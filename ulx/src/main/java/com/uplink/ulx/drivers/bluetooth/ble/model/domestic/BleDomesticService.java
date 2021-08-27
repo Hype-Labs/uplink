@@ -30,7 +30,6 @@ public class BleDomesticService {
      */
     public static final int CONTROL_VALUE_SIZE = 4;
 
-    // Never change characters other than the first 8
     private static final String GATT_SERVICE_IDENTIFIER_16BITS = "00009F63-0000-1000-8000-00805F9B34FB";
     private static final String GATT_SERVICE_IDENTIFIER = "B7912165-5ABC-4EE0-9F33-835FE8D8DE1A";
 
@@ -61,7 +60,7 @@ public class BleDomesticService {
      * among other things, to determine who is the initiator of a given link.
      * For example, if two devices are acting both as server and client
      * simultaneously, the lexicographic lower of the two will be the one to
-     * initiate.
+     * initiate the connection.
      * @return The identifier to use for the control characteristic.
      */
     public final String getControlCharacteristicIdentifier() {
@@ -228,13 +227,43 @@ public class BleDomesticService {
         return this.reliableDescriptorControl;
     }
 
+    /**
+     * Checks whether the given BluetoothGattCharacteristic has the same UUID
+     * as is expected for the reliable control characteristic. This can be
+     * used to validate a given characteristic when it's being subscribed.
+     * @param characteristic The characteristic to validate.
+     * @return Whether the given characteristic has the UUID expected for the
+     * reliable control characteristic.
+     */
     public boolean isReliableControl(BluetoothGattCharacteristic characteristic) {
+
+        BluetoothGattCharacteristic reliableControl = Objects.requireNonNull(getReliableControl());
         String characteristicUuid = characteristic.getUuid().toString();
-        String reliableControlUuid = Objects.requireNonNull(getReliableControl()).getUuid().toString();
+        String reliableControlUuid = reliableControl.getUuid().toString();
 
         return characteristicUuid.equalsIgnoreCase(reliableControlUuid);
     }
 
+    /**
+     * Checks whether the given BluetoothGattDescriptor belongs to a GATT
+     * characteristic that uses the same UUID as is expected for the control
+     * characteristic. This can be used as an helper method to validate whether
+     * the descriptor corresponds to the control characteristic.
+     * @param descriptor The descriptor to check.
+     * @return Whether the descriptor is from a reliable control characteristic.
+     */
+    public boolean isReliableControl(BluetoothGattDescriptor descriptor) {
+        return isReliableControl(descriptor.getCharacteristic());
+    }
+
+    /**
+     * Checks whether the given BluetoothGattCharacteristic has the same UUID
+     * as is expected for the reliable output characteristic. This can be
+     * used to validate a given characteristic when it's being subscribed.
+     * @param characteristic The characteristic to validate.
+     * @return Whether the given characteristic has the UUID expected for the
+     * reliable output characteristic.
+     */
     public boolean isReliableOutput(BluetoothGattCharacteristic characteristic) {
         String characteristicUuid = characteristic.getUuid().toString();
         String reliableOutputUuid = Objects.requireNonNull(getReliableOutputCharacteristic()).getUuid().toString();
@@ -242,10 +271,14 @@ public class BleDomesticService {
         return characteristicUuid.equalsIgnoreCase(reliableOutputUuid);
     }
 
-    public boolean isReliableControl(BluetoothGattDescriptor descriptor) {
-        return isReliableControl(descriptor.getCharacteristic());
-    }
-
+    /**
+     * Checks whether the given BluetoothGattDescriptor belongs to a GATT
+     * characteristic that uses the same UUID as is expected for the reliable
+     * output characteristic. This can be used as an helper method to validate
+     * whether the descriptor corresponds to the output stream.
+     * @param descriptor The descriptor to check.
+     * @return Whether the descriptor is from a reliable output characteristic.
+     */
     public boolean isReliableOutput(BluetoothGattDescriptor descriptor) {
         return isReliableOutput(descriptor.getCharacteristic());
     }

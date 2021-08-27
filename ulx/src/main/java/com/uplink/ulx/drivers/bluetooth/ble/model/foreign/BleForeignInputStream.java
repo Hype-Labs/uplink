@@ -1,11 +1,11 @@
 package com.uplink.ulx.drivers.bluetooth.ble.model.foreign;
 
 import android.bluetooth.BluetoothGattCharacteristic;
+import android.util.Log;
 
 import com.uplink.ulx.TransportType;
 import com.uplink.ulx.drivers.bluetooth.ble.gattClient.GattClient;
 import com.uplink.ulx.drivers.commons.model.InputStreamCommons;
-import com.uplink.ulx.drivers.model.InputStream;
 
 import java.util.Objects;
 

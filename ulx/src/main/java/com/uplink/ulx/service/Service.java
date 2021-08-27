@@ -11,7 +11,10 @@ import com.uplink.ulx.bridge.Bridge;
 import com.uplink.ulx.drivers.controller.Driver;
 import com.uplink.ulx.drivers.controller.DriverManager;
 import com.uplink.ulx.drivers.model.Device;
+import com.uplink.ulx.drivers.model.InputStream;
+import com.uplink.ulx.drivers.model.OutputStream;
 import com.uplink.ulx.model.Instance;
+import com.uplink.ulx.model.Message;
 import com.uplink.ulx.model.State;
 
 import java.lang.ref.WeakReference;
@@ -381,5 +384,9 @@ public class Service extends android.app.Service implements
         if (networkDelegate != null) {
             networkDelegate.onInstanceLost(this, instance, error);
         }
+    }
+
+    public Message send(int message_id, byte [] data, Instance instance, boolean acknowledge) {
+        return Bridge.getInstance().send(message_id, data, instance, acknowledge);
     }
 }

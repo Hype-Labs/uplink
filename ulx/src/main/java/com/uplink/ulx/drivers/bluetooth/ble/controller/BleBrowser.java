@@ -685,8 +685,7 @@ class BleBrowser extends BrowserCommons implements
 
         // GATT stuff
         GattClient gattClient = connector.getGattClient();
-        BluetoothGattService coreService = getCoreService();
-        BluetoothGattService foreignService = gattClient.getBluetoothGatt().getService(coreService.getUuid());
+        BluetoothGattService foreignService = gattClient.getServiceMatching(getCoreService());
 
         BluetoothGattCharacteristic reliableInputCharacteristic = getDomesticService().getReliableInputCharacteristic();
         BluetoothGattCharacteristic reliableOutputCharacteristic = getDomesticService().getReliableOutputCharacteristic();
@@ -732,18 +731,6 @@ class BleBrowser extends BrowserCommons implements
                 connector,
                 transport
         );
-
-        /*
-        // Create the Input Stream
-        _InputStream bleForeignInputStream = new BLEForeignInputStream(
-                connector
-        );
-
-        // Create the Output Stream
-        _OutputStream bleForeignOutputStream = new BLEForeignOutputStream(
-                connector
-        );
-        */
     }
 
     @Override

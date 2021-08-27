@@ -6,6 +6,7 @@ import com.uplink.ulx.TransportType;
 import com.uplink.ulx.UlxError;
 import com.uplink.ulx.drivers.bluetooth.ble.gattServer.GattServer;
 import com.uplink.ulx.drivers.commons.model.ConnectorCommons;
+import com.uplink.ulx.drivers.model.Connector;
 import com.uplink.ulx.drivers.model.Stream;
 
 import java.util.Objects;
@@ -48,9 +49,7 @@ public class BleDomesticConnector extends ConnectorCommons {
 
     @Override
     public void requestAdapterToConnect() {
-        throw new RuntimeException("Can't request a domestic connector to connect " +
-                "because the protocol to request activity from the central is" +
-                "not implemented yet.");
+        super.onConnected(this);
     }
 
     @Override
@@ -62,6 +61,13 @@ public class BleDomesticConnector extends ConnectorCommons {
 
     @Override
     public void onInvalidation(Stream stream, UlxError error) {
+        if (getState() != Connector.State.DISCONNECTED) {
+            super.onDisconnection(this, error);
 
+            Connector.InvalidationDelegate invalidationDelegate = getInvalidationDelegate();
+            if (invalidationDelegate != null) {
+                invalidationDelegate.onInvalidation(this, error);
+            }
+        }
     }
 }
