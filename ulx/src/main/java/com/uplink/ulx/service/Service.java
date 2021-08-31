@@ -11,8 +11,6 @@ import com.uplink.ulx.bridge.Bridge;
 import com.uplink.ulx.drivers.controller.Driver;
 import com.uplink.ulx.drivers.controller.DriverManager;
 import com.uplink.ulx.drivers.model.Device;
-import com.uplink.ulx.drivers.model.InputStream;
-import com.uplink.ulx.drivers.model.OutputStream;
 import com.uplink.ulx.model.Instance;
 import com.uplink.ulx.model.Message;
 import com.uplink.ulx.model.State;
@@ -362,7 +360,7 @@ public class Service extends android.app.Service implements
         Log.i(getClass().getCanonicalName(), String.format("ULX found device %s", device.getIdentifier()));
 
         // Register the device with the bridge
-        Bridge.getInstance().addDevice(device);
+        Bridge.getInstance().takeover(device);
     }
 
     @Override

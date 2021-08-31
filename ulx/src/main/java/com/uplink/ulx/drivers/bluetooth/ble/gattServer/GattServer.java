@@ -75,9 +75,9 @@ public class GattServer extends BluetoothGattServerCallback {
          * subscribed by the remote device. This is the equivalent of that
          * stream being open.
          * @param gattServer The instance triggering the notification.
-         * @param device The BluetoothDevice that has subscribed.
+         * @param bluetoothDevice The BluetoothDevice that has subscribed.
          */
-        void onOutputStreamSubscribed(GattServer gattServer, BluetoothDevice device);
+        void onOutputStreamSubscribed(GattServer gattServer, BluetoothDevice bluetoothDevice);
     }
 
     private WeakReference<Delegate> delegate;

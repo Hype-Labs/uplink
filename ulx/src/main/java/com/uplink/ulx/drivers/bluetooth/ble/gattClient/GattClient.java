@@ -70,37 +70,26 @@ public class GattClient extends BluetoothGattCallback {
      *
      */
     public interface InputStreamDelegate {
-        /*
-        void serverAskForOpen(GattClient gattClient);
-        void serverAskForClose(GattClient gattClient);
-        void hasDataAvailable(GattClient gattClient, byte [] buffer);
-        void opened(GattClient gattClient);
-        void readingFailed(GattClient gattClient, BluetoothGattCharacteristic characteristic);
-         */
+        void onOpen(GattClient gattClient);
     }
 
     /**
      *
      */
     public interface OutputStreamDelegate {
-        /*
-        void serverAskForOpen(GattClient gattClient);
-        void serverAskForClose(GattClient gattClient);
-        void hasSpaceAvailable(GattClient gattClient);
-        void failedWrite(GattClient gattClient, BluetoothGattCharacteristic characteristic);
-         */
     }
 
     private WeakReference<GattClient.ConnectorDelegate> connectorDelegate;
 
     private final WeakReference<Context> context;
 
+    private final BleDomesticService domesticService;
     private final BluetoothDevice bluetoothDevice;
     private final BluetoothManager bluetoothManager;
     private BluetoothAdapter bluetoothAdapter;
     private BluetoothGatt bluetoothGatt;
 
-    private final BleDomesticService domesticService;
+    private WeakReference<InputStreamDelegate> inputStreamDelegate;
 
     /**
      * Constructor. Initializes with the given parameters.
@@ -127,6 +116,8 @@ public class GattClient extends BluetoothGattCallback {
 
         this.domesticService = domesticService;
 
+        this.inputStreamDelegate = null;
+
         this.context = new WeakReference<>(context);
     }
 
@@ -145,8 +136,16 @@ public class GattClient extends BluetoothGattCallback {
      * events. If no delegate was previously set, this method returns null.
      * @return The current ConnectorDelegate, or null, if one was not set.
      */
-    public ConnectorDelegate getConnectorDelegate() {
+    public final ConnectorDelegate getConnectorDelegate() {
         return this.connectorDelegate != null ? this.connectorDelegate.get() : null;
+    }
+
+    public final void setInputStreamDelegate(InputStreamDelegate inputStreamDelegate) {
+        this.inputStreamDelegate = new WeakReference<>(inputStreamDelegate);
+    }
+
+    public final InputStreamDelegate getInputStreamDelegate() {
+        return this.inputStreamDelegate != null ? this.inputStreamDelegate.get() : null;
     }
 
     /**
@@ -405,6 +404,7 @@ public class GattClient extends BluetoothGattCallback {
         // one to initiate). The host will also be the initiator if it does not
         // support advertising, which means that the remote peer will not see it
         if (comparison < 0 || !getBluetoothAdapter().isMultipleAdvertisementSupported()) {
+            Log.i(getClass().getCanonicalName(), "ULX subscribing control characteristic");
             subscribeCharacteristic(foreignReliableControl);
         }
 
@@ -601,10 +601,10 @@ public class GattClient extends BluetoothGattCallback {
     }
 
     private void handleOpenStream() {
-        /*
-        GattClientDelegate.InputStreamDelegate delegate = getInputStreamDelegate();
-            delegate.opened(this);
-         */
+        GattClient.InputStreamDelegate inputStreamDelegate = getInputStreamDelegate();
+        if (inputStreamDelegate != null) {
+            inputStreamDelegate.onOpen(this);
+        }
     }
 
     /**

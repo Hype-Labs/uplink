@@ -6,10 +6,12 @@ import android.util.Log;
 import com.uplink.ulx.TransportType;
 import com.uplink.ulx.drivers.bluetooth.ble.gattClient.GattClient;
 import com.uplink.ulx.drivers.commons.model.InputStreamCommons;
+import com.uplink.ulx.drivers.model.InputStream;
+import com.uplink.ulx.drivers.model.Stream;
 
 import java.util.Objects;
 
-public class BleForeignInputStream extends InputStreamCommons {
+public class BleForeignInputStream extends InputStreamCommons implements GattClient.InputStreamDelegate {
 
     private final BluetoothGattCharacteristic inputCharacteristic;
     private final GattClient gattClient;
@@ -36,6 +38,8 @@ public class BleForeignInputStream extends InputStreamCommons {
 
         this.gattClient = gattClient;
         this.inputCharacteristic = inputCharacteristic;
+
+        this.gattClient.setInputStreamDelegate(this);
     }
 
     private GattClient getGattClient() {
@@ -48,11 +52,17 @@ public class BleForeignInputStream extends InputStreamCommons {
 
     @Override
     public void requestAdapterToOpen() {
+        Log.i(getClass().getCanonicalName(), "ULX subscribing foreign input characteristic");
         getGattClient().subscribeCharacteristic(getInputCharacteristic());
     }
 
     @Override
     public void requestAdapterToClose() {
         // TODO
+    }
+
+    @Override
+    public void onOpen(GattClient gattClient) {
+        super.onOpen(this);
     }
 }

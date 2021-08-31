@@ -1,6 +1,6 @@
 package com.uplink.ulx.bridge;
 
-import android.icu.util.Output;
+import android.bluetooth.BluetoothDevice;
 import android.util.Log;
 
 import com.uplink.ulx.UlxError;
@@ -12,6 +12,7 @@ import com.uplink.ulx.drivers.model.Stream;
 import com.uplink.ulx.model.Instance;
 import com.uplink.ulx.model.Message;
 import com.uplink.ulx.model.MessageInfo;
+import com.uplink.ulx.model.Registry;
 import com.uplink.ulx.threading.ExecutorPool;
 import com.uplink.ulx.utils.ByteUtils;
 import com.uplink.ulx.utils.StringUtils;
@@ -19,6 +20,7 @@ import com.uplink.ulx.utils.StringUtils;
 import java.lang.ref.WeakReference;
 import java.nio.ByteBuffer;
 import java.util.HashMap;
+import java.util.Objects;
 import java.util.UUID;
 
 /**
@@ -99,12 +101,15 @@ public class Bridge implements
     private WeakReference<StateDelegate> stateDelegate;
     private WeakReference<NetworkDelegate> networkDelegate;
 
+    private Registry<BluetoothDevice> registry;
+
     /**
      * Private constructor prevents instantiation.
      */
     private Bridge() {
         this.stateDelegate = null;
         this.networkDelegate = null;
+        this.registry = null;
     }
 
     /**
@@ -155,6 +160,19 @@ public class Bridge implements
      */
     private NetworkDelegate getNetworkDelegate() {
         return this.networkDelegate.get();
+    }
+
+    /**
+     * Returns the device registry that is used by the implementation to keep
+     * track of native-to-abstract device mappings. If the registry has not
+     * been created yet, it will at this point.
+     * @return The {@code Device}-to-{@code BluetoothDevice} registry.
+     */
+    private Registry<BluetoothDevice> getRegistry() {
+        if (this.registry == null) {
+            this.registry = new Registry<>();
+        }
+        return this.registry;
     }
 
     /**
@@ -290,7 +308,27 @@ public class Bridge implements
 
     @Override
     public void onOpen(Stream stream) {
-        Log.i(getClass().getCanonicalName(), "ULX stream is now open");
+        Log.i(getClass().getCanonicalName(), "ULX bridge stream is now open");
+
+        Device device = getRegistry().getDevice(stream.getIdentifier());
+
+        // Make sure the device was previously registered
+        Objects.requireNonNull(device);
+
+        // Get the streams and check their states
+        InputStream inputStream = device.getTransport().getReliableChannel().getInputStream();
+        OutputStream outputStream = device.getTransport().getReliableChannel().getOutputStream();
+
+        Log.i(getClass().getCanonicalName(), String.format("ULX bridge stream states (Input: %s, Output: %s)",
+                inputStream.getState().toString(),
+                outputStream.getState().toString()
+        ));
+
+        // When both streams are open, we can proceed with the creation of the
+        // instance, which will map the given device.
+        if (inputStream.getState() == Stream.State.OPEN && outputStream.getState() == Stream.State.OPEN) {
+            associateInstance(device);
+        }
     }
 
     @Override
@@ -299,15 +337,27 @@ public class Bridge implements
 
     @Override
     public void onFailedOpen(Stream stream, UlxError error) {
-        Log.e(getClass().getCanonicalName(), String.format("ULX stream failed to open [%s]", error.toString()));
+        Log.e(getClass().getCanonicalName(), String.format("ULX bridge stream failed to open [%s]", error.toString()));
     }
 
     @Override
     public void onStateChange(Stream stream) {
     }
 
-    public void addDevice(Device device) {
+    /**
+     * This method receives the given device and takes ownership of its stream
+     * delegates, meaning that the I/O processes will be managed by the bridge
+     * going forward. It also requests the streams to open, completing the
+     * connection cycle. After this process is complete, the devices may
+     * finally engage in communications.
+     * @param device The device to takeover.
+     */
+    public void takeover(Device device) {
 
+        // Register the device
+        getRegistry().set(device.getIdentifier(), device);
+
+        // We're assuming the delegates for all I/O streams
         InputStream inputStream = device.getTransport().getReliableChannel().getInputStream();
         OutputStream outputStream = device.getTransport().getReliableChannel().getOutputStream();
 
@@ -333,33 +383,50 @@ public class Bridge implements
      * This is also simplified over the fact that the implementation currently
      * only supports BLE.
      */
-    private HashMap<Device, Instance> instanceRegistry;
+    private HashMap<String, Instance> instanceRegistry;
 
-    private HashMap<Device, Instance> getInstanceRegistry() {
+    /**
+     * Returns the instance registry that is being used temporarily by this
+     * implementation to keep track of Device-Instance associations. If the
+     * hash map has not been created before, it will at the time this method
+     * is called.
+     * @return The {@code Device}-{@code Instance} hash map registry.
+     */
+    private HashMap<String, Instance> getInstanceRegistry() {
         if (this.instanceRegistry == null) {
             this.instanceRegistry = new HashMap<>();
         }
         return this.instanceRegistry;
     }
-/*
-    public void addDevice(Device device) {
+
+    /**
+     * Creates a new Instance and associates with the given Device. This method
+     * is a simplification of what it should be, since it currently only
+     * supports a single transport and doesn't care about extending into other
+     * types of transport. The given device will be mapped with an instance
+     * created with the same identifier, which is also not how the protocol is
+     * actually designed. Instead, this new identifier should be negotiated,
+     * implying already some sort of I/O. This implementation will not negotiate
+     * and instead just open the streams and given the Instance as ready for I/O.
+     * @param device The {@code Device} to register.
+     */
+    private void associateInstance(Device device) {
 
         byte[] identifier = ByteUtils.uuidToBytes(UUID.fromString(device.getIdentifier()));
         Instance instance = new Instance(identifier);
 
-        // Associate
-        getInstanceRegistry().put(device, instance);
+        // Associate the device with the newly created instance
+        getInstanceRegistry().put(device.getIdentifier(), instance);
 
-
-
-        /*
+        // Notify the delegate of a newly found instance. Future versions might
+        // skip this step is the instance had already been found before over
+        // another type of transport.
         NetworkDelegate networkDelegate = getNetworkDelegate();
         if (networkDelegate != null) {
             networkDelegate.onInstanceFound(this, instance);
         }
-         *
     }
-*/
+
     public Message send(int messageId, byte[] data, Instance instance, boolean acknowledge) {
 
         Message message = new Message(new MessageInfo(messageId), data);

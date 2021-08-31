@@ -36,6 +36,7 @@ import com.uplink.ulx.drivers.model.InputStream;
 import com.uplink.ulx.drivers.model.OutputStream;
 import com.uplink.ulx.drivers.model.Stream;
 import com.uplink.ulx.drivers.model.Transport;
+import com.uplink.ulx.model.Registry;
 import com.uplink.ulx.threading.ExecutorPool;
 
 import java.util.UUID;
@@ -63,6 +64,8 @@ class BleAdvertiser extends AdvertiserCommons implements
     private AdvertiseSettings advertiseSettings;
     private AdvertiseCallback advertiseCallback;
     private GattServer gattServer;
+
+    private Registry<BluetoothDevice> registry;
 
     private Handler mainHandler;
 
@@ -242,6 +245,19 @@ class BleAdvertiser extends AdvertiserCommons implements
         return this.gattServer;
     }
 
+    /**
+     * Returns the device registry that is used by the implementation to keep
+     * track of native-to-abstract device mappings. If the registry has not
+     * been created yet, it will at this point.
+     * @return The {@code Device}-to-{@code BluetoothDevice} registry.
+     */
+    private Registry<BluetoothDevice> getRegistry() {
+        if (this.registry == null) {
+            this.registry = new Registry<>();
+        }
+        return this.registry;
+    }
+
     @Override
     public void requestAdapterToStart() {
 
@@ -322,25 +338,73 @@ class BleAdvertiser extends AdvertiserCommons implements
     }
 
     @Override
-    public void onDeviceConnected(GattServer gattServer, BluetoothDevice device) {
-        Log.i(getClass().getCanonicalName(), String.format("ULX bluetooth device connected %s", device.getAddress()));
+    public void onDeviceConnected(GattServer gattServer, BluetoothDevice bluetoothDevice) {
+        Log.i(getClass().getCanonicalName(), String.format("ULX bluetooth device connected %s", bluetoothDevice.getAddress()));
 
         Connector connector = new BleDomesticConnector(
                 UUID.randomUUID().toString(),
                 gattServer,
-                device,
+                bluetoothDevice,
                 getDomesticService()
         );
 
         connector.setStateDelegate(this);
         connector.setInvalidationDelegate(this);
 
+        // Register the connector's ID (not the actual connector) in association
+        // with the given BluetoothDevice. This will enable retrieving the
+        // Connector and the Device instances for BluetoothDevice notifications
+        register(connector, bluetoothDevice);
+
+        // Proceed with the discover process
         connector.connect();
     }
 
+    /**
+     * Registers the {@code Connector}'s identifier (not the actual Connector)
+     * in association with the address for the given {@code BluetoothDevice}.
+     * This will result in the BluetoothDevice being associated with its address
+     * and the address and connector identifier with each other. What remains
+     * to be registered is the association of the identifier with the {@code
+     * Device}, which will come later once the device is discovered. This
+     * association will be needed then.
+     * @param connector The {@code Connector} whose identifier is to be
+     *                  associated.
+     * @param bluetoothDevice The {@code BluetoothDevice} whose address is to
+     *                        be associated.
+     */
+    private void register(Connector connector, BluetoothDevice bluetoothDevice) {
+
+        String address = bluetoothDevice.getAddress();
+        String identifier = connector.getIdentifier();
+
+        getRegistry().set(address, bluetoothDevice);
+        getRegistry().associate(address, identifier);
+    }
+
     @Override
-    public void onOutputStreamSubscribed(GattServer gattServer, BluetoothDevice device) {
-        throw new RuntimeException("Continue from here on Monday");
+    public void onOutputStreamSubscribed(GattServer gattServer, BluetoothDevice bluetoothDevice) {
+
+        Device device = getRegistry().getDeviceFromAddress(bluetoothDevice.getAddress());
+
+        // If the address is not registered, we skipped something
+        if (device == null) {
+            throw new RuntimeException("A BluetoothDevice notification was " +
+                    "issued for an open stream, but the Device identifier is " +
+                    "not associated with it; this must mean that the registration " +
+                    "was not performed or that the registry got corrupted.");
+        }
+
+        // Notify the stream that it has been subscribed
+        InputStream inputStream = device.getTransport().getReliableChannel().getInputStream();
+        OutputStream outputStream = device.getTransport().getReliableChannel().getOutputStream();
+
+        // In fact, the InputStream is already open, since nothing needs to
+        // happen for that. These two events are being triggered at the same
+        // time, but the InputStream could have already triggered the event
+        // before. This may change in the future.
+        ((BleDomesticInputStream)inputStream).notifyAsOpen();
+        ((BleDomesticOutputStream)outputStream).notifyAsOpen();
     }
 
     @Override
@@ -480,6 +544,10 @@ class BleAdvertiser extends AdvertiserCommons implements
                 connector,
                 transport
         );
+
+        // Register the device (the BluetoothDevice, identifier, and address
+        // should already be there; this should complete the association)
+        getRegistry().set(device.getIdentifier(), device);
 
         super.onDeviceFound(this, device);
     }

@@ -30,4 +30,22 @@ public class BleDomesticOutputStream extends OutputStreamCommons {
         Log.i(getClass().getCanonicalName(), "ULX domestic output stream is " +
                 "being requested to close, but that is not supported yet");
     }
+
+    /**
+     * Calling this method gives the stream an indication that its
+     * characteristic was subscribed by the remote peer, and thus it's now
+     * able of performing I/O. Calling this method is necessary in order to
+     * complete the stream's lifecycle events. This method should not be public,
+     * but the BleAdvertiser currently lives in a different package; this is
+     * expected to change in the future, so this method not be called.
+     */
+    public void notifyAsOpen() {
+        super.onOpen(this);
+
+        // Ready ƒor I/O
+        Delegate delegate = getDelegate();
+        if (delegate != null) {
+            delegate.hasSpaceAvailable(this);
+        }
+    }
 }
