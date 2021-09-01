@@ -67,36 +67,66 @@ public class GattClient extends BluetoothGattCallback {
     }
 
     /**
-     *
+     * The InputStreamDelegate receives notifications for InputStream related
+     * events. These include some of the stream's lifecycle events, as well as
+     * I/O.
      */
     public interface InputStreamDelegate {
+
+        /**
+         * This event being triggered means that the device has successfully
+         * subscribed the output characteristic for the remote peer. In the
+         * local device the name is reversed because what constitutes output
+         * for the remote peer is also input for the host device. As soon as
+         * the characteristic is subscribed, the host is capable of receiving
+         * input from the remote device (central), and thus I/O can be expected
+         * at any time.
+         * @param gattClient The GattClient triggering the notification.
+         */
         void onOpen(GattClient gattClient);
     }
 
     /**
-     *
+     * The OutputStreamDelegate receives notifications for OutputStream related
+     * events. These include some of the stream's lifecycle events, as well as
+     * I/O.
      */
     public interface OutputStreamDelegate {
     }
 
     private WeakReference<GattClient.ConnectorDelegate> connectorDelegate;
-
-    private final WeakReference<Context> context;
+    private WeakReference<InputStreamDelegate> inputStreamDelegate;
+    private WeakReference<OutputStreamDelegate> outputStreamDelegate;
 
     private final BleDomesticService domesticService;
     private final BluetoothDevice bluetoothDevice;
     private final BluetoothManager bluetoothManager;
     private BluetoothAdapter bluetoothAdapter;
     private BluetoothGatt bluetoothGatt;
+    private int mtu;
 
-    private WeakReference<InputStreamDelegate> inputStreamDelegate;
+    private final WeakReference<Context> context;
+
+    /**
+     * The "normal" (also the minimum) MTU size for BLE is 20 bytes. The
+     * implementation will always go for the maximum (512), but this is still
+     * the default value. If the MTU negotiation fails, this is what the
+     * implementation will use.
+     */
+    private static final int DEFAULT_MTU = 20;
+
+    /**
+     * This is the maximum support value for MTU; 512 bytes per transmission.
+     */
+    private static final int MAXIMUM_MTU = 512;
 
     /**
      * Constructor. Initializes with the given parameters.
-     * @param bluetoothDevice
-     * @param bluetoothManager
-     * @param domesticService
-     * @param context
+     * @param bluetoothDevice The BluetoothDevice being abstracted.
+     * @param bluetoothManager An abstraction to perform high level Bluetooth
+     *                         management.
+     * @param domesticService The BLE service description.
+     * @param context The Android environment context.
      */
     public GattClient(
             BluetoothDevice bluetoothDevice,
@@ -109,14 +139,17 @@ public class GattClient extends BluetoothGattCallback {
         Objects.requireNonNull(domesticService);
         Objects.requireNonNull(context);
 
+        this.connectorDelegate = null;
+        this.inputStreamDelegate = null;
+        this.outputStreamDelegate = null;
+
         this.bluetoothDevice = bluetoothDevice;
         this.bluetoothManager = bluetoothManager;
         this.bluetoothAdapter = null;
         this.bluetoothGatt = null;
+        this.mtu = GattClient.DEFAULT_MTU;
 
         this.domesticService = domesticService;
-
-        this.inputStreamDelegate = null;
 
         this.context = new WeakReference<>(context);
     }
@@ -140,10 +173,25 @@ public class GattClient extends BluetoothGattCallback {
         return this.connectorDelegate != null ? this.connectorDelegate.get() : null;
     }
 
+    /**
+     * Sets the InputStreamDelegate that is to receive future notifications that
+     * respect to input stream events. The implementation will keep a weak
+     * reference to the given instance, as to prevent cyclic dependencies. If
+     * another InputStreamDelegate was previously set, calling this method will
+     * override it.
+     * @param inputStreamDelegate The instance to receive InputStreamDelegate
+     *                            events.
+     */
     public final void setInputStreamDelegate(InputStreamDelegate inputStreamDelegate) {
         this.inputStreamDelegate = new WeakReference<>(inputStreamDelegate);
     }
 
+    /**
+     * Returns a strong reference to the InputStreamDelegate that was last set,
+     * and also the one that is, at the moment, receiving InputStream events.
+     * If none was set, this method returns null.
+     * @return The current {@code InputStreamDelegate}.
+     */
     public final InputStreamDelegate getInputStreamDelegate() {
         return this.inputStreamDelegate != null ? this.inputStreamDelegate.get() : null;
     }
@@ -248,7 +296,7 @@ public class GattClient extends BluetoothGattCallback {
     }
 
     @Override
-    public void onConnectionStateChange(final BluetoothGatt bluetoothGatt, final int status, final int newState) {
+    public void onConnectionStateChange(BluetoothGatt bluetoothGatt, int status, int newState) {
         super.onConnectionStateChange(bluetoothGatt, status, newState);
 
         ConnectorDelegate connectorDelegate = getConnectorDelegate();
@@ -263,9 +311,8 @@ public class GattClient extends BluetoothGattCallback {
         // Is the client connected?
         if (newState == BluetoothProfile.STATE_CONNECTED) {
             Log.i(getClass().getCanonicalName(), String.format("ULX GATT client connected [%s]", bluetoothGatt.getDevice().getAddress()));
+            negotiateMtu();
 
-            // Proceed with the service discovery
-            discoverServices();
         } else {
             Log.i(getClass().getCanonicalName(), String.format("ULX GATT client connection failed [%s]", bluetoothGatt.getDevice().getAddress()));
 
@@ -278,6 +325,40 @@ public class GattClient extends BluetoothGattCallback {
 
             handleConnectionFailure(error);
         }
+    }
+
+    /**
+     * This method negotiates the Maximum Transmissible Unit (MTU) with the
+     * remote peer by asking it for its maximum supported value.
+     */
+    private void negotiateMtu() {
+
+        Log.i(getClass().getCanonicalName(), "ULX is requesting the MTU from the remote peer");
+
+        // 512 is the maximum MTU possible, and its the one we're aiming for.
+        // In case of failure, we skip the MTU negotiation and go straight to
+        // discovering the services, since MTU failure is not blocking.
+        if (!getBluetoothGatt().requestMtu(GattClient.MAXIMUM_MTU)) {
+            discoverServices();
+        }
+    }
+
+    @Override
+    public void onMtuChanged(BluetoothGatt gatt, int mtu, int status) {
+        super.onMtuChanged(gatt, mtu, status);
+
+        Log.i(getClass().getCanonicalName(), String.format("ULX negotiated MTU (%d) with status %d", mtu, status));
+
+        // Keep the negotiated MTU in case of success. Failure means that we
+        // stick with the default.
+        if (status == BluetoothGatt.GATT_SUCCESS) {
+            this.mtu = mtu;
+        }
+
+        // Proceed with the service discovery; notice that the service discovery
+        // occurs regardless of success, since in case of failure we'll use
+        // the default MTU.
+        discoverServices();
     }
 
     /**
@@ -329,7 +410,7 @@ public class GattClient extends BluetoothGattCallback {
 
         // Services discovered
         if (status == BluetoothGatt.GATT_SUCCESS) {
-            handleServicesDiscovered(gatt, gatt.getServices());
+            handleServicesDiscovered(gatt.getServices());
         }
 
         // The service wasn't discovered, something went wrong
@@ -358,11 +439,10 @@ public class GattClient extends BluetoothGattCallback {
      * that means that it won't be visible on the network. In case the host is
      * the initiator, it will being subscribing the remote's characteristics,
      * preparing for I/O.
-     * @param gatt Not used.
      * @param services The list of services from which the implementation will
      *                 extract the matching service, if one exists.
      */
-    private void handleServicesDiscovered(BluetoothGatt gatt, List<BluetoothGattService> services) {
+    private void handleServicesDiscovered(List<BluetoothGattService> services) {
 
         BleForeignService foreignService = getForeignService(services);
 
@@ -404,7 +484,6 @@ public class GattClient extends BluetoothGattCallback {
         // one to initiate). The host will also be the initiator if it does not
         // support advertising, which means that the remote peer will not see it
         if (comparison < 0 || !getBluetoothAdapter().isMultipleAdvertisementSupported()) {
-            Log.i(getClass().getCanonicalName(), "ULX subscribing control characteristic");
             subscribeCharacteristic(foreignReliableControl);
         }
 
@@ -562,7 +641,7 @@ public class GattClient extends BluetoothGattCallback {
         super.onDescriptorWrite(gatt, descriptor, status);
 
         if (status == BluetoothGatt.GATT_SUCCESS) {
-            handleCharacteristicSubscribed(gatt, descriptor);
+            handleCharacteristicSubscribed(descriptor);
         }
 
         else {
@@ -578,14 +657,21 @@ public class GattClient extends BluetoothGattCallback {
         }
     }
 
-    private void handleCharacteristicSubscribed(BluetoothGatt gatt, BluetoothGattDescriptor descriptor) {
+    /**
+     * This method is called when a remote characteristic has been subscribed,
+     * and the implementation is looking to proceed with connection lifecycle.
+     * What that means depends on what characteristic is being subscribed,
+     * control or output.
+     * @param descriptor The descriptor for the subscribred characteristic.
+     */
+    private void handleCharacteristicSubscribed(BluetoothGattDescriptor descriptor) {
         Log.i(getClass().getCanonicalName(), String.format("ULX characteristic subscribed with descriptor %s", descriptor.getUuid().toString()));
 
         if (getDomesticService().isReliableOutput(descriptor)) {
-            handleOpenStream();
+            notifyOpenStream();
         }
 
-        else handleSuccessfulConnection();
+        else notifySuccessfulConnection();
     }
 
     /**
@@ -593,14 +679,19 @@ public class GattClient extends BluetoothGattCallback {
      * completed successfully, including the subscription of the control
      * characteristic.
      */
-    private void handleSuccessfulConnection() {
+    private void notifySuccessfulConnection() {
         ConnectorDelegate connectorDelegate = getConnectorDelegate();
         if (connectorDelegate != null) {
             connectorDelegate.onConnected(this);
         }
     }
 
-    private void handleOpenStream() {
+    /**
+     * Propagates a delegate notification indicating a successful subscription
+     * of the remote output characteristic by the host's input stream. This
+     * corresponds to the stream having been opened.
+     */
+    private void notifyOpenStream() {
         GattClient.InputStreamDelegate inputStreamDelegate = getInputStreamDelegate();
         if (inputStreamDelegate != null) {
             inputStreamDelegate.onOpen(this);
@@ -622,10 +713,23 @@ public class GattClient extends BluetoothGattCallback {
         }
     }
 
+    /**
+     * This method returns a local GATT service matching the given GATT service
+     * specification. The lookup will be done according to the given service's
+     * UUID. This can be used to translate a remote service into a matching
+     * local one.
+     * @param service The service to match.
+     * @return A matching service or null, if one does not exist.
+     */
     public BluetoothGattService getServiceMatching(BluetoothGattService service) {
         return getServiceMatching(service.getUuid());
     }
 
+    /**
+     * This method looks for a local GATT service with the given UUID.
+     * @param uuid The service UUID to look for.
+     * @return A matching service or null, if one does not exist.
+     */
     public BluetoothGattService getServiceMatching(UUID uuid) {
         return getBluetoothGatt().getService(uuid);
     }

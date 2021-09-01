@@ -432,12 +432,12 @@ public class Bridge implements
         Message message = new Message(new MessageInfo(messageId), data);
 
         ExecutorPool.getCoreExecutor().execute(
-                () -> sendData(messageId, data, instance.getIdentifier(), acknowledge)
+                () -> send(messageId, data, instance.getIdentifier(), acknowledge)
         );
 
         return message;
     }
 
-    public void sendData(int messageId, byte[] data, byte[] instance, boolean acknowledge) {
+    public void send(int messageId, byte[] data, byte[] instance, boolean acknowledge) {
     }
 }

@@ -252,15 +252,6 @@ public class GattServer extends BluetoothGattServerCallback {
         }
     }
 
-    /*
-     * device The remote device that has requested the write operation
-     * requestId The Id of the request
-     * descriptor Descriptor to be written to.
-     * preparedWrite true, if this write operation should be queued for later execution.
-     * responseNeeded true, if the remote device requires a response
-     * offset The offset given for the value
-     * value The value the client wants to assign to the descriptor
-     */
     @Override
     public void onDescriptorWriteRequest(
             BluetoothDevice device,
@@ -316,5 +307,12 @@ public class GattServer extends BluetoothGattServerCallback {
         if (delegate != null) {
             delegate.onDeviceConnected(this, device);
         }
+    }
+
+    @Override
+    public void onMtuChanged(BluetoothDevice device, int mtu) {
+        super.onMtuChanged(device, mtu);
+
+        Log.i(getClass().getCanonicalName(), String.format("ULX MTU has changed to %d for device %s", mtu, device.getAddress()));
     }
 }
