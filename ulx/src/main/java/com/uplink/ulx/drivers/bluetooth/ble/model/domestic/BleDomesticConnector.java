@@ -13,30 +13,30 @@ import java.util.Objects;
 
 public class BleDomesticConnector extends ConnectorCommons {
 
-    private final BluetoothDevice device;
+    private final BluetoothDevice bluetoothDevice;
     private final BleDomesticService domesticService;
     private final GattServer gattServer;
 
     public BleDomesticConnector(
             String identifier,
             GattServer gattServer,
-            BluetoothDevice device,
+            BluetoothDevice bluetoothDevice,
             BleDomesticService domesticService
     ) {
         super(identifier, TransportType.BLUETOOTH_LOW_ENERGY);
 
         Objects.requireNonNull(gattServer);
-        Objects.requireNonNull(device);
+        Objects.requireNonNull(bluetoothDevice);
         Objects.requireNonNull(domesticService);
 
         this.gattServer = gattServer;
-        this.device = device;
+        this.bluetoothDevice = bluetoothDevice;
         this.domesticService = domesticService;
 
     }
 
-    private BluetoothDevice getDevice() {
-        return this.device;
+    public BluetoothDevice getBluetoothDevice() {
+        return this.bluetoothDevice;
     }
 
     private BleDomesticService getDomesticService() {

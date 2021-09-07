@@ -29,16 +29,12 @@ import com.uplink.ulx.drivers.bluetooth.ble.model.domestic.BleDomesticService;
 import com.uplink.ulx.drivers.bluetooth.ble.model.foreign.BleForeignConnector;
 import com.uplink.ulx.drivers.bluetooth.ble.model.foreign.BleForeignInputStream;
 import com.uplink.ulx.drivers.bluetooth.ble.model.foreign.BleForeignOutputStream;
-import com.uplink.ulx.drivers.controller.Browser;
-import com.uplink.ulx.drivers.model.Channel;
-import com.uplink.ulx.drivers.model.Connector;
 import com.uplink.ulx.drivers.bluetooth.commons.BluetoothPermissionChecker;
 import com.uplink.ulx.drivers.bluetooth.commons.BluetoothStateListener;
 import com.uplink.ulx.drivers.commons.controller.BrowserCommons;
-import com.uplink.ulx.drivers.model.Device;
-import com.uplink.ulx.drivers.model.InputStream;
-import com.uplink.ulx.drivers.model.OutputStream;
-import com.uplink.ulx.drivers.model.Stream;
+import com.uplink.ulx.drivers.controller.Browser;
+import com.uplink.ulx.drivers.model.Channel;
+import com.uplink.ulx.drivers.model.Connector;
 import com.uplink.ulx.drivers.model.Transport;
 import com.uplink.ulx.threading.ExecutorPool;
 import com.uplink.ulx.utils.StringUtils;
@@ -543,15 +539,21 @@ class BleBrowser extends BrowserCommons implements
         // Add to the registry
         getKnownDevices().put(bluetoothDevice.getAddress(), bluetoothDevice);
 
+        // Instantiate the GATT client
+        GattClient gattClient = new GattClient(
+                bluetoothDevice,
+                getBluetoothManager(),
+                getDomesticService(),
+                getContext()
+        );
+
         // Create the connector
         Connector connector = new BleForeignConnector(
                 UUID.randomUUID().toString(),
-                getContext(),
-                bluetoothDevice,
-                getBluetoothManager(),
-                getDomesticService()
+                gattClient
         );
 
+        // Take ownership of the streams
         connector.setStateDelegate(this);
         connector.setInvalidationDelegate(this);
 
@@ -604,7 +606,6 @@ class BleBrowser extends BrowserCommons implements
      * queue, this method does nothing.
      */
     private void attemptConnection() {
-
         Connector connector = dequeueConnector();
 
         // Don't proceed if there's no connector
@@ -697,7 +698,7 @@ class BleBrowser extends BrowserCommons implements
         BluetoothGattCharacteristic physicalReliableInputCharacteristic = foreignService.getCharacteristic(reliableInputCharacteristic.getUuid());
 
         // Create the input stream
-        InputStream inputStream = new BleForeignInputStream(
+        BleForeignInputStream inputStream = new BleForeignInputStream(
                 identifier,
                 gattClient,
                 physicalReliableOutputCharacteristic,
@@ -705,12 +706,16 @@ class BleBrowser extends BrowserCommons implements
         );
 
         // Create the output stream
-        OutputStream outputStream = new BleForeignOutputStream(
+        BleForeignOutputStream outputStream = new BleForeignOutputStream(
                 identifier,
                 gattClient,
                 physicalReliableInputCharacteristic,
                 this
         );
+
+        // The streams assume the corresponding GATT delegates
+        gattClient.setInputStreamDelegate(inputStream);
+        gattClient.setOutputStreamDelegate(outputStream);
 
         // Create the reliable Channel
         Channel reliableChannel = new BleChannel(

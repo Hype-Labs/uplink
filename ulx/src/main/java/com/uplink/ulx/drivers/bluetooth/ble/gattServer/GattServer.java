@@ -3,6 +3,7 @@ package com.uplink.ulx.drivers.bluetooth.ble.gattServer;
 import android.annotation.TargetApi;
 import android.bluetooth.BluetoothDevice;
 import android.bluetooth.BluetoothGatt;
+import android.bluetooth.BluetoothGattCharacteristic;
 import android.bluetooth.BluetoothGattDescriptor;
 import android.bluetooth.BluetoothGattServer;
 import android.bluetooth.BluetoothGattServerCallback;
@@ -78,6 +79,27 @@ public class GattServer extends BluetoothGattServerCallback {
          * @param bluetoothDevice The BluetoothDevice that has subscribed.
          */
         void onOutputStreamSubscribed(GattServer gattServer, BluetoothDevice bluetoothDevice);
+
+        /**
+         * This method is used as an indication that a notification was sent
+         * to the given {@link BluetoothDevice}. This should correspond to a
+         * domestic reliable stream producing output, having gotten confirmation
+         * from the remote peer that the content was received.
+         * @param gattServer The instance triggering the notification.
+         * @param bluetoothDevice The BluetoothDevice that was notified.
+         */
+        void onNotificationSent(GattServer gattServer, BluetoothDevice bluetoothDevice);
+
+        /**
+         * This method is used as an indication that the given BluetoothDevice
+         * did not receive an indication as it was supposed. This could mean
+         * that the device did not respond or that something else went wrong,
+         * but the data should be assumed to have not have been delivered.
+         * @param gattServer The instance triggering the notification.
+         * @param bluetoothDevice The BluetoothDevice that was not notified.
+         * @param error An error, indicating a probable cause for the failure.
+         */
+        void onNotificationNotSent(GattServer gattServer, BluetoothDevice bluetoothDevice, UlxError error);
     }
 
     private WeakReference<Delegate> delegate;
@@ -85,6 +107,8 @@ public class GattServer extends BluetoothGattServerCallback {
     private final BleDomesticService domesticService;
     private final BluetoothManager bluetoothManager;
     private final WeakReference<Context> context;
+
+    private MtuRegistry mtuRegistry;
 
     private BluetoothGattServer bluetoothGattServer;
 
@@ -106,6 +130,8 @@ public class GattServer extends BluetoothGattServerCallback {
         this.domesticService = domesticService;
         this.bluetoothManager = bluetoothManager;
         this.context = new WeakReference<>(context);
+
+        this.mtuRegistry = null;
     }
 
     /**
@@ -132,6 +158,18 @@ public class GattServer extends BluetoothGattServerCallback {
      */
     private Context getContext() {
         return this.context.get();
+    }
+
+    /**
+     * Returns the MTU registry that holds the MTU values negotiated with the
+     * other peer devices.
+     * @return The MTU registry.
+     */
+    private MtuRegistry getMtuRegistry() {
+        if (this.mtuRegistry == null) {
+            this.mtuRegistry = new MtuRegistry();
+        }
+        return this.mtuRegistry;
     }
 
     /**
@@ -202,7 +240,7 @@ public class GattServer extends BluetoothGattServerCallback {
                     "Try restarting the Bluetooth adapter."
             );
 
-            notifyFailedServiceAddition(error);
+            notifyOnServiceAdditionFailed(error);
         }
     }
 
@@ -223,7 +261,7 @@ public class GattServer extends BluetoothGattServerCallback {
                         "Try restarting the Bluetooth adapter."
                 );
 
-                notifyFailedServiceAddition(error);
+                notifyOnServiceAdditionFailed(error);
             }
         });
     }
@@ -245,7 +283,7 @@ public class GattServer extends BluetoothGattServerCallback {
      * to add the service to the GATT server.
      * @param error An error, describing the cause for the failure.
      */
-    private void notifyFailedServiceAddition(UlxError error) {
+    private void notifyOnServiceAdditionFailed(UlxError error) {
         Delegate delegate = getDelegate();
         if (delegate != null) {
             delegate.onServiceAdditionFailed(this, error);
@@ -268,29 +306,37 @@ public class GattServer extends BluetoothGattServerCallback {
         if (responseNeeded) {
 
             // TODO this method returns a boolean value that should be checked
-            getBluetoothGattServer().sendResponse(
+            if (!getBluetoothGattServer().sendResponse(
                     device,
                     requestId,
                     BluetoothGatt.GATT_SUCCESS,
                     offset,
                     value
-            );
+            )) {
+                Log.e(getClass().getCanonicalName(), "ULX failed to respond to a descriptor write request");
+            }
         }
 
         // The connection process is completed when the reliable control
         // characteristic is subscribed
         if (getDomesticService().isReliableControl(descriptor)) {
-            handleDeviceConnected(device);
+            notifyOnDeviceConnected(device);
         }
 
         // When subscribing the reliable output characteristic, the devices
         // are already connected and preparing the streams for I/O
         else if (getDomesticService().isReliableOutput(descriptor)) {
-            handleReliableOutputStreamOpen(device);
+            notifyOnOutputStreamSubscribed(device);
         }
     }
 
-    private void handleReliableOutputStreamOpen(BluetoothDevice device) {
+    /**
+     * Propagates a notification to the delegate giving indication that the
+     * reliable output stream was subscribed.
+     * @param device The {@link BluetoothDevice} that subscribed the
+     *               characteristic.
+     */
+    private void notifyOnOutputStreamSubscribed(BluetoothDevice device) {
         Delegate delegate = getDelegate();
         if (delegate != null) {
             delegate.onOutputStreamSubscribed(this, device);
@@ -302,7 +348,7 @@ public class GattServer extends BluetoothGattServerCallback {
      * that the given BluetoothDevice has subscribed the control characteristic.
      * @param device The device that connected.
      */
-    private void handleDeviceConnected(BluetoothDevice device) {
+    private void notifyOnDeviceConnected(BluetoothDevice device) {
         Delegate delegate = getDelegate();
         if (delegate != null) {
             delegate.onDeviceConnected(this, device);
@@ -310,9 +356,115 @@ public class GattServer extends BluetoothGattServerCallback {
     }
 
     @Override
-    public void onMtuChanged(BluetoothDevice device, int mtu) {
-        super.onMtuChanged(device, mtu);
+    public void onMtuChanged(BluetoothDevice bluetoothDevice, int mtu) {
+        super.onMtuChanged(bluetoothDevice, mtu);
 
-        Log.i(getClass().getCanonicalName(), String.format("ULX MTU has changed to %d for device %s", mtu, device.getAddress()));
+        Log.i(getClass().getCanonicalName(), String.format("ULX MTU has changed to %d for device %s", mtu, bluetoothDevice.getAddress()));
+
+        // Keep it
+        getMtuRegistry().set(bluetoothDevice, mtu);
+    }
+
+    @Override
+    public void onCharacteristicWriteRequest(
+            BluetoothDevice device,
+            int requestId,
+            BluetoothGattCharacteristic characteristic,
+            boolean preparedWrite,
+            boolean responseNeeded,
+            int offset,
+            byte[] value) {
+        if (responseNeeded) {
+            if (!getBluetoothGattServer().sendResponse(
+                    device,
+                    requestId,
+                    BluetoothGatt.GATT_SUCCESS,
+                    offset,
+                    value
+            )) {
+                Log.e(getClass().getCanonicalName(), "ULX failed to send characteristic write request response");
+            }
+        }
+
+        Log.e(getClass().getCanonicalName(), String.format("ULX got data with size %d", value.length));
+    }
+
+    /**
+     * Updates the value of the characteristic according to the data passed in
+     * the {@code data} argument. The implementation will consume the least
+     * amount of bytes between the given buffer and the available MTU. After
+     * the characteristic is updated, the remote {@code bluetoothDevice} will
+     * be notified of the change. If the implementation cannot perform any of
+     * this operations, it will return zero, as an indication that it could not
+     * write any bytes. In case of success it will return the number of bytes
+     * written instead.
+     * @param bluetoothDevice The remote {@link BluetoothDevice}.
+     * @param characteristic The {@link BluetoothGattCharacteristic} to write.
+     * @param confirm Whether to ask for a confirmation from the client.
+     * @param data The data to send.
+     * @return The amount of bytes consumed from the input data.
+     */
+    public int updateCharacteristic(BluetoothDevice bluetoothDevice, BluetoothGattCharacteristic characteristic, boolean confirm, byte[] data) {
+
+        byte[] dataToSend = new byte[Math.min(data.length, getMtuRegistry().get(bluetoothDevice))];
+
+        // Copy the data
+        System.arraycopy(data, 0, dataToSend, 0, dataToSend.length);
+
+        // Set the value locally
+        if (!characteristic.setValue(dataToSend)) {
+            return 0;
+        }
+
+        // Notify the characteristic as changed
+        if (!getBluetoothGattServer().notifyCharacteristicChanged(bluetoothDevice, characteristic, confirm)) {
+            return 0;
+        }
+
+        return dataToSend.length;
+    }
+
+    @Override
+    public void onNotificationSent(BluetoothDevice bluetoothDevice, int status) {
+        Log.i(getClass().getCanonicalName(), String.format("ULX sent a notification to %s", bluetoothDevice.getAddress()));
+
+        if (status == BluetoothGatt.GATT_SUCCESS) {
+            notifyOnNotificationSent(bluetoothDevice);
+        } else {
+
+            UlxError error = new UlxError(
+                    UlxErrorCode.UNKNOWN,
+                    "Could not deliver the message to the remote device.",
+                    "The device failed to acknowledge reception of the data was not delivered.",
+                    "Try sending the message again."
+            );
+
+            notifyOnNotificationSentFailure(bluetoothDevice, error);
+        }
+    }
+
+    /**
+     * Propagates a notification for a notification that was successfully
+     * acknowledge by the remote device.
+     * @param bluetoothDevice The device that acknowledged reception.
+     */
+    private void notifyOnNotificationSent(BluetoothDevice bluetoothDevice) {
+        Delegate delegate = getDelegate();
+        if (delegate != null) {
+            delegate.onNotificationSent(this, bluetoothDevice);
+        }
+    }
+
+    /**
+     * Propagates a notification for a {@link
+     * Delegate#onNotificationSent(BluetoothDevice, int)} event to the delegate.
+     * @param bluetoothDevice The {@link BluetoothDevice} that received the
+     *                        notification/indication.
+     */
+    private void notifyOnNotificationSentFailure(BluetoothDevice bluetoothDevice, UlxError error) {
+        Delegate delegate = getDelegate();
+        if (delegate != null) {
+            delegate.onNotificationNotSent(this, bluetoothDevice, error);
+        }
     }
 }

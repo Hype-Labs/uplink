@@ -32,8 +32,6 @@ public abstract class StreamCommons implements
     private final StateManager stateManager;
     private WeakReference<StateDelegate> stateDelegate;
     private WeakReference<Stream.InvalidationDelegate> invalidationDelegate;
-    private Object bufferLock;
-    private byte [] buffer;
 
     /**
      * Constructor. Initializes with the given arguments.
@@ -63,48 +61,6 @@ public abstract class StreamCommons implements
      */
     private StateManager getStateManager() {
         return this.stateManager;
-    }
-
-    /**
-     * Returns an object (Object) that is used by the implementation to server
-     * as a lock for buffer operations. When reading, writing, copying, or
-     * clearing the buffer, this lock must be acquired first.
-     * @return The lock object to use for buffer operations.
-     */
-    protected final synchronized Object getBufferLock() {
-        if (this.bufferLock == null) {
-            this.bufferLock = new Object();
-        }
-        return this.bufferLock;
-    }
-
-    /**
-     * Sets the buffer for the stream. The given buffer may be null, in which
-     * case the buffer is entirely cleared. When that happens, the buffer will
-     * later be reallocated, when needed. Otherwise, the buffer is kept as a
-     * strong reference and held for I/O operations.
-     * @param buffer The buffer to set.
-     */
-    protected final void setBuffer(byte[] buffer) {
-        synchronized (getBufferLock()) {
-            this.buffer = buffer;
-        }
-    }
-
-    /**
-     * Returns the buffer to use for I/O operations. If the buffer has already
-     * been previously allocated and not cleared, this method will allocate a
-     * new byte array. If the buffer is non-null, meaning that it was allocated
-     * and not cleared, this will return the buffer that already exists.
-     * @return The buffer used for I/O operations.
-     */
-    protected final byte[] getBuffer() {
-        synchronized (getBufferLock()) {
-            if (this.buffer == null) {
-                this.buffer = new byte[0];
-            }
-            return this.buffer;
-        }
     }
 
     /**

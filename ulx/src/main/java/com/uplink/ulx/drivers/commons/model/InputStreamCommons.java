@@ -82,6 +82,7 @@ public abstract class InputStreamCommons extends StreamCommons implements InputS
      * @return The result (IOResult) of the operation.
      */
     private IOResult readBuffer(byte[] destination) {
+        /*
         synchronized (getBufferLock()) {
 
             byte[] source = getBuffer();
@@ -115,6 +116,9 @@ public abstract class InputStreamCommons extends StreamCommons implements InputS
 
             return new IOResult(byteCount, null);
         }
+
+         */
+        return null;
     }
 
     /**
@@ -126,12 +130,15 @@ public abstract class InputStreamCommons extends StreamCommons implements InputS
      * @param data The data to append and process.
      */
     public final void dataReceived(byte[] data) {
+        /*
         synchronized (getBufferLock()) {
             addDataToBuffer(data);
             if (isDataAvailableNeeded()) {
                 hasDataAvailable(this);
             }
         }
+
+         */
     }
 
     /**
@@ -140,10 +147,13 @@ public abstract class InputStreamCommons extends StreamCommons implements InputS
      * @param data The data to append.
      */
     private void addDataToBuffer(byte [] data) {
+        /*
         synchronized (getBufferLock()) {
             byte[] buffer = ByteUtils.concatenateByteArrays(getBuffer(), data);
             setBuffer(buffer);
         }
+
+         */
     }
 
     @Override

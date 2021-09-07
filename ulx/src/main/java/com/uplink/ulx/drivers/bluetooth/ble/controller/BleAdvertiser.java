@@ -18,6 +18,9 @@ import android.util.Log;
 import com.uplink.ulx.TransportType;
 import com.uplink.ulx.UlxError;
 import com.uplink.ulx.UlxErrorCode;
+import com.uplink.ulx.bridge.Registry;
+import com.uplink.ulx.drivers.bluetooth.ble.gattClient.GattClient;
+import com.uplink.ulx.drivers.bluetooth.ble.gattServer.MtuRegistry;
 import com.uplink.ulx.drivers.bluetooth.ble.model.BleChannel;
 import com.uplink.ulx.drivers.bluetooth.ble.model.BleDevice;
 import com.uplink.ulx.drivers.bluetooth.ble.model.BleTransport;
@@ -36,9 +39,10 @@ import com.uplink.ulx.drivers.model.InputStream;
 import com.uplink.ulx.drivers.model.OutputStream;
 import com.uplink.ulx.drivers.model.Stream;
 import com.uplink.ulx.drivers.model.Transport;
-import com.uplink.ulx.model.Registry;
 import com.uplink.ulx.threading.ExecutorPool;
 
+import java.util.HashMap;
+import java.util.List;
 import java.util.UUID;
 
 /**
@@ -178,6 +182,8 @@ class BleAdvertiser extends AdvertiserCommons implements
         this.bluetoothManager = bluetoothManager;
         this.domesticService = domesticService;
 
+        this.registry = null;
+
         BluetoothStateListener.addObserver(this);
     }
 
@@ -256,6 +262,38 @@ class BleAdvertiser extends AdvertiserCommons implements
             this.registry = new Registry<>();
         }
         return this.registry;
+    }
+
+    /**
+     * Returns the {@link Device} associated with the given {@link
+     * BluetoothDevice}, if one exists. Otherwise returns {@code null}. If the
+     * device does not exists or more than one is registered, this method will
+     * raise a {@link RuntimeException}, although this is a behaviour that is
+     * expected to change in the future.
+     * @param bluetoothDevice The {@link BluetoothDevice} in the association.
+     * @return The {@link Device} in the association or {@code null}.
+     */
+    private Device getDevice(BluetoothDevice bluetoothDevice) {
+
+        List<Device> deviceList = getRegistry().getDevicesFromGenericIdentifier(bluetoothDevice.getAddress());
+
+        // If the address is not registered, we skipped something
+        if (deviceList == null || deviceList.isEmpty()) {
+            throw new RuntimeException("A BluetoothDevice notification was " +
+                    "issued for an open stream, but the Device identifier is " +
+                    "not associated with it; this must mean that the registration " +
+                    "was not performed or that the registry got corrupted.");
+        }
+
+        if (deviceList.size() > 1) {
+            throw new RuntimeException("An unexpected amount of devices was " +
+                    "found in association with a single BluetoothDevice address. " +
+                    "This means that the registry got corrupted, since only a " +
+                    "single entry is expected.");
+        }
+
+        // There should be only one
+        return deviceList.get(0);
     }
 
     @Override
@@ -378,33 +416,45 @@ class BleAdvertiser extends AdvertiserCommons implements
         String address = bluetoothDevice.getAddress();
         String identifier = connector.getIdentifier();
 
-        getRegistry().set(address, bluetoothDevice);
+        getRegistry().setGeneric(address, bluetoothDevice);
         getRegistry().associate(address, identifier);
     }
 
     @Override
     public void onOutputStreamSubscribed(GattServer gattServer, BluetoothDevice bluetoothDevice) {
 
-        Device device = getRegistry().getDeviceFromAddress(bluetoothDevice.getAddress());
-
-        // If the address is not registered, we skipped something
-        if (device == null) {
-            throw new RuntimeException("A BluetoothDevice notification was " +
-                    "issued for an open stream, but the Device identifier is " +
-                    "not associated with it; this must mean that the registration " +
-                    "was not performed or that the registry got corrupted.");
-        }
+        Device device = getDevice(bluetoothDevice);
 
         // Notify the stream that it has been subscribed
-        InputStream inputStream = device.getTransport().getReliableChannel().getInputStream();
-        OutputStream outputStream = device.getTransport().getReliableChannel().getOutputStream();
+        BleDomesticInputStream inputStream = (BleDomesticInputStream)device.getTransport().getReliableChannel().getInputStream();
+        BleDomesticOutputStream outputStream = (BleDomesticOutputStream)device.getTransport().getReliableChannel().getOutputStream();
 
         // In fact, the InputStream is already open, since nothing needs to
         // happen for that. These two events are being triggered at the same
         // time, but the InputStream could have already triggered the event
         // before. This may change in the future.
-        ((BleDomesticInputStream)inputStream).notifyAsOpen();
-        ((BleDomesticOutputStream)outputStream).notifyAsOpen();
+        inputStream.notifyAsOpen();
+        outputStream.notifyAsOpen();
+    }
+
+    @Override
+    public void onNotificationSent(GattServer gattServer, BluetoothDevice bluetoothDevice) {
+
+        Device device = getDevice(bluetoothDevice);
+
+        // Notify the output stream that the indication was given
+        BleDomesticOutputStream outputStream = (BleDomesticOutputStream)device.getTransport().getReliableChannel().getOutputStream();
+        outputStream.notifySuccessfulIndication();
+    }
+
+    @Override
+    public void onNotificationNotSent(GattServer gattServer, BluetoothDevice bluetoothDevice, UlxError error) {
+
+        Device device = getDevice(bluetoothDevice);
+
+        // Notify the output stream that the indication was NOT given
+        BleDomesticOutputStream outputStream = (BleDomesticOutputStream)device.getTransport().getReliableChannel().getOutputStream();
+        outputStream.notifyFailedIndication(error);
     }
 
     @Override
@@ -518,6 +568,8 @@ class BleAdvertiser extends AdvertiserCommons implements
     @Override
     public void onConnected(Connector connector) {
 
+        BleDomesticConnector domesticConnector = (BleDomesticConnector)connector;
+
         InputStream inputStream = new BleDomesticInputStream(
                 connector.getIdentifier(),
                 this
@@ -525,6 +577,9 @@ class BleAdvertiser extends AdvertiserCommons implements
 
         OutputStream outputStream = new BleDomesticOutputStream(
                 connector.getIdentifier(),
+                getGattServer(),
+                domesticConnector.getBluetoothDevice(),
+                getDomesticService().getReliableOutputCharacteristic(),
                 this
         );
 
@@ -547,7 +602,7 @@ class BleAdvertiser extends AdvertiserCommons implements
 
         // Register the device (the BluetoothDevice, identifier, and address
         // should already be there; this should complete the association)
-        getRegistry().set(device.getIdentifier(), device);
+        getRegistry().setDevice(device.getIdentifier(), device);
 
         super.onDeviceFound(this, device);
     }

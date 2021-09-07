@@ -12,6 +12,19 @@ import java.util.HashMap;
  */
 public class MtuRegistry {
 
+    /**
+     * This is the maximum support value for MTU; 512 bytes per transmission.
+     */
+    public static final int MAXIMUM_MTU = 512;
+
+    /**
+     * The "normal" (also the minimum) MTU size for BLE is 20 bytes. The
+     * implementation will always go for the maximum (512), but this is still
+     * the default value. If the MTU negotiation fails, this is what the
+     * implementation will use.
+     */
+    public static final int DEFAULT_MTU = 20;
+
     private HashMap<String, Integer> registry;
 
     /**
@@ -71,6 +84,6 @@ public class MtuRegistry {
      */
     public int get(String address) {
         Integer mtu = getRegistry().get(address);
-        return mtu != null ? mtu : 0;
+        return mtu != null ? mtu : DEFAULT_MTU;
     }
 }

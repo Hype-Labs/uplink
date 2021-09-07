@@ -5,6 +5,7 @@ import android.content.Context;
 import com.uplink.ulx.model.Instance;
 import com.uplink.ulx.model.Message;
 import com.uplink.ulx.model.State;
+import com.uplink.ulx.observers.MessageObserver;
 import com.uplink.ulx.observers.NetworkObserver;
 import com.uplink.ulx.observers.StateObserver;
 
@@ -125,6 +126,33 @@ public class ULX {
      */
     public static void removeNetworkObserver(NetworkObserver networkObserver) {
         Implementation.getInstance().removeNetworkObserver(networkObserver);
+    }
+
+    /**
+     * Adds a message observer. After being added, the observer will get
+     * notifications for message states and progress tracking. Notifications
+     * will be triggered when messages are received, when they fail delivery,
+     * or when a message is delivered. If the observer has previously already
+     * been registered, it will not be registered twice, and the method will
+     * do nothing.
+     * @param messageObserver The message observer to add.
+     * @see MessageObserver
+     */
+    public static void addMessageObserver(MessageObserver messageObserver) {
+        Implementation.getInstance().addMessageObserver(messageObserver);
+    }
+
+    /**
+     * This method removes a message observer ({@link MessageObserver}) that was
+     * previously registered with {@link #addMessageObserver(MessageObserver)}.
+     * If the observer was not previously registered or has already been removed,
+     * this method does nothing. After being removed, the observer will no
+     * longer get any notifications from the SDK.
+     * @param messageObserver The message observer to remove.
+     * @see MessageObserver
+     */
+    public static void removeMessageObserver(MessageObserver messageObserver) {
+        Implementation.getInstance().removeMessageObserver(messageObserver);
     }
 
     /**

@@ -13,6 +13,7 @@ import com.uplink.ulx.drivers.controller.DriverManager;
 import com.uplink.ulx.drivers.model.Device;
 import com.uplink.ulx.model.Instance;
 import com.uplink.ulx.model.Message;
+import com.uplink.ulx.model.MessageInfo;
 import com.uplink.ulx.model.State;
 
 import java.lang.ref.WeakReference;
@@ -30,9 +31,9 @@ public class Service extends android.app.Service implements
         Driver.StateDelegate,
         Driver.NetworkDelegate,
         Bridge.StateDelegate,
-        Bridge.NetworkDelegate
+        Bridge.NetworkDelegate,
+        Bridge.MessageDelegate
 {
-
     /**
      * The Service Delegate receives notifications from the background service
      * indicating activity on the SDK. This will include activity for all sorts
@@ -141,6 +142,12 @@ public class Service extends android.app.Service implements
         void onInstanceLost(Service service, Instance instance, UlxError error);
     }
 
+    public interface MessageDelegate {
+
+        void onMessageSent(Service service, MessageInfo messageInfo);
+        void onMessageSendFailed(Service service, MessageInfo messageInfo, UlxError error);
+    }
+
     /**
      * This is service Binder, specifically for the Service calls, that is used
      * for the RPC mechanism used by the service to communicate with the app.
@@ -163,6 +170,7 @@ public class Service extends android.app.Service implements
     private DriverManager driverManager;
     private WeakReference<StateDelegate> stateDelegate;
     private WeakReference<NetworkDelegate> networkDelegate;
+    private WeakReference<MessageDelegate> messageDelegate;
 
     /**
      * Sole constructor, initializes some variables.
@@ -171,6 +179,7 @@ public class Service extends android.app.Service implements
 
         this.stateDelegate = null;
         this.networkDelegate = null;
+        this.messageDelegate = null;
 
         this.binder = new LocalBinder();
     }
@@ -197,20 +206,39 @@ public class Service extends android.app.Service implements
     }
 
     /**
-     * Sets the network delegate ({@code NetworkDelegate}) that will get
+     * Sets the network delegate ({@link NetworkDelegate}) that will get
      * notifications from the service.
+     * @param networkDelegate The {@link NetworkDelegate} to set.
      */
     public final void setNetworkDelegate(NetworkDelegate networkDelegate) {
         this.networkDelegate = new WeakReference<>(networkDelegate);
     }
 
     /**
-     * Returns the network delegate ({@code NetworkDelegate}) that will get
+     * Returns the network delegate ({@link NetworkDelegate}) that will get
      * notifications from the service.
-     * @return The network delegate ({@code NetworkDelegate}).
+     * @return The network delegate ({@link NetworkDelegate}).
      */
     private NetworkDelegate getNetworkDelegate() {
         return this.networkDelegate != null ? this.networkDelegate.get() : null;
+    }
+
+    /**
+     * Sets the message delegate ({@link MessageDelegate}) that will get
+     * notifications from the service.
+     * @param messageDelegate The {@link MessageDelegate} to set.
+     */
+    public final void setMessageDelegate(MessageDelegate messageDelegate) {
+        this.messageDelegate = new WeakReference<MessageDelegate>(messageDelegate);
+    }
+
+    /**
+     * Returns the message delegate ({@link MessageDelegate}) that will get
+     * notifications from the service.
+     * @return The {@link MessageDelegate} or null, if none is set.
+     */
+    private MessageDelegate getMessageDelegate() {
+        return this.messageDelegate != null ? this.messageDelegate.get() : null;
     }
 
     /**
@@ -300,6 +328,7 @@ public class Service extends android.app.Service implements
     public void initialize(String appIdentifier) {
         Bridge.getInstance().setStateDelegate(this);
         Bridge.getInstance().setNetworkDelegate(this);
+        Bridge.getInstance().setMessageDelegate(this);
         Bridge.getInstance().initialize(appIdentifier);
     }
 
@@ -384,7 +413,23 @@ public class Service extends android.app.Service implements
         }
     }
 
-    public Message send(int message_id, byte [] data, Instance instance, boolean acknowledge) {
-        return Bridge.getInstance().send(message_id, data, instance, acknowledge);
+    public void send(Message message) {
+        Bridge.getInstance().send(message);
+    }
+
+    @Override
+    public void onMessageSent(Bridge bridge, MessageInfo messageInfo) {
+        MessageDelegate messageDelegate = getMessageDelegate();
+        if (messageDelegate != null) {
+            messageDelegate.onMessageSent(this, messageInfo);
+        }
+    }
+
+    @Override
+    public void onMessageSendFailed(Bridge bridge, MessageInfo messageInfo, UlxError error) {
+        MessageDelegate messageDelegate = getMessageDelegate();
+        if (messageDelegate != null) {
+            messageDelegate.onMessageSendFailed(this, messageInfo, error);
+        }
     }
 }

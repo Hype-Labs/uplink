@@ -4,6 +4,7 @@ import android.bluetooth.BluetoothDevice;
 import android.util.Log;
 
 import com.uplink.ulx.UlxError;
+import com.uplink.ulx.UlxErrorCode;
 import com.uplink.ulx.drivers.model.Connector;
 import com.uplink.ulx.drivers.model.Device;
 import com.uplink.ulx.drivers.model.InputStream;
@@ -12,14 +13,13 @@ import com.uplink.ulx.drivers.model.Stream;
 import com.uplink.ulx.model.Instance;
 import com.uplink.ulx.model.Message;
 import com.uplink.ulx.model.MessageInfo;
-import com.uplink.ulx.model.Registry;
 import com.uplink.ulx.threading.ExecutorPool;
 import com.uplink.ulx.utils.ByteUtils;
 import com.uplink.ulx.utils.StringUtils;
 
 import java.lang.ref.WeakReference;
 import java.nio.ByteBuffer;
-import java.util.HashMap;
+import java.util.List;
 import java.util.Objects;
 import java.util.UUID;
 
@@ -38,7 +38,6 @@ public class Bridge implements
         OutputStream.Delegate,
         Stream.StateDelegate
 {
-
     /**
      * The Bridge Delegate gets notifications for bridge-related events, which
      * will include a wide variety of such events. At this moment, only the
@@ -96,12 +95,59 @@ public class Bridge implements
         void onInstanceLost(Bridge bridge, Instance instance, UlxError error);
     }
 
+    /**
+     * Message delegates receive notifications for events related with content
+     * delivery lifecycle. This includes messages being delivered or not.
+     */
+    public interface MessageDelegate {
+
+        /**
+         * The {@link Message} corresponding to the given {@link MessageInfo}
+         * was successfully written to the network, meaning that the output
+         * was written to another device. It does not, however, mean that it
+         * has reached its destination, since it's still circulating on the
+         * network. Having been "sent" means that it left the device and has
+         * not been acknowledged yet.
+         * @param bridge The {@link Bridge} issuing the notification.
+         * @param messageInfo The {@link MessageInfo} for the {@link Message}
+         *                    that was sent.
+         */
+        void onMessageSent(Bridge bridge, MessageInfo messageInfo);
+
+        /**
+         * The message corresponding to the given {@link MessageInfo} could not
+         * be sent. This means that the message did not leave the device, in
+         * full or in part. This may happens in situations such as an instance
+         * being lost while the content is being dispatched. In practice, some
+         * content may already have been delivered — even acknowledge — but the
+         * full content will not; the message delivery will not proceed and any
+         * content that has already been delivered should probably be discarded.
+         * @param bridge The {@link Bridge} issuing the notification.
+         * @param messageInfo The {@link MessageInfo} for the {@link Message}.
+         * @param error An error, indicating a probable cause for the failure.
+         */
+        void onMessageSendFailed(Bridge bridge, MessageInfo messageInfo, UlxError error);
+    }
+
     private static Bridge instance = null;
 
     private WeakReference<StateDelegate> stateDelegate;
     private WeakReference<NetworkDelegate> networkDelegate;
+    private WeakReference<MessageDelegate> messageDelegate;
 
-    private Registry<BluetoothDevice> registry;
+    // The North bridge registry is a temporary data structure that will be
+    // removed once routing tables are in place. When that happens, the south
+    // bridge registry should be renamed to just "registry".
+    private Registry<Instance> northRegistry;
+    private Registry<BluetoothDevice> southRegistry;
+
+    // The message queue is also a temporary data structure. Currently, the
+    // implementation sends a single message at a time, and thus the full
+    // delivery of the queued contents will mean that the first message in
+    // the queue has been delivered. Future versions will be more complex,
+    // and handle several messages at a time.
+    private Queue<Message> messageQueue;
+    private Queue<MessageInfo> messageInfoQueue;
 
     /**
      * Private constructor prevents instantiation.
@@ -109,7 +155,13 @@ public class Bridge implements
     private Bridge() {
         this.stateDelegate = null;
         this.networkDelegate = null;
-        this.registry = null;
+        this.messageDelegate = null;
+
+        this.northRegistry = null;
+        this.southRegistry = null;
+
+        this.messageQueue = null;
+        this.messageInfoQueue = null;
     }
 
     /**
@@ -163,16 +215,71 @@ public class Bridge implements
     }
 
     /**
-     * Returns the device registry that is used by the implementation to keep
-     * track of native-to-abstract device mappings. If the registry has not
-     * been created yet, it will at this point.
-     * @return The {@code Device}-to-{@code BluetoothDevice} registry.
+     * Sets the {@link MessageDelegate} that will receive notifications from the
+     * bridge with respect to message lifecycle. If a previous delegate has
+     * been set, it will be overridden. The instance will be kept as a weak
+     * reference.
+     * @param messageDelegate The {@link MessageDelegate} to set.
      */
-    private Registry<BluetoothDevice> getRegistry() {
-        if (this.registry == null) {
-            this.registry = new Registry<>();
+    public void setMessageDelegate(MessageDelegate messageDelegate) {
+        this.messageDelegate = new WeakReference<>(messageDelegate);
+    }
+
+    /**
+     * Returns the {@link MessageDelegate} that has previously been set with
+     * the {@link Bridge#setMessageDelegate(MessageDelegate)} method. This
+     * corresponds to the delegate that is currently getting notifications for
+     * message lifecycle events. If no delegate has previously been set, this
+     * method returns {@code null}.
+     * @return The current {@link MessageDelegate}.
+     */
+    public MessageDelegate getMessageDelegate() {
+        return this.messageDelegate != null ? this.messageDelegate.get() : null;
+    }
+
+    /**
+     * This is getter for a temporary data structure that maps {@link Instance}
+     * with {@link Device} in direct link for the North bridge. The reason this
+     * is temporary is because this type of association will not make sense
+     * once the routing tables are in place, since instances can be reached
+     * through indirect links. This will be used in the beginning to test some
+     * basic I/O, but should be removed in future versions.
+     * @return The North bridge registry.
+     */
+    private Registry<Instance> getNorthRegistry() {
+        if (this.northRegistry == null) {
+            this.northRegistry = new Registry<>();
         }
-        return this.registry;
+        return this.northRegistry;
+    }
+
+    /**
+     * Returns the device registry that is used by the South bridge to map
+     * native system framework {@link BluetoothDevice} instances with their
+     * corresponding abstract {@link Device} instances. This will be used by
+     * the South bridge to track which devices correspond to what native system
+     * instances.
+     * @return The South bridge registry.
+     */
+    private Registry<BluetoothDevice> getSouthRegistry() {
+        if (this.southRegistry == null) {
+            this.southRegistry = new Registry<>();
+        }
+        return this.southRegistry;
+    }
+
+    private Queue<Message> getMessageQueue() {
+        if (this.messageQueue == null) {
+            this.messageQueue = new Queue<>();
+        }
+        return this.messageQueue;
+    }
+
+    private Queue<MessageInfo> getMessageInfoQueue() {
+        if (this.messageInfoQueue == null) {
+            this.messageInfoQueue = new Queue<>();
+        }
+        return this.messageInfoQueue;
     }
 
     /**
@@ -304,13 +411,59 @@ public class Bridge implements
 
     @Override
     public void hasSpaceAvailable(OutputStream outputStream) {
+
+        // The stream declaring space available should not be a synonym of a
+        // message being dispatched, but the current implementation dispatches
+        // a single message at a time. This is temporary implementation of the
+        // Bridge, so it will work for now.
+        handleMessageSent();
+
+        // Dispatch more, while we have them
+        while (!getMessageQueue().isEmpty()) {
+            if (dequeueMessage()) {
+                break;
+            }
+        }
+    }
+
+    /**
+     * Removes a {@link MessageInfo} from the message info queue and declares
+     * it as sent. The current implementation only dispatches a single message
+     * at a time, so this will correspond to the message for the data that was
+     * just written.
+     */
+    private void handleMessageSent() {
+
+        // The MessageInfo is removed from the queue
+        MessageInfo messageInfo = getMessageInfoQueue().dequeue();
+
+        // Propagate a notification for dispatched messages. This will be null
+        // when the stream is first opened, in which case we're not flagging
+        // any message has having been sent.
+        if (messageInfo != null) {
+            notifyMessageSent(messageInfo);
+        }
+    }
+
+    /**
+     * Propagates a notification to the {@link MessageDelegate} that the {@link
+     * Message} corresponding to the given {@link MessageInfo} was successfully
+     * written to the output stream.
+     * @param messageInfo The {@link MessageInfo} with the meta information for
+     *                    the {@link Message} that was sent.
+     */
+    private void notifyMessageSent(MessageInfo messageInfo) {
+        MessageDelegate messageDelegate = getMessageDelegate();
+        if (messageDelegate != null) {
+            messageDelegate.onMessageSent(this, messageInfo);
+        }
     }
 
     @Override
     public void onOpen(Stream stream) {
         Log.i(getClass().getCanonicalName(), "ULX bridge stream is now open");
 
-        Device device = getRegistry().getDevice(stream.getIdentifier());
+        Device device = getSouthRegistry().getDeviceInstance(stream.getIdentifier());
 
         // Make sure the device was previously registered
         Objects.requireNonNull(device);
@@ -355,7 +508,7 @@ public class Bridge implements
     public void takeover(Device device) {
 
         // Register the device
-        getRegistry().set(device.getIdentifier(), device);
+        getSouthRegistry().setDevice(device.getIdentifier(), device);
 
         // We're assuming the delegates for all I/O streams
         InputStream inputStream = device.getTransport().getReliableChannel().getInputStream();
@@ -375,31 +528,6 @@ public class Bridge implements
     }
 
     /**
-     * This is a temporary data structure that is currently being managed by
-     * this bridge, but that in the future will be implemented by the native
-     * bridge. This happens in this way because the current version does not
-     * yet implement the native JNI bridge. When it does, the native
-     * implementation will be the one managing Device-to-Instance mappings.
-     * This is also simplified over the fact that the implementation currently
-     * only supports BLE.
-     */
-    private HashMap<String, Instance> instanceRegistry;
-
-    /**
-     * Returns the instance registry that is being used temporarily by this
-     * implementation to keep track of Device-Instance associations. If the
-     * hash map has not been created before, it will at the time this method
-     * is called.
-     * @return The {@code Device}-{@code Instance} hash map registry.
-     */
-    private HashMap<String, Instance> getInstanceRegistry() {
-        if (this.instanceRegistry == null) {
-            this.instanceRegistry = new HashMap<>();
-        }
-        return this.instanceRegistry;
-    }
-
-    /**
      * Creates a new Instance and associates with the given Device. This method
      * is a simplification of what it should be, since it currently only
      * supports a single transport and doesn't care about extending into other
@@ -412,11 +540,16 @@ public class Bridge implements
      */
     private void associateInstance(Device device) {
 
+        // TODO this method is temporary as well; once the routing tables are
+        //      in place this should be refactored to work the them instead.
+
         byte[] identifier = ByteUtils.uuidToBytes(UUID.fromString(device.getIdentifier()));
         Instance instance = new Instance(identifier);
 
         // Associate the device with the newly created instance
-        getInstanceRegistry().put(device.getIdentifier(), instance);
+        getNorthRegistry().setDevice(device.getIdentifier(), device);
+        getNorthRegistry().setGeneric(instance.getStringIdentifier(), instance);
+        getNorthRegistry().associate(instance.getStringIdentifier(), device.getIdentifier());
 
         // Notify the delegate of a newly found instance. Future versions might
         // skip this step is the instance had already been found before over
@@ -427,17 +560,84 @@ public class Bridge implements
         }
     }
 
-    public Message send(int messageId, byte[] data, Instance instance, boolean acknowledge) {
+    public void send(Message message) {
 
-        Message message = new Message(new MessageInfo(messageId), data);
+        Log.i(getClass().getCanonicalName(), String.format("ULX queueing message [%d] to destination %s", message.getIdentifier(), message.getDestination().getStringIdentifier()));
 
-        ExecutorPool.getCoreExecutor().execute(
-                () -> send(messageId, data, instance.getIdentifier(), acknowledge)
-        );
+        // Queue the message
+        getMessageQueue().queue(message);
 
-        return message;
+        // Attempt to dispatch
+        dequeueMessage();
     }
 
-    public void send(int messageId, byte[] data, byte[] instance, boolean acknowledge) {
+    private void send(Message message, Device device) {
+        device.getTransport().getReliableChannel().getOutputStream().write(message.getData());
+    }
+
+    private boolean dequeueMessage() {
+
+        Message message = getMessageQueue().dequeue();
+
+        // Nothing to do; wait for more input
+        if (message == null) {
+            return false;
+        }
+
+        Log.i(getClass().getCanonicalName(), String.format("ULX dequeued message [%d] to destination %s", message.getIdentifier(), message.getDestination().getStringIdentifier()));
+
+        // The message gets replaced with the message info structure, which is
+        // lighter because it does not include the payload
+        getMessageInfoQueue().queue(message.getMessageInfo());
+
+        // Get the devices associated with the destination
+        String destinationIdentifier = message.getDestination().getStringIdentifier();
+        List<Device> devices = getNorthRegistry().getDevicesFromGenericIdentifier(destinationIdentifier);
+
+        // The instance is not mapped to any known devices
+        if (devices.size() == 0) {
+
+            UlxError error = new UlxError(
+                    UlxErrorCode.NOT_CONNECTED,
+                    "Could not send a message to the given destination.",
+                    "The destination is not known or reachable.",
+                    "Try coming in close range with the destination or " +
+                            "making sure that the connection has been established " +
+                            "before attempting to send content."
+            );
+
+            notifyFailedSend(message.getMessageInfo(), error);
+
+            // The message was not sent, but it was dequeued
+            return true;
+        }
+
+        // If more than one device is mapped, something went wrong
+        if (devices.size() != 1) {
+            throw new RuntimeException("An unexpected amount of devices is mapped " +
+                    "to the same instance. This is not expected because the " +
+                    "current version of the SDK supports only a single transport " +
+                    "and is not using routing tables.");
+        }
+
+        // Proceed
+        send(message, devices.get(0));
+
+        return true;
+    }
+
+    /**
+     * Propagates a notification for a failed message, when attempting to send
+     * one. This means that the message did not leave the device, in part or in
+     * full.
+     * @param messageInfo The {@link MessageInfo} corresponding to the failed
+     *                    {@link Message}.
+     * @param error An error, indicating the probable cause for the failure.
+     */
+    private void notifyFailedSend(MessageInfo messageInfo, UlxError error) {
+        MessageDelegate messageDelegate = getMessageDelegate();
+        if (messageDelegate != null) {
+            messageDelegate.onMessageSendFailed(this, messageInfo, error);
+        }
     }
 }

@@ -62,10 +62,10 @@ public interface OutputStream extends Stream {
      * the implementation should continue to write data until either all of it
      * is written or the amount of bytes written is lower than the given buffer.
      * The implementation should also wait for the delegate in case of error.
-     * @param buffer The buffer to write to the stream.
+     * @param data The buffer to write to the stream.
      * @return The IOResult of the operation.
      * @see OutputStream.Delegate
      * @see IOResult
      */
-    IOResult write(byte [] buffer);
+    IOResult write(byte [] data);
 }

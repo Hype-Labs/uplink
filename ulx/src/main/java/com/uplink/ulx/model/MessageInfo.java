@@ -1,23 +1,27 @@
 package com.uplink.ulx.model;
 
 /**
- * This class is used to hold message metadata. At this point, it only
- * includes the message identifier, but this will change with future releases.
- * It's mostly useful to associate messages with the metadata, as the SDK
- * notifications usually use instances of this class and not Message. This is
- * motivated by the fact that Message holds the message's payload, which would
- * consume more memory.
+ * This class is used to hold message metadata. It's mostly useful to associate
+ * messages with the metadata, as the SDK notifications usually use instances of
+ * this class and not Message. This is motivated by the fact that Message holds
+ * the message's payload, which would consume more memory.
  */
 public class MessageInfo {
 
     private final int identifier;
+    private final boolean acknowledgeRequested;
+    private final Instance destination;
 
     /**
      * Constructor.
      * @param identifier The message's identifier.
+     * @param destination The destination for the message.
+     * @param acknowledgeRequested Whether the message was asked to acknowledge
      */
-    public MessageInfo(int identifier) {
+    public MessageInfo(int identifier, Instance destination, boolean acknowledgeRequested) {
         this.identifier = identifier;
+        this.acknowledgeRequested = acknowledgeRequested;
+        this.destination = destination;
     }
 
     /**
@@ -29,22 +33,21 @@ public class MessageInfo {
         return this.identifier;
     }
 
-    @Override
-    public boolean equals(Object obj) {
+    /**
+     * Whether the message asked for an reception acknowledgement when it was
+     * first sent.
+     * @return A flag indicating whether an acknowledgement was requested.
+     */
+    public final boolean isAcknowledgementRequested() {
+        return this.acknowledgeRequested;
+    }
 
-        if (this == obj) {
-            return true;
-        }
-
-        if (obj == null) {
-            return false;
-        }
-
-        if (!obj.getClass().equals(MessageInfo.class)) {
-            return false;
-        }
-
-        return equals((MessageInfo)obj);
+    /**
+     * The message's destination.
+     * @return The {@link Instance} destination.
+     */
+    public final Instance getDestination() {
+        return this.destination;
     }
 
     /**
@@ -69,7 +72,20 @@ public class MessageInfo {
     }
 
     @Override
-    public int hashCode() {
-        return this.hashCode();
+    public boolean equals(Object obj) {
+
+        if (this == obj) {
+            return true;
+        }
+
+        if (obj == null) {
+            return false;
+        }
+
+        if (!obj.getClass().equals(MessageInfo.class)) {
+            return false;
+        }
+
+        return equals((MessageInfo)obj);
     }
 }

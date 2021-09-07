@@ -62,4 +62,21 @@ public class ByteUtils {
 
         return 16;
     }
+
+    /**
+     * Creates a copy of the given byte array, but only up to the maximum
+     * specified amount of bytes. That array will be trimmed to the lowest of
+     * {@code data.length} and {@code maxSize}.
+     * @param data The data to copy.
+     * @param maxSize The maximum size for the output array.
+     * @return A partial or total copy of the input {@code data} array.
+     */
+    public static byte[] trimCopyToSize(byte[] data, int maxSize) {
+
+        byte[] copy = new byte[Math.min(maxSize, data.length)];
+
+        System.arraycopy(data, 0, copy, 0, copy.length);
+
+        return copy;
+    }
 }

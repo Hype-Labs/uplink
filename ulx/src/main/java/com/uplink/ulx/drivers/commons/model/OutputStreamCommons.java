@@ -5,7 +5,6 @@ import com.uplink.ulx.drivers.model.OutputStream;
 import com.uplink.ulx.drivers.model.Stream;
 
 import java.lang.ref.WeakReference;
-import java.util.Objects;
 
 /**
  * This class implements the part of functionality that is shared by all
@@ -17,6 +16,7 @@ import java.util.Objects;
 public abstract class OutputStreamCommons extends StreamCommons implements OutputStream, OutputStream.Delegate {
 
     private WeakReference<OutputStream.Delegate> delegate;
+    private Buffer buffer;
 
     /**
      * Constructor. Initializes with given arguments.
@@ -34,7 +34,31 @@ public abstract class OutputStreamCommons extends StreamCommons implements Outpu
         super(identifier, transportType, reliable, invalidationDelegate);
 
         this.delegate = null;
+        this.buffer = null;
     }
+
+    /**
+     * Returns the buffer that is being used for the stream to cache output
+     * data. If the buffer hasn't been created yet, it will now, call
+     * {@link OutputStreamCommons#getInitialCapacity()} and use the return
+     * value as the buffer's initial capacity setting.
+     * @return The stream's buffer.
+     */
+    protected synchronized final Buffer getBuffer() {
+        if (this.buffer == null) {
+            this.buffer = new Buffer(getInitialCapacity());
+        }
+        return this.buffer;
+    }
+
+    /**
+     * This method is overridden by child classes to define the buffer's
+     * initial capacity setting. Child classes should return a value that is
+     * seen as a reasonable trade-off between memory use and expected buffer
+     * size.
+     * @return The buffer's initial capacity.
+     */
+    protected abstract int getInitialCapacity();
 
     @Override
     public final void setDelegate(OutputStream.Delegate delegate) {
@@ -48,43 +72,68 @@ public abstract class OutputStreamCommons extends StreamCommons implements Outpu
 
     @Override
     public void hasSpaceAvailable(OutputStream outputStream) {
+
+        // An empty buffer means that we tell the delegate that we're ready
+        // to make more data.
+        if (getBuffer().isEmpty()) {
+            notifyHasSpaceAvailable();
+        }
+
+        // A non-empty buffer means that we keep writting
+        else flushAndTrim();
+    }
+
+    private void notifyHasSpaceAvailable() {
         OutputStream.Delegate delegate = this.getDelegate();
         if (delegate != null) {
             delegate.hasSpaceAvailable(this);
         }
     }
 
-    /**
-     * This method removes the given byte count from the output buffer. The new
-     * buffer will be as long as the bytes that are still remaining in the
-     * current buffer. The given byte count (which is assumed to have already
-     * been flushed) is discarded by copying the remaining bytes on the stream.
-     * The discarded data corresponds to the first byteCount bytes in the buffer.
-     * @param byteCount The number of bytes to discard.
-     */
-    private void removeBytesFromBuffer(int byteCount) {
-        synchronized (getBufferLock()) {
-            byte[] newBuffer = new byte[getBuffer().length - byteCount];
-            System.arraycopy(getBuffer(), byteCount, newBuffer, 0, getBuffer().length - byteCount);
-            setBuffer(newBuffer);
-        }
-    }
-
     @Override
-    public IOResult write(byte[] buffer) {
+    public IOResult write(byte[] data) {
 
         if (getState() != State.OPEN) {
             throw new RuntimeException("Could not write to the OutputStream because the stream is not open");
         }
 
-        if (buffer == null) {
+        if (data == null) {
             throw new RuntimeException("Could not write to the OutputStream because the destination buffer is null");
         }
 
-        if (buffer.length == 0) {
+        if (data.length == 0) {
             throw new RuntimeException("Could not write to the OutputStream because the origin buffer is zero-length");
         }
 
-        return write(buffer);
+        // Write to buffer
+        int byteCount = getBuffer().append(data);
+
+        // Ask the stream to flush data until the buffer is empty
+        flushAndTrim();
+
+        // Return the number of bytes buffered, not actually written
+        return new IOResult(byteCount, null);
     }
+
+    private void flushAndTrim() {
+
+        byte[] data = getBuffer().getData();
+
+        // Ask the stream to flush data
+        IOResult result = flush(data);
+
+        // Trim the buffer
+        getBuffer().trim(result.getByteCount());
+    }
+
+    /**
+     * Asks the stream to flush as much data as it can from the given byte
+     * array. This means that the implementation will attempt to actually write
+     * the data to whatever is its output medium. The result of the operation
+     * should be notified on the {@link OutputStreamCommons} through the
+     * {@link OutputStream.Delegate} API interface.
+     * @param data The data to write.
+     * @return The {@link IOResult} for the operation.
+     */
+    protected abstract IOResult flush(byte[] data);
 }

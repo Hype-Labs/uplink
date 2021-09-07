@@ -42,39 +42,28 @@ public interface MessageObserver {
      * event with the message's content. This is motivated by the fact that the
      * SDK does not keep the message's data in order to save memory.
      * @param messageInfo A container for the data and metadata for the message.
-     * @param instance The instance to which the message was intended.
      * @param error An error indicating the cause of failure.
      */
-    void onUlxMessageFailedSending(MessageInfo messageInfo, Instance instance, UlxError error);
+    void onUlxMessageFailedSending(MessageInfo messageInfo, UlxError error);
 
     /**
      * This notification indicates that the message with the identifier given by
-     * the messageInfo parameter has progressed in being sent to the network.
-     * This does not mean that it has been delivered, but rather that it was
-     * written to the streams. As such, the content could still be buffered
-     * waiting for output, meaning that it might not have left the device yet.
-     * The delegate method onUlxMessageDelivered(MessageInfo, Instance, float, boolean),
+     * the messageInfo parameter has been sent to the network. This does not
+     * mean that it has been delivered, but rather that it was written to the
+     * streams and acknowledged by the next hop device. The delegate method
+     * {@link #onUlxMessageDelivered(MessageInfo, Instance, float, boolean)},
      * on the other hand, indicates delivery to the receiving end. That method
      * is preferred if the intent is to track delivery, especially when messages
      * are being sent over a mesh network and not direct link. At this point,
      * it's not known whether the content has been or will be delivered. The
-     * progress indicator yields a number between 0 and 1, indicating the
-     * percentage of the message that has been written to the streams. The
-     * "complete" boolean argument indicates whether the message was fully
-     * delivered, in order to avoid floating-point arithmetic. When looking for
-     * completion, use this flag instead of using comparison over the progress
-     * float. The progress float is intended for implementing loading bars and
-     * the likes of it. The messageInfo instance maps to a message identifier
-     * of a Message instance that was returned by the send method. In order to
-     * keep track of which messages are sent, store this identifier in a data
-     * structure and wait for notifications with the same identifier. This step
-     * is, however, optional.
+     * messageInfo instance maps to a message identifier of a {@link Message}
+     * instance that was returned by the send method. In order to keep track of
+     * which messages are sent, store this identifier in a data structure and
+     * wait for notifications with the same identifier. This step is, however,
+     * optional.
      * @param messageInfo A container for the message being sent.
-     * @param instance The destination instance.
-     * @param progress Percentage of content of the message that was written.
-     * @param done Whether the message was fully written to the output streams.
      */
-    void onUlxMessageSent(MessageInfo messageInfo, Instance instance, float progress, boolean done);
+    void onUlxMessageSent(MessageInfo messageInfo);
 
     /**
      * This notification indicates that the message with the identifier given by

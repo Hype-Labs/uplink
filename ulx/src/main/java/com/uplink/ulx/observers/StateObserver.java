@@ -61,5 +61,6 @@ public interface StateObserver {
      * onUlxStop(UlxError) are preferable. Notice, for instance, that this
      * method does not provide error information in case of stoppage.
      */
-    void onUlxStateChange();
+    default void onUlxStateChange() {
+    }
 }

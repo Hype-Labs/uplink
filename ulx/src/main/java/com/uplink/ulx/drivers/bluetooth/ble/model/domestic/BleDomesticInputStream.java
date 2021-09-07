@@ -35,12 +35,12 @@ public class BleDomesticInputStream extends InputStreamCommons {
 
     /**
      * This method is called when the domestic input stream
-     * (@{code BleDomesticInputStream}) is known to have been open. This means
+     * ({@link BleDomesticInputStream}) is known to have been open. This means
      * that the stream meets all requirements to perform I/O. However, in the
      * case of a domestic input stream this isn't much, since the stream is
      * already open from creation. Regardless, this event must be triggered in
      * order to complete its lifecycle events. This method should not be public,
-     * but the BleAdvertiser currently lives in a different package. This should
+     * but the advertiser currently lives in a different package. This should
      * change in future, so this method should not be called.
      */
     public void notifyAsOpen() {

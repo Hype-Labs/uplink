@@ -47,12 +47,30 @@ public class Message {
 
     /**
      * Getter for the message's identifier. This method accesses the identifier
-     * from the underlying MessageInfo instance. It returns an identifier that
+     * from the underlying {@link MessageInfo}. It returns an identifier that
      * has been uniquely assigned to this message.
      * @return The message's identifier.
      */
     public final int getIdentifier() {
         return getMessageInfo().getIdentifier();
+    }
+
+    /**
+     * Getter for the message's destination. This method accesses the
+     * destination from the underlying {@link MessageInfo}.
+     * @return The message's destination.
+     */
+    public Instance getDestination() {
+        return getMessageInfo().getDestination();
+    }
+
+    /**
+     * Getter for the boolean flag that indicates whether an acknowledgement
+     * request was asked from the destination.
+     * @return Whether an acknowledgement was requested.
+     */
+    public boolean isAcknowledgementRequested() {
+        return getMessageInfo().isAcknowledgementRequested();
     }
 
     @Override

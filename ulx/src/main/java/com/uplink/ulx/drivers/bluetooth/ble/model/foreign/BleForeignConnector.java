@@ -16,73 +16,28 @@ import com.uplink.ulx.drivers.commons.model.ConnectorCommons;
 import com.uplink.ulx.drivers.model.Stream;
 
 import java.lang.ref.WeakReference;
+import java.util.Objects;
 
 @TargetApi(Build.VERSION_CODES.LOLLIPOP)
 public class BleForeignConnector extends ConnectorCommons implements GattClient.ConnectorDelegate {
 
     private GattClient gattClient;
-    private final BleDomesticService domesticService;
-    private final BluetoothManager bluetoothManager;
-    private final BluetoothDevice bluetoothDevice;
-    private final WeakReference<Context> context;
 
     /**
      * Constructor. Initializes with given parameters.
      * @param identifier A random unique identifier, mostly for bridging.
-     * @param context The Android environment Context for permissions.
-     * @param bluetoothDevice The remote Bluetooth that the Connector will refer.
-     * @param bluetoothManager The Bluetooth manager.
-     * @param domesticService The ULX service description.
+     * @param gattClient The GATT client for the connector.
      */
     public BleForeignConnector(
             String identifier,
-            Context context,
-            BluetoothDevice bluetoothDevice,
-            BluetoothManager bluetoothManager,
-            BleDomesticService domesticService
+            GattClient gattClient
     ) {
         super(identifier, TransportType.BLUETOOTH_LOW_ENERGY);
 
-        this.context = new WeakReference<>(context);
-        this.bluetoothDevice = bluetoothDevice;
-        this.bluetoothManager = bluetoothManager;
-        this.domesticService = domesticService;
-    }
+        this.gattClient = Objects.requireNonNull(gattClient);
 
-    /**
-     * Returns a strong reference to the Android environment Context.
-     * @return The Android environment Context.
-     */
-    private Context getContext() {
-        return this.context.get();
-    }
-
-    /**
-     * Return the system framework BluetoothDevice instance associated with
-     * this connector. This represents the remote device that this connector
-     * can connect.
-     * @return The remote Bluetooth device system abstraction  for the connector.
-     */
-    private BluetoothDevice getBluetoothDevice() {
-        return this.bluetoothDevice;
-    }
-
-    /**
-     * Returns the system framework BluetoothManager that is being used to
-     * manage the connection. This will be used to instantiate the GATT client.
-     * @return The BluetoothManager.
-     */
-    private BluetoothManager getBluetoothManager() {
-        return this.bluetoothManager;
-    }
-
-    /**
-     * Getter for the BleDomesticService instance, containing the Bluetooth LE
-     * service specification.
-     * @return The BleDomesticService instance.
-     */
-    private BleDomesticService getDomesticService() {
-        return this.domesticService;
+        // Assume the delegate
+        this.gattClient.setConnectorDelegate(this);
     }
 
     /**
@@ -90,18 +45,7 @@ public class BleForeignConnector extends ConnectorCommons implements GattClient.
      * the connection.
      * @return The host's GattClient instance.
      */
-    public GattClient getGattClient() {
-        if (this.gattClient == null) {
-            this.gattClient = new GattClient(
-                    getBluetoothDevice(),
-                    getBluetoothManager(),
-                    getDomesticService(),
-                    getContext()
-            );
-
-            // Assume the delegate
-            this.gattClient.setConnectorDelegate(this);
-        }
+    public final GattClient getGattClient() {
         return this.gattClient;
     }
 

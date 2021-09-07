@@ -1,7 +1,6 @@
 package com.uplink.ulx;
 
 import android.content.Context;
-import android.net.Network;
 import android.util.Log;
 
 import com.uplink.ulx.drivers.commons.StateManager;
@@ -40,7 +39,8 @@ import java.util.Objects;
 public class Implementation implements
         StateManager.Delegate,
         Service.StateDelegate,
-        Service.NetworkDelegate
+        Service.NetworkDelegate,
+        Service.MessageDelegate
 {
 
     private static Implementation instance;
@@ -321,6 +321,8 @@ public class Implementation implements
         this.service = new Service();
         this.service.setStateDelegate(this);
         this.service.setNetworkDelegate(this);
+        this.service.setMessageDelegate(this);
+
         this.service.setContext(getContext());
 
         getService().initialize(getAppIdentifier());
@@ -515,22 +517,22 @@ public class Implementation implements
      * data to be sent, and returns the message (Message) that was created for
      * wrapping the data.
      * @param data The data to be sent.
-     * @param instance The destination instance.
-     * @param trackProgress Whether to track delivery progress.
+     * @param destination The destination instance.
+     * @param acknowledge Whether to track delivery progress.
      * @return A message wrapper containing some metadata.
      */
-    public synchronized Message send(byte [] data, Instance instance, boolean trackProgress) {
+    public synchronized Message send(byte [] data, Instance destination, boolean acknowledge) {
 
         Objects.requireNonNull(data);
-        Objects.requireNonNull(instance);
+        Objects.requireNonNull(destination);
 
         // Create the Message container
         int messageIdentifier = generateMessageIdentifier();
-        MessageInfo messageInfo = new MessageInfo(messageIdentifier);
+        MessageInfo messageInfo = new MessageInfo(messageIdentifier, destination, acknowledge);
         Message message = new Message(messageInfo, data);
 
         if (getState() == State.RUNNING) {
-            getService().send(messageInfo.getIdentifier(), data, instance, trackProgress);
+            getService().send(message);
         } else {
 
             // The service is not available
@@ -542,18 +544,10 @@ public class Implementation implements
             );
 
             // Notify the delegate
-            notifyMessageSendFailure(messageInfo, instance, error);
+            notifyMessageSendFailed(messageInfo, error);
         }
 
         return message;
-    }
-
-    private void notifyMessageSendFailure(final MessageInfo messageInfo, Instance instance, UlxError error) {
-        ExecutorPool.getMainExecutor().execute(() -> {
-            for (MessageObserver messageObserver : getMessageObservers()) {
-                messageObserver.onUlxMessageFailedSending(messageInfo, instance, error);
-            }
-        });
     }
 
     /**
@@ -572,5 +566,45 @@ public class Implementation implements
         }
 
         return Implementation.messageIdentifier;
+    }
+
+    @Override
+    public void onMessageSent(Service service, MessageInfo messageInfo) {
+        notifyMessageSent(messageInfo);
+    }
+
+    @Override
+    public void onMessageSendFailed(Service service, MessageInfo messageInfo, UlxError error) {
+        notifyMessageSendFailed(messageInfo, error);
+    }
+
+    /**
+     * Propagates a notification of a failed attempt to send a message to the
+     * {@link MessageObserver} collection, by calling the corresponding event
+     * method {@link
+     * MessageObserver#onUlxMessageFailedSending(MessageInfo, UlxError)}.
+     * @param messageInfo The {@link MessageInfo} for the failed {@link Message}.
+     * @param error An error, describing the probable cause for the failure.
+     */
+    private void notifyMessageSendFailed(MessageInfo messageInfo, UlxError error) {
+        ExecutorPool.getMainExecutor().execute(() -> {
+            for (MessageObserver messageObserver : getMessageObservers()) {
+                messageObserver.onUlxMessageFailedSending(messageInfo, error);
+            }
+        });
+    }
+
+    /**
+     * Propagates a notification of a message being sent event to the {@link
+     * MessageObserver} collection, by calling the corresponding event method
+     * {@link MessageObserver#onUlxMessageSent(MessageInfo)}.
+     * @param messageInfo The {@link MessageInfo} for the sent {@link Message}.
+     */
+    private void notifyMessageSent(MessageInfo messageInfo) {
+        ExecutorPool.getMainExecutor().execute(() -> {
+            for (MessageObserver messageObserver : getMessageObservers()) {
+                messageObserver.onUlxMessageSent(messageInfo);
+            }
+        });
     }
 }
