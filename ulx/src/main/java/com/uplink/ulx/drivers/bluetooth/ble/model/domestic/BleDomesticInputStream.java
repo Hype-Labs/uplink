@@ -4,6 +4,7 @@ import android.util.Log;
 
 import com.uplink.ulx.TransportType;
 import com.uplink.ulx.drivers.commons.model.InputStreamCommons;
+import com.uplink.ulx.drivers.model.InputStream;
 
 public class BleDomesticInputStream extends InputStreamCommons {
 
@@ -23,13 +24,13 @@ public class BleDomesticInputStream extends InputStreamCommons {
 
         // Perhaps it will be enough to wait for the peripheral to connect and
         // manage the streams; we'll see how that plays out.
-        Log.i(getClass().getCanonicalName(), "ULX domestic input stream is " +
+        Log.e(getClass().getCanonicalName(), "ULX domestic input stream is " +
                 "being requested to open, but that is not supported yet");
     }
 
     @Override
     public void requestAdapterToClose() {
-        Log.i(getClass().getCanonicalName(), "ULX domestic input stream is " +
+        Log.e(getClass().getCanonicalName(), "ULX domestic input stream is " +
                 "being requested to close, but that is not supported yet");
     }
 
@@ -45,5 +46,16 @@ public class BleDomesticInputStream extends InputStreamCommons {
      */
     public void notifyAsOpen() {
         super.onOpen(this);
+    }
+
+    /**
+     * This method is called to give indication to the stream that data was
+     * received. The stream will propagate the call for the data to be
+     * processed, resulting in an {@link
+     * InputStream.Delegate#hasDataAvailable(InputStream)} call to the delegate.
+     * @param data The data that was received.
+     */
+    public void notifyDataAvailable(byte[] data) {
+        notifyDataReceived(data);
     }
 }

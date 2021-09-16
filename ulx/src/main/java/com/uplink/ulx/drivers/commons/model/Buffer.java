@@ -1,15 +1,27 @@
 package com.uplink.ulx.drivers.commons.model;
 
+import android.util.Log;
+
+import java.util.concurrent.locks.Lock;
+import java.util.concurrent.locks.ReentrantLock;
+
 public class Buffer {
 
     private final int initialCapacity;
     private int occupiedByteCount;
     private byte[] data;
+    private Lock lock;
 
+    /**
+     * Constructor. Initializes the buffer by allocating the given initial
+     * capacity.
+     * @param initialCapacity The buffer's initial capacity.
+     */
     public Buffer(int initialCapacity) {
         this.initialCapacity = initialCapacity;
         this.occupiedByteCount = 0;
         this.data = null;
+        this.lock = null;
     }
 
     /**
@@ -21,18 +33,40 @@ public class Buffer {
         return this.initialCapacity;
     }
 
+    /**
+     * Returns the amount of bytes that are currently allocated by the buffer.
+     * This corresponds to the buffer's current capacity, which the maximum it
+     * can store at this time. However, the buffer's size is not static, so
+     * this value of capacity changes over time.
+     * @return The buffer's capacity.
+     */
     private synchronized int getCapacity() {
         return getData().length;
     }
 
-    private synchronized int getOccupiedByteCount() {
+    /**
+     * Returns the amount of bytes within the buffer that are actually occupied.
+     * This does not necessarily correspond to the buffer's capacity.
+     * @return The amount of bytes occupied by the buffer.
+     */
+    public final synchronized int getOccupiedByteCount() {
         return this.occupiedByteCount;
     }
 
+    /**
+     * Sets the amount of bytes within the buffer that are actually occupied.
+     * This value may differ from the buffer's capacity, but must never exceed
+     * it.
+     * @param occupiedByteCount The amount of bytes occupied by the buffer.
+     */
     private synchronized void setOccupiedByteCount(int occupiedByteCount) {
         this.occupiedByteCount = occupiedByteCount;
     }
 
+    /**
+     * Returns the amount of bytes that are not occupied by the buffer.
+     * @return The amount of bytes in the buffer that are free.
+     */
     private synchronized int getFreeByteCount() {
         return getData().length - getOccupiedByteCount();
     }
@@ -51,17 +85,36 @@ public class Buffer {
         return this.data;
     }
 
+    /**
+     * Returns the object that should be used to lock buffer operations. This
+     * will guarantee that buffer operations do not overlap.
+     * @return The buffer lock.
+     */
+    public synchronized final Lock getLock() {
+        if (this.lock == null) {
+            this.lock = new ReentrantLock();
+        }
+        return this.lock;
+    }
+
     private synchronized void setData(byte[] data) {
         this.data = data;
     }
 
     public synchronized int append(byte[] data) {
+        return append(data, data.length);
+    }
+
+    public synchronized int append(byte[] data, int maxLength) {
+
+        // Prevent buffer overflow
+        maxLength = Math.min(data.length, maxLength);
 
         // Grow the buffer to fit the required amount of data, if possible
-        grow(getOccupiedByteCount() + data.length);
+        grow(getOccupiedByteCount() + maxLength);
 
         // We're appending only up to the buffer's limit
-        int amountToAppend = Math.min(data.length, getFreeByteCount());
+        int amountToAppend = Math.min(maxLength, getFreeByteCount());
 
         // Make the copy
         System.arraycopy(data, 0, getData(), getOccupiedByteCount(), amountToAppend);
@@ -74,6 +127,11 @@ public class Buffer {
         return amountToAppend;
     }
 
+    /**
+     * Removes the given amount of data from the buffer, resulting in the buffer
+     * shrinking by at most that amount of bytes.
+     * @param byteCount The number of bytes to trim.
+     */
     public synchronized void trim(int byteCount) {
 
         // Are we being requested to trim more data than what we have?
@@ -84,6 +142,26 @@ public class Buffer {
 
         // Trim the capacity to size
         shrink(getOccupiedByteCount() - byteCount);
+    }
+
+    /**
+     * Consumes data from the buffer into the given byte array. The buffer will
+     * shrink by the amount of bytes actually read, which will be the lowest
+     * between the buffer's available data and the input buffer's length.
+     * @param buffer The output buffer.
+     */
+    public synchronized int consume(byte[] buffer) {
+
+        // Are we being requested to consume more than we can?
+        int byteCount = Math.min(buffer.length, getOccupiedByteCount());
+
+        // Make a copy
+        System.arraycopy(getData(), 0, buffer, 0, byteCount);
+
+        // Trim the capacity
+        shrink(getOccupiedByteCount() - byteCount);
+
+        return byteCount;
     }
 
     private synchronized void grow(int toSize) {
@@ -123,6 +201,12 @@ public class Buffer {
         setOccupiedByteCount(toSize);
     }
 
+    /**
+     * Returns {@code true} if the buffer is empty, meaning that its occupied
+     * byte count is zero. This happens regardless of the buffer's capacity,
+     * which means that an empty buffer may still occupy memory.
+     * @return Whether the buffer is empty.
+     */
     public boolean isEmpty() {
         return this.getOccupiedByteCount() == 0;
     }

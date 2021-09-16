@@ -85,6 +85,17 @@ public class GattClient extends BluetoothGattCallback {
          * @param gattClient The GattClient triggering the notification.
          */
         void onOpen(GattClient gattClient);
+
+        /**
+         * This event is triggered by the {@link GattClient} to give indication
+         * that a subscribed characteristic was updated by the remote peer. This
+         * corresponds to the {@link GattClient} receiving input from the remote
+         * peer. The delegate should interpret the operation by reading the
+         * value from the characteristic.
+         * @param gattClient The {@link GattClient} triggering the notification.
+         * @param characteristic The characteristic that was updated.
+         */
+        void onCharacteristicChanged(GattClient gattClient, BluetoothGattCharacteristic characteristic);
     }
 
     /**
@@ -354,14 +365,12 @@ public class GattClient extends BluetoothGattCallback {
                     "Please try connecting again."
             );
 
-            handleConnectionFailure(error);
+            notifyOnConnectionFailure(error);
         }
     }
 
     @Override
     public void onConnectionStateChange(BluetoothGatt bluetoothGatt, int status, int newState) {
-        super.onConnectionStateChange(bluetoothGatt, status, newState);
-
         ConnectorDelegate connectorDelegate = getConnectorDelegate();
 
         // Don't proceed without a delegate; although this means that the
@@ -386,7 +395,7 @@ public class GattClient extends BluetoothGattCallback {
                     "Please try reconnecting or restarting the Bluetooth adapter."
             );
 
-            handleConnectionFailure(error);
+            notifyOnConnectionFailure(error);
         }
     }
 
@@ -395,7 +404,6 @@ public class GattClient extends BluetoothGattCallback {
      * remote peer by asking it for its maximum supported value.
      */
     private void negotiateMtu() {
-
         Log.i(getClass().getCanonicalName(), "ULX is requesting the MTU from the remote peer");
 
         // 512 is the maximum MTU possible, and its the one we're aiming for.
@@ -408,8 +416,6 @@ public class GattClient extends BluetoothGattCallback {
 
     @Override
     public void onMtuChanged(BluetoothGatt gatt, int mtu, int status) {
-        super.onMtuChanged(gatt, mtu, status);
-
         Log.i(getClass().getCanonicalName(), String.format("ULX negotiated MTU (%d) with status %d", mtu, status));
 
         // Keep the negotiated MTU in case of success. Failure means that we
@@ -419,7 +425,7 @@ public class GattClient extends BluetoothGattCallback {
 
             // This will notify the stream if it is already set, although that
             // is unlikely.
-            notifyMtuNegotiation();
+            notifyOnMtuNegotiation();
         }
 
         // We proceed with the service discovery regardless of the success of
@@ -433,7 +439,7 @@ public class GattClient extends BluetoothGattCallback {
      * propagate to the delegate is the last known MTU, as kept by the
      * {@link GattClient} upon negotiation.
      */
-    private void notifyMtuNegotiation() {
+    private void notifyOnMtuNegotiation() {
         OutputStreamDelegate outputStreamDelegate = getOutputStreamDelegate();
         if (outputStreamDelegate != null) {
             outputStreamDelegate.onMtuNegotiated(this, getMtu());
@@ -465,23 +471,7 @@ public class GattClient extends BluetoothGattCallback {
                     "Try connecting again, or restarting the Bluetooth adapter."
             );
 
-            // Handle the failure
-            handleConnectionFailure(error);
-        }
-    }
-
-    /**
-     * Propagates the given UlxError as an onFailedConnection() notification
-     * on the ConnectionDelegate.
-     *
-     * @param error The error to propagate.
-     */
-    private void handleConnectionFailure(UlxError error) {
-        Log.e(getClass().getCanonicalName(), "ULX connection failure");
-
-        ConnectorDelegate connectorDelegate = getConnectorDelegate();
-        if (connectorDelegate != null) {
-            connectorDelegate.onConnectionFailure(this, error);
+            notifyOnConnectionFailure(error);
         }
     }
 
@@ -504,7 +494,7 @@ public class GattClient extends BluetoothGattCallback {
                     "Make sure that the other device is properly configured and still within range."
             );
 
-            handleConnectionFailure(error);
+            notifyOnConnectionFailure(error);
         }
     }
 
@@ -537,7 +527,7 @@ public class GattClient extends BluetoothGattCallback {
                     "Please verify that the remote device is properly configured."
             );
 
-            handleConnectionFailure(error);
+            notifyOnConnectionFailure(error);
 
             return;
         }
@@ -587,7 +577,7 @@ public class GattClient extends BluetoothGattCallback {
             );
 
             // Propagate to the delegate.
-            handleConnectionFailure(error);
+            notifyOnConnectionFailure(error);
         }
     }
 
@@ -645,7 +635,7 @@ public class GattClient extends BluetoothGattCallback {
                     "The remote device does not conform with the expected protocol.",
                     "Make sure that the remote device is running the correct software version."
             );
-            notifyCharacteristicSubscriptionFailure(error);
+            notifyOnConnectionFailure(error);
             return;
         }
 
@@ -661,7 +651,7 @@ public class GattClient extends BluetoothGattCallback {
                     "Could not enable notifications for I/O on the remote device.",
                     "Make sure that the remote device is running the correct software version or try restarting the Bluetooth adapters."
             );
-            notifyCharacteristicSubscriptionFailure(error);
+            notifyOnConnectionFailure(error);
             return;
         }
 
@@ -673,7 +663,7 @@ public class GattClient extends BluetoothGattCallback {
                     "Failed to properly configure the server to enable indications.",
                     "Make sure that the remote device is running the correct software version or try restarting the Bluetooth adapters."
             );
-            notifyCharacteristicSubscriptionFailure(error);
+            notifyOnConnectionFailure(error);
             return;
         }
 
@@ -685,7 +675,7 @@ public class GattClient extends BluetoothGattCallback {
                     "Failed to properly configure the server to enable indications.",
                     "Make sure that the remote device is running the correct software version or try restarting the Bluetooth adapters."
             );
-            notifyCharacteristicSubscriptionFailure(error);
+            notifyOnConnectionFailure(error);
             //return;
         }
     }
@@ -698,7 +688,7 @@ public class GattClient extends BluetoothGattCallback {
      * It will also assert that the proper properties were defined, so that
      * the protocol is asserted for compliance.
      *
-     * @param characteristic The characteristic.
+     * @param characteristic The characteristic.^
      * @return The descriptor corresponding to the characteristic or null.
      */
     private BluetoothGattDescriptor getDescriptor(BluetoothGattCharacteristic characteristic) {
@@ -722,8 +712,6 @@ public class GattClient extends BluetoothGattCallback {
 
     @Override
     public void onDescriptorWrite(BluetoothGatt gatt, BluetoothGattDescriptor descriptor, int status) {
-        super.onDescriptorWrite(gatt, descriptor, status);
-
         if (status == BluetoothGatt.GATT_SUCCESS) {
             handleCharacteristicSubscribed(descriptor);
         } else {
@@ -735,7 +723,7 @@ public class GattClient extends BluetoothGattCallback {
                     "Try connecting again or updating the software on the devices."
             );
 
-            notifyCharacteristicSubscriptionFailure(error);
+            notifyOnConnectionFailure(error);
         }
     }
 
@@ -751,9 +739,9 @@ public class GattClient extends BluetoothGattCallback {
         Log.i(getClass().getCanonicalName(), String.format("ULX characteristic subscribed with descriptor %s", descriptor.getUuid().toString()));
 
         if (getDomesticService().isReliableOutput(descriptor)) {
-            notifyOpenStream();
+            notifyOnOpen();
         } else {
-            notifySuccessfulConnection();
+            notifyOnConnected();
         }
     }
 
@@ -762,7 +750,7 @@ public class GattClient extends BluetoothGattCallback {
      * completed successfully, including the subscription of the control
      * characteristic.
      */
-    private void notifySuccessfulConnection() {
+    private void notifyOnConnected() {
         ConnectorDelegate connectorDelegate = getConnectorDelegate();
         if (connectorDelegate != null) {
             connectorDelegate.onConnected(this);
@@ -774,7 +762,7 @@ public class GattClient extends BluetoothGattCallback {
      * of the remote output characteristic by the host's input stream. This
      * corresponds to the stream having been opened.
      */
-    private void notifyOpenStream() {
+    private void notifyOnOpen() {
         GattClient.InputStreamDelegate inputStreamDelegate = getInputStreamDelegate();
         if (inputStreamDelegate != null) {
             inputStreamDelegate.onOpen(this);
@@ -788,8 +776,8 @@ public class GattClient extends BluetoothGattCallback {
      *
      * @param error The error (UlxError) to propagate.
      */
-    private void notifyCharacteristicSubscriptionFailure(UlxError error) {
-        Log.e(getClass().getCanonicalName(), "ULX characteristic subscription failure");
+    private void notifyOnConnectionFailure(UlxError error) {
+        Log.e(getClass().getCanonicalName(), "ULX characteristic subscription failed");
 
         ConnectorDelegate connectorDelegate = getConnectorDelegate();
         if (connectorDelegate != null) {
@@ -829,10 +817,12 @@ public class GattClient extends BluetoothGattCallback {
         Log.i(getClass().getCanonicalName(), String.format("ULX wrote to characteristic with status %d", status));
 
         if (status == BluetoothGatt.GATT_SUCCESS) {
-            notifyCharacteristicWriteSuccess();
+            notifyOnCharacteristicWriteSuccess();
         }
 
         else {
+
+            Log.i(getClass().getCanonicalName(), String.format("ULX failed writing to characteristic with status %02X", status));
 
             UlxError error = new UlxError(
                     UlxErrorCode.UNKNOWN,
@@ -841,21 +831,40 @@ public class GattClient extends BluetoothGattCallback {
                     "Try restarting the Bluetooth adapter."
             );
 
-            notifyCharacteristicWriteFailure(error);
+            notifyOnCharacteristicWriteFailure(error);
         }
     }
 
-    private void notifyCharacteristicWriteSuccess() {
+    private void notifyOnCharacteristicWriteSuccess() {
         OutputStreamDelegate outputStreamDelegate = getOutputStreamDelegate();
         if (outputStreamDelegate != null) {
             outputStreamDelegate.onCharacteristicWritten(this);
         }
     }
 
-    private void notifyCharacteristicWriteFailure(UlxError error) {
+    private void notifyOnCharacteristicWriteFailure(UlxError error) {
         OutputStreamDelegate outputStreamDelegate = getOutputStreamDelegate();
         if (outputStreamDelegate != null) {
             outputStreamDelegate.onCharacteristicWriteFailure(this, error);
+        }
+    }
+
+    @Override
+    public void onCharacteristicChanged(BluetoothGatt gatt, BluetoothGattCharacteristic characteristic) {
+        Log.i(getClass().getCanonicalName(), "ULX remote characteristic changed");
+        notifyOnCharacteristicChanged(characteristic);
+    }
+
+    /**
+     * Propagates a notification for characteristic update that was received,
+     * by calling the {@link InputStreamDelegate#onCharacteristicChanged(BluetoothGatt, BluetoothGattCharacteristic)}
+     * delegate method.
+     * @param characteristic The characteristic that was updated.
+     */
+    private void notifyOnCharacteristicChanged(BluetoothGattCharacteristic characteristic) {
+        InputStreamDelegate inputStreamDelegate = getInputStreamDelegate();
+        if (inputStreamDelegate != null) {
+            inputStreamDelegate.onCharacteristicChanged(this, characteristic);
         }
     }
 }

@@ -11,6 +11,9 @@ import com.uplink.ulx.drivers.model.Stream;
 
 import java.util.Objects;
 
+/**
+ *
+ */
 public class BleDomesticConnector extends ConnectorCommons {
 
     private final BluetoothDevice bluetoothDevice;

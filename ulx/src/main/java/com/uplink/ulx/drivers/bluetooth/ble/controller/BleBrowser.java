@@ -665,9 +665,6 @@ class BleBrowser extends BrowserCommons implements
 
         BleDevice device = createDevice((BleForeignConnector)connector);
 
-        // Register the device as found
-        //addDevice(device);
-
         // Propagate to the delegate
         super.onDeviceFound(this, device);
     }

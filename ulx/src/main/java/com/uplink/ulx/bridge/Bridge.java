@@ -1,12 +1,15 @@
 package com.uplink.ulx.bridge;
 
 import android.bluetooth.BluetoothDevice;
+import android.renderscript.ScriptGroup;
 import android.util.Log;
 
 import com.uplink.ulx.UlxError;
 import com.uplink.ulx.UlxErrorCode;
+import com.uplink.ulx.drivers.commons.model.Buffer;
 import com.uplink.ulx.drivers.model.Connector;
 import com.uplink.ulx.drivers.model.Device;
+import com.uplink.ulx.drivers.model.IOResult;
 import com.uplink.ulx.drivers.model.InputStream;
 import com.uplink.ulx.drivers.model.OutputStream;
 import com.uplink.ulx.drivers.model.Stream;
@@ -19,6 +22,7 @@ import com.uplink.ulx.utils.StringUtils;
 
 import java.lang.ref.WeakReference;
 import java.nio.ByteBuffer;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Objects;
 import java.util.UUID;
@@ -127,6 +131,16 @@ public class Bridge implements
          * @param error An error, indicating a probable cause for the failure.
          */
         void onMessageSendFailed(Bridge bridge, MessageInfo messageInfo, UlxError error);
+
+        /**
+         * This delegate notification is called when a message is received. The
+         * given message contains the payload and the {@link MessageInfo}
+         * metadata corresponding to that message. The message might not have
+         * been acknowledged to the originator yet.
+         * @param bridge The {@link Bridge} issuing the notification.
+         * @param message The {@link Message} received.
+         */
+        void onMessageReceived(Bridge bridge, Message message);
     }
 
     private static Bridge instance = null;
@@ -149,6 +163,11 @@ public class Bridge implements
     private Queue<Message> messageQueue;
     private Queue<MessageInfo> messageInfoQueue;
 
+    // This is another temporary data structure that is used to hold the
+    // buffered data from input streams. It will be held until the data is
+    // successfully read and parsed.
+    private HashMap<String, Buffer> inputMap;
+
     /**
      * Private constructor prevents instantiation.
      */
@@ -162,6 +181,8 @@ public class Bridge implements
 
         this.messageQueue = null;
         this.messageInfoQueue = null;
+
+        this.inputMap = null;
     }
 
     /**
@@ -268,6 +289,11 @@ public class Bridge implements
         return this.southRegistry;
     }
 
+    /**
+     * Returns the message queue, which is used to queue messages that are
+     * waiting to be dispatched by the device.
+     * @return The message queue.
+     */
     private Queue<Message> getMessageQueue() {
         if (this.messageQueue == null) {
             this.messageQueue = new Queue<>();
@@ -275,11 +301,31 @@ public class Bridge implements
         return this.messageQueue;
     }
 
+    /**
+     * Returns the message info queue, which is used to queue message metadata
+     * for messages that are pending replies, such as indications of success
+     * or failure.
+     * @return The message info queue.
+     */
     private Queue<MessageInfo> getMessageInfoQueue() {
         if (this.messageInfoQueue == null) {
             this.messageInfoQueue = new Queue<>();
         }
         return this.messageInfoQueue;
+    }
+
+    /**
+     * Returns the input map, which is used to hold information with respect to
+     * input that is being read from the input streams. The streams are
+     * identified by the {@code String} key of the map. This data will be held
+     * until a full packet can be processed.
+     * @return The input map.
+     */
+    private HashMap<String, Buffer> getInputMap() {
+        if (this.inputMap == null) {
+            this.inputMap = new HashMap<>();
+        }
+        return this.inputMap;
     }
 
     /**
@@ -407,10 +453,100 @@ public class Bridge implements
 
     @Override
     public void hasDataAvailable(InputStream inputStream) {
+        Log.i(getClass().getCanonicalName(), "ULX input stream has data available");
+
+        IOResult result;
+
+        // This is the buffer that will receive the data
+        Buffer buffer = getBufferForStream(inputStream);
+
+        Message message;
+
+        synchronized (buffer.getLock()) {
+
+            // We're allocating 1024 bytes, being that double the maximum we'd
+            // ever need; but this is a temporary allocation.
+            byte[] aux = new byte[1024];
+
+            do {
+
+                // Read from the stream
+                result = inputStream.read(aux);
+
+                Log.i(getClass().getCanonicalName(), String.format("ULX input stream read %d bytes", result.getByteCount()));
+
+                // Append to the buffer, the amount of bytes read
+                buffer.append(aux, result.getByteCount());
+
+            } while (result.getByteCount() > 0);
+
+            // Proceed by parsing messages from the input
+            message = attemptParse(buffer);
+
+            if (message == null) {
+                return;
+            }
+
+            Log.i(getClass().getCanonicalName(), String.format("ULX got message [%d] from (null)", message.getIdentifier()));
+
+            // Reduce the buffer by the amount parsed
+            buffer.trim(message.getData().length);
+        }
+
+        MessageDelegate messageDelegate = getMessageDelegate();
+        if (messageDelegate != null) {
+            messageDelegate.onMessageReceived(this, message);
+        }
+    }
+
+    private Buffer getBufferForStream(InputStream inputStream) {
+
+        Buffer buffer = getInputMap().get(inputStream.getIdentifier());
+
+        // Allocate a buffer, if needed
+        if (buffer == null) {
+            getInputMap().put(inputStream.getIdentifier(), buffer = new Buffer(0));
+        }
+
+        return buffer;
+    }
+
+    private Message attemptParse(Buffer buffer) {
+        Log.i(getClass().getCanonicalName(), "ULX is attempting to parse a message");
+
+        // For now, we're just discarding
+        synchronized (buffer.getLock()) {
+
+            Message message;
+
+            synchronized (buffer.getLock()) {
+                message = Encoder.decode(buffer.getData());
+            }
+
+            // If no message can be parsed, don't proceed
+            if (message == null) {
+                Log.i(getClass().getCanonicalName(), String.format("ULX input stream could not parse message from buffer with %d; waiting for more data", buffer.getOccupiedByteCount()));
+                return null;
+            }
+
+            Log.i(getClass().getCanonicalName(), String.format("ULX parsed a message, clearing %d from %d bytes from the input buffer", 4 + message.getData().length, buffer.getOccupiedByteCount()));
+
+            // Reduce the buffer by the amount parsed
+            // The "4" being added is the reserved bytes for size. In the final
+            // version, with the protocol in place, this will not be a magical
+            // constant, but instead we'll have a more complex parser for the
+            // headers
+            synchronized (buffer.getLock()) {
+                buffer.trim(message.getData().length + 4);
+            }
+
+            return message;
+        }
     }
 
     @Override
     public void hasSpaceAvailable(OutputStream outputStream) {
+        Log.i(getClass().getCanonicalName(), "ULX output stream has space available");
 
         // The stream declaring space available should not be a synonym of a
         // message being dispatched, but the current implementation dispatches
@@ -572,7 +708,11 @@ public class Bridge implements
     }
 
     private void send(Message message, Device device) {
-        device.getTransport().getReliableChannel().getOutputStream().write(message.getData());
+
+        byte[] data = Encoder.encode(message);
+
+        // Send
+        device.getTransport().getReliableChannel().getOutputStream().write(data);
     }
 
     private boolean dequeueMessage() {

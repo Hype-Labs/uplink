@@ -1,7 +1,5 @@
 package com.uplink.ulx.bridge;
 
-import com.uplink.ulx.model.Message;
-
 import java.util.LinkedList;
 import java.util.List;
 

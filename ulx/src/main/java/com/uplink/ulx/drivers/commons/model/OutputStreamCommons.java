@@ -46,7 +46,7 @@ public abstract class OutputStreamCommons extends StreamCommons implements Outpu
      */
     protected synchronized final Buffer getBuffer() {
         if (this.buffer == null) {
-            this.buffer = new Buffer(getInitialCapacity());
+            this.buffer = new Buffer(0);
         }
         return this.buffer;
     }
@@ -73,14 +73,17 @@ public abstract class OutputStreamCommons extends StreamCommons implements Outpu
     @Override
     public void hasSpaceAvailable(OutputStream outputStream) {
 
-        // An empty buffer means that we tell the delegate that we're ready
-        // to make more data.
-        if (getBuffer().isEmpty()) {
-            notifyHasSpaceAvailable();
-        }
+        synchronized (getBuffer().getLock()) {
 
-        // A non-empty buffer means that we keep writting
-        else flushAndTrim();
+            // An empty buffer means that we tell the delegate that we're ready
+            // to make more data.
+            if (getBuffer().isEmpty()) {
+                notifyHasSpaceAvailable();
+            }
+
+            // A non-empty buffer means that we keep writting
+            else flushAndTrim();
+        }
     }
 
     private void notifyHasSpaceAvailable() {
@@ -105,11 +108,14 @@ public abstract class OutputStreamCommons extends StreamCommons implements Outpu
             throw new RuntimeException("Could not write to the OutputStream because the origin buffer is zero-length");
         }
 
-        // Write to buffer
-        int byteCount = getBuffer().append(data);
+        int byteCount;
 
-        // Ask the stream to flush data until the buffer is empty
-        flushAndTrim();
+        // Write to buffer
+        synchronized (getBuffer().getLock()) {
+
+            byteCount = getBuffer().append(data);
+            flushAndTrim();
+        }
 
         // Return the number of bytes buffered, not actually written
         return new IOResult(byteCount, null);
@@ -117,13 +123,16 @@ public abstract class OutputStreamCommons extends StreamCommons implements Outpu
 
     private void flushAndTrim() {
 
-        byte[] data = getBuffer().getData();
+        synchronized (getBuffer().getLock()) {
 
-        // Ask the stream to flush data
-        IOResult result = flush(data);
+            byte[] data = getBuffer().getData();
 
-        // Trim the buffer
-        getBuffer().trim(result.getByteCount());
+            // Ask the stream to flush data
+            IOResult result = flush(data);
+
+            // Trim the buffer
+            getBuffer().trim(result.getByteCount());
+        }
     }
 
     /**

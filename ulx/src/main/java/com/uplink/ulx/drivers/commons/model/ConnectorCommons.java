@@ -1,5 +1,7 @@
 package com.uplink.ulx.drivers.commons.model;
 
+import android.util.Log;
+
 import com.uplink.ulx.UlxError;
 import com.uplink.ulx.drivers.model.Connector;
 import com.uplink.ulx.drivers.commons.StateManager;
@@ -133,6 +135,7 @@ public abstract class ConnectorCommons implements
 
     @Override
     public void connect() {
+        Log.i(getClass().getCanonicalName(), "ULX connector being requested to connect");
         getExecutorService().execute(
                 () -> getStateManager().start()
         );
@@ -140,11 +143,13 @@ public abstract class ConnectorCommons implements
 
     @Override
     public void disconnect() {
+        Log.i(getClass().getCanonicalName(), "ULX connector being requested to disconnect");
         getExecutorService().execute(() -> getStateManager().stop());
     }
 
     @Override
     public void requestStart(StateManager stateManager) {
+        Log.i(getClass().getCanonicalName(), "ULX connector being requested to start");
         this.requestAdapterToConnect();
     }
 
@@ -166,11 +171,13 @@ public abstract class ConnectorCommons implements
 
     @Override
     public void requestStop(StateManager stateManager) {
+        Log.i(getClass().getCanonicalName(), "ULX connector being requested to stop");
         this.requestAdapterToDisconnect();
     }
 
     @Override
     public void onFailedStart(StateManager stateManager, UlxError error) {
+        Log.e(getClass().getCanonicalName(), "ULX connector failed to connect");
         StateDelegate stateDelegate = this.getStateDelegate();
         if (stateDelegate != null) {
             stateDelegate.onConnectionFailure(this, error);
@@ -187,21 +194,25 @@ public abstract class ConnectorCommons implements
 
     @Override
     public void onConnected(Connector connector) {
+        Log.i(getClass().getCanonicalName(), "ULX connector has connected");
         getStateManager().notifyStart();
     }
 
     @Override
     public void onDisconnection(Connector connector, UlxError error) {
+        Log.i(getClass().getCanonicalName(), "ULX connector has disconnected");
         getStateManager().notifyStop(error);
     }
 
     @Override
     public void onConnectionFailure(Connector connector, UlxError error) {
+        Log.e(getClass().getCanonicalName(), String.format("ULX connector has failed to connect [%s]", error.toString()));
         getStateManager().notifyFailedStart(error);
     }
 
     @Override
     public void onStateChange(Connector connector) {
+        Log.v(getClass().getCanonicalName(), String.format("ULX connector has changed state [%s]", connector.getState().toString()));
         StateDelegate stateDelegate = getStateDelegate();
         if (stateDelegate != null) {
             stateDelegate.onStateChange(this);

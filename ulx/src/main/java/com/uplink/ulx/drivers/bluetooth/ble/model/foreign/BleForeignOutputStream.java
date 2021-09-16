@@ -44,9 +44,6 @@ public class BleForeignOutputStream extends OutputStreamCommons implements GattC
         this.mtu = gattClient.getMtu();
         this.gattClient = gattClient;
         this.outputCharacteristic = outputCharacteristic;
-
-        // Assume the output stream delegate
-        this.gattClient.setOutputStreamDelegate(this);
     }
 
     private GattClient getGattClient() {

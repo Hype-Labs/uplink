@@ -1,14 +1,12 @@
 package com.uplink.ulx.drivers.commons.model;
 
+import android.util.Log;
+
 import com.uplink.ulx.drivers.model.IOResult;
 import com.uplink.ulx.drivers.model.InputStream;
 import com.uplink.ulx.drivers.model.Stream;
-import com.uplink.ulx.utils.ByteUtils;
 
 import java.lang.ref.WeakReference;
-import java.util.Arrays;
-import java.util.Objects;
-import java.util.WeakHashMap;
 
 /**
  * InputStreamCommons extends on the StreamCommons abstraction to include input
@@ -20,12 +18,10 @@ import java.util.WeakHashMap;
 public abstract class InputStreamCommons extends StreamCommons implements InputStream, InputStream.Delegate {
 
     private WeakReference<Delegate> delegate;
-    private boolean dataAvailableNeeded;
+    private Buffer buffer;
 
     /**
-     * Constructor. Initializes with the given arguments. By default, this also
-     * initializes the stream to trigger hasDataAvailable delegate notifications
-     * as soon as data arrives.
+     * Constructor. Initializes with the given arguments.
      * @param identifier An identifier used for JNI bridging and debugging.
      * @param transportType The stream's transport type.
      * @param reliable A boolean flag, indicating whether the stream is reliable.
@@ -40,85 +36,19 @@ public abstract class InputStreamCommons extends StreamCommons implements InputS
         super(identifier, transportType, reliable, invalidationDelegate);
 
         this.delegate = null;
-        this.dataAvailableNeeded = true;
+        this.buffer = null;
     }
 
     /**
-     * This method changes the boolean that flags the need for hasDataAvailable
-     * delegate notifications. When set, this flag gives indication that the
-     * implementation should issue hasDataAvailable notifications, when
-     * convenient. When false, the implementation will know that the buffer is
-     * being read in sequence, and therefore the notification is not to be
-     * issued.
-     * @param dataAvailableNeeded Whether the hasDataAvailable notification is
-     *                            to be triggered the next time that data is
-     *                            made available to the stream.
+     * Returns the buffer that is used by the stream to queue content that is
+     * received while it is not read by the implementation.
+     * @return The stream's buffer.
      */
-    private void setDataAvailableNeeded(boolean dataAvailableNeeded) {
-        this.dataAvailableNeeded = dataAvailableNeeded;
-    }
-
-    /**
-     * Returns a boolean flag indicating whether an hasDataAvailable delegate
-     * notification is needed for the stream to request the delegate to read
-     * more data. This will be true once the stream has depleted all content
-     * and more data having arrived and appended to the buffer.
-     * @return Whether to trigger hasDataAvailable notifications on the delegate.
-     */
-    private boolean isDataAvailableNeeded() {
-        return this.dataAvailableNeeded;
-    }
-
-    /**
-     * Reads data from the input buffer onto the given buffer, returning the
-     * number of bytes read and a possible error to flag problems with the
-     * operation. The stream's buffer will be truncated by the amount of bytes
-     * in the destination buffer; it's notable that this data will copied to
-     * the destination buffer and removed from the input buffer, which means
-     * that it will be lost and cannot be read again. If the buffer becomes
-     * depleted, this will also flag the stream to trigger an hasDataAvailable
-     * delegate notification the next time that data is made available.
-     * @param destination The destination buffer for the copy.
-     * @return The result (IOResult) of the operation.
-     */
-    private IOResult readBuffer(byte[] destination) {
-        /*
-        synchronized (getBufferLock()) {
-
-            byte[] source = getBuffer();
-
-            // Copy at most the number of bytes corresponding to the shortest
-            // of the two buffers
-            int byteCount = Math.min(source.length, destination.length);
-
-            // Copy the buffer content from the source to the destination
-            System.arraycopy(
-                    source, 0,
-                    destination, 0,
-                    byteCount
-            );
-
-            // Eliminate the bytes read from the source
-            source = Arrays.copyOfRange(
-                    source,
-                    byteCount,
-                    source.length
-            );
-
-            // Flag dataAvailableNeeded and reset the buffer
-            if (source.length == 0) {
-                setDataAvailableNeeded(true);
-                setBuffer(null);
-            } else {
-                setDataAvailableNeeded(false);
-                setBuffer(source);
-            }
-
-            return new IOResult(byteCount, null);
+    private Buffer getBuffer() {
+        if (this.buffer == null) {
+            this.buffer = new Buffer(0);
         }
-
-         */
-        return null;
+        return this.buffer;
     }
 
     /**
@@ -129,31 +59,24 @@ public abstract class InputStreamCommons extends StreamCommons implements InputS
      * processes to read the data from the buffer.
      * @param data The data to append and process.
      */
-    public final void dataReceived(byte[] data) {
-        /*
-        synchronized (getBufferLock()) {
-            addDataToBuffer(data);
-            if (isDataAvailableNeeded()) {
-                hasDataAvailable(this);
-            }
+    protected final void notifyDataReceived(byte[] data) {
+
+        Log.i(getClass().getCanonicalName(), String.format("ULX data received with size %d", data.length));
+
+        // The hasDataAvailable event is only triggered if data is being
+        // appended to an empty buffer
+        boolean isDataAvailableNeeded;
+
+        // Append the data
+        synchronized (getBuffer().getLock()) {
+            isDataAvailableNeeded = getBuffer().isEmpty();
+            getBuffer().append(data);
         }
 
-         */
-    }
-
-    /**
-     * Appends the given data to the input buffer. If a buffer has not been
-     * allocated yet, it will be now.
-     * @param data The data to append.
-     */
-    private void addDataToBuffer(byte [] data) {
-        /*
-        synchronized (getBufferLock()) {
-            byte[] buffer = ByteUtils.concatenateByteArrays(getBuffer(), data);
-            setBuffer(buffer);
+        // Propagate the hasDataAvailable() event, if needed
+        if (isDataAvailableNeeded) {
+            hasDataAvailable(this);
         }
-
-         */
     }
 
     @Override
@@ -181,12 +104,19 @@ public abstract class InputStreamCommons extends StreamCommons implements InputS
             throw new RuntimeException("Could not read from the InputStream because the destination buffer is zero-length");
         }
 
-        return readBuffer(buffer);
+        int byteCount;
+
+        // Consume the data
+        synchronized (getBuffer().getLock()) {
+            byteCount = getBuffer().consume(buffer);
+        }
+
+        return new IOResult(byteCount, null);
     }
 
     @Override
     public void hasDataAvailable(InputStream inputStream) {
-        InputStream.Delegate delegate = this.getDelegate();
+        InputStream.Delegate delegate = getDelegate();
         if (delegate != null) {
             delegate.hasDataAvailable(this);
         }

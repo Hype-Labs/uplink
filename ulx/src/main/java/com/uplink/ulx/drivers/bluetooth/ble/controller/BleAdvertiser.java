@@ -3,6 +3,7 @@ package com.uplink.ulx.drivers.bluetooth.ble.controller;
 import android.annotation.TargetApi;
 import android.bluetooth.BluetoothAdapter;
 import android.bluetooth.BluetoothDevice;
+import android.bluetooth.BluetoothGattCharacteristic;
 import android.bluetooth.BluetoothGattService;
 import android.bluetooth.BluetoothManager;
 import android.bluetooth.le.AdvertiseCallback;
@@ -455,6 +456,16 @@ class BleAdvertiser extends AdvertiserCommons implements
         // Notify the output stream that the indication was NOT given
         BleDomesticOutputStream outputStream = (BleDomesticOutputStream)device.getTransport().getReliableChannel().getOutputStream();
         outputStream.notifyFailedIndication(error);
+    }
+
+    @Override
+    public void onCharacteristicWriteRequest(GattServer gattServer, BluetoothDevice bluetoothDevice, byte[] data) {
+
+        Device device = getDevice(bluetoothDevice);
+
+        // Notify the input stream of incoming data
+        BleDomesticInputStream inputStream = (BleDomesticInputStream)device.getTransport().getReliableChannel().getInputStream();
+        inputStream.notifyDataAvailable(data);
     }
 
     @Override

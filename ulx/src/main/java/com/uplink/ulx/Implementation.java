@@ -544,7 +544,7 @@ public class Implementation implements
             );
 
             // Notify the delegate
-            notifyMessageSendFailed(messageInfo, error);
+            notifyOnMessageSendFailed(messageInfo, error);
         }
 
         return message;
@@ -570,12 +570,17 @@ public class Implementation implements
 
     @Override
     public void onMessageSent(Service service, MessageInfo messageInfo) {
-        notifyMessageSent(messageInfo);
+        notifyOnMessageSent(messageInfo);
     }
 
     @Override
     public void onMessageSendFailed(Service service, MessageInfo messageInfo, UlxError error) {
-        notifyMessageSendFailed(messageInfo, error);
+        notifyOnMessageSendFailed(messageInfo, error);
+    }
+
+    @Override
+    public void onMessageReceived(Service service, Message message) {
+        notifyOnMessageReceived(message);
     }
 
     /**
@@ -586,7 +591,7 @@ public class Implementation implements
      * @param messageInfo The {@link MessageInfo} for the failed {@link Message}.
      * @param error An error, describing the probable cause for the failure.
      */
-    private void notifyMessageSendFailed(MessageInfo messageInfo, UlxError error) {
+    private void notifyOnMessageSendFailed(MessageInfo messageInfo, UlxError error) {
         ExecutorPool.getMainExecutor().execute(() -> {
             for (MessageObserver messageObserver : getMessageObservers()) {
                 messageObserver.onUlxMessageFailedSending(messageInfo, error);
@@ -600,10 +605,24 @@ public class Implementation implements
      * {@link MessageObserver#onUlxMessageSent(MessageInfo)}.
      * @param messageInfo The {@link MessageInfo} for the sent {@link Message}.
      */
-    private void notifyMessageSent(MessageInfo messageInfo) {
+    private void notifyOnMessageSent(MessageInfo messageInfo) {
         ExecutorPool.getMainExecutor().execute(() -> {
             for (MessageObserver messageObserver : getMessageObservers()) {
                 messageObserver.onUlxMessageSent(messageInfo);
+            }
+        });
+    }
+
+    /**
+     * Propagates a notification for an event of a message being received to
+     * the {@link MessageObserver} collection, by calling the corresponding
+     * event method {@link MessageObserver#onUlxMessageReceived(Message)}.
+     * @param message The {@link Message} that was received.
+     */
+    private void notifyOnMessageReceived(Message message) {
+        ExecutorPool.getMainExecutor().execute(() -> {
+            for (MessageObserver messageObserver : getMessageObservers()) {
+                messageObserver.onUlxMessageReceived(message);
             }
         });
     }

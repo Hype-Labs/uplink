@@ -2,26 +2,30 @@ package com.uplink.ulx.drivers.bluetooth.ble.model.foreign;
 
 import android.annotation.SuppressLint;
 import android.annotation.TargetApi;
-import android.bluetooth.BluetoothDevice;
-import android.bluetooth.BluetoothManager;
-import android.content.Context;
 import android.os.Build;
 import android.util.Log;
 
 import com.uplink.ulx.TransportType;
 import com.uplink.ulx.UlxError;
 import com.uplink.ulx.drivers.bluetooth.ble.gattClient.GattClient;
-import com.uplink.ulx.drivers.bluetooth.ble.model.domestic.BleDomesticService;
 import com.uplink.ulx.drivers.commons.model.ConnectorCommons;
 import com.uplink.ulx.drivers.model.Stream;
 
-import java.lang.ref.WeakReference;
 import java.util.Objects;
 
+/**
+ * A {@link BleForeignConnector} is a {@link com.uplink.ulx.drivers.model.Connector}
+ * that implements the BLE transport for peripheral devices. This constitutes
+ * a connector that initiates the connection from the client side of the BLE
+ * connection (actually, the only one that can initiate it). This type of
+ * connectors are created when scanning for devices on the network. They will
+ * rely on the GATT client interface ({@link GattClient}) to interact with the
+ * adapter and manage the connections with the central.
+ */
 @TargetApi(Build.VERSION_CODES.LOLLIPOP)
 public class BleForeignConnector extends ConnectorCommons implements GattClient.ConnectorDelegate {
 
-    private GattClient gattClient;
+    private final GattClient gattClient;
 
     /**
      * Constructor. Initializes with given parameters.
@@ -57,27 +61,22 @@ public class BleForeignConnector extends ConnectorCommons implements GattClient.
 
     @Override
     public void requestAdapterToDisconnect() {
-        // TODO
     }
 
     @Override
     public void onInvalidation(Stream stream, UlxError error) {
-        // TODO
     }
 
     @Override
     public void onConnected(GattClient gattClient) {
-        Log.i(getClass().getCanonicalName(), "ULX foreign connector connected");
         super.onConnected(this);
     }
 
     @Override
     public void onConnectionFailure(GattClient gattClient, UlxError error) {
-        // TODO
     }
 
     @Override
     public void onDisconnected(GattClient gattClient, UlxError error) {
-        // TODO
     }
 }

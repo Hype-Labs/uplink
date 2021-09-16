@@ -23,9 +23,8 @@ public interface MessageObserver {
      * processing it (other than encrypting and decrypting it, when applicable).
      * The instance parameter indicates the originating instance.
      * @param message A container for the data and metadata for the message received.
-     * @param instance The instance from which the data originated.
      */
-    void onUlxMessageReceived(Message message, Instance instance);
+    void onUlxMessageReceived(Message message);
 
     /**
      * This notification is issued when a message is known to have failed being

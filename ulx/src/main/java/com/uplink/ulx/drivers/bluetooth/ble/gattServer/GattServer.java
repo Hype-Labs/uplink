@@ -17,9 +17,11 @@ import com.uplink.ulx.TransportType;
 import com.uplink.ulx.UlxError;
 import com.uplink.ulx.UlxErrorCode;
 import com.uplink.ulx.drivers.bluetooth.ble.model.domestic.BleDomesticService;
+import com.uplink.ulx.drivers.model.Device;
 import com.uplink.ulx.threading.ExecutorPool;
 
 import java.lang.ref.WeakReference;
+import java.util.HashMap;
 import java.util.Objects;
 
 /**
@@ -99,7 +101,29 @@ public class GattServer extends BluetoothGattServerCallback {
          * @param bluetoothDevice The BluetoothDevice that was not notified.
          * @param error An error, indicating a probable cause for the failure.
          */
-        void onNotificationNotSent(GattServer gattServer, BluetoothDevice bluetoothDevice, UlxError error);
+        void onNotificationNotSent(
+                GattServer gattServer,
+                BluetoothDevice bluetoothDevice,
+                UlxError error
+        );
+
+        /**
+         * This notification is triggered by the GATT server to the delegate
+         * when a write request occurs. This will correspond to input being
+         * received. If the event needs a response or needs to be queued by the
+         * GATT server, the {@link GattServer} implementation will handle those
+         * details. Instead, the delegate should focus on processing the
+         * incoming data.
+         * @param gattServer The {@link GattServer} issuing the notification.
+         * @param bluetoothDevice The {@link BluetoothDevice} requesting the
+         *                        write operation.
+         * @param data The value that was written.
+         */
+        void onCharacteristicWriteRequest(
+                GattServer gattServer,
+                BluetoothDevice bluetoothDevice,
+                byte[] data
+        );
     }
 
     private WeakReference<Delegate> delegate;
@@ -109,6 +133,7 @@ public class GattServer extends BluetoothGattServerCallback {
     private final WeakReference<Context> context;
 
     private MtuRegistry mtuRegistry;
+    private HashMap<String, Device> deviceRegistry;
 
     private BluetoothGattServer bluetoothGattServer;
 
@@ -170,6 +195,20 @@ public class GattServer extends BluetoothGattServerCallback {
             this.mtuRegistry = new MtuRegistry();
         }
         return this.mtuRegistry;
+    }
+
+    /**
+     * Returns the registry that is used to keep track of devices on the
+     * network. This will map native device addresses to abstract {@link Device}
+     * instances, effectively bridging the native and framework device
+     * abstractions.
+     * @return The registry used to bridge native and abstract devices.
+     */
+    private HashMap<String, Device> getDeviceRegistry() {
+        if (this.deviceRegistry == null) {
+            this.deviceRegistry = new HashMap<>();
+        }
+        return this.deviceRegistry;
     }
 
     /**
@@ -304,8 +343,6 @@ public class GattServer extends BluetoothGattServerCallback {
 
         // Respond to the requester
         if (responseNeeded) {
-
-            // TODO this method returns a boolean value that should be checked
             if (!getBluetoothGattServer().sendResponse(
                     device,
                     requestId,
@@ -314,6 +351,7 @@ public class GattServer extends BluetoothGattServerCallback {
                     value
             )) {
                 Log.e(getClass().getCanonicalName(), "ULX failed to respond to a descriptor write request");
+                return;
             }
         }
 
@@ -374,6 +412,9 @@ public class GattServer extends BluetoothGattServerCallback {
             boolean responseNeeded,
             int offset,
             byte[] value) {
+
+        Log.i(getClass().getCanonicalName(), String.format("ULX got %d bytes of data", value.length));
+
         if (responseNeeded) {
             if (!getBluetoothGattServer().sendResponse(
                     device,
@@ -383,10 +424,25 @@ public class GattServer extends BluetoothGattServerCallback {
                     value
             )) {
                 Log.e(getClass().getCanonicalName(), "ULX failed to send characteristic write request response");
+                return;
             }
         }
 
-        Log.e(getClass().getCanonicalName(), String.format("ULX got data with size %d", value.length));
+        // Propagate the event
+        notifyOnCharacteristicWriteRequest(device, value);
+    }
+
+    private void notifyOnCharacteristicWriteRequest(
+            BluetoothDevice bluetoothDevice,
+            byte[] data) {
+        Delegate delegate = getDelegate();
+        if (delegate != null) {
+            delegate.onCharacteristicWriteRequest(this, bluetoothDevice, data);
+        }
+    }
+
+    private int getMtu(BluetoothDevice bluetoothDevice) {
+        return Math.max(MtuRegistry.DEFAULT_MTU, (int)(getMtuRegistry().get(bluetoothDevice) * .99));
     }
 
     /**
@@ -406,7 +462,7 @@ public class GattServer extends BluetoothGattServerCallback {
      */
     public int updateCharacteristic(BluetoothDevice bluetoothDevice, BluetoothGattCharacteristic characteristic, boolean confirm, byte[] data) {
 
-        byte[] dataToSend = new byte[Math.min(data.length, getMtuRegistry().get(bluetoothDevice))];
+        byte[] dataToSend = new byte[Math.min(data.length, getMtu(bluetoothDevice))];
 
         // Copy the data
         System.arraycopy(data, 0, dataToSend, 0, dataToSend.length);

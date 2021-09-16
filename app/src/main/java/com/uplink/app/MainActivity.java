@@ -89,7 +89,7 @@ public class MainActivity extends AppCompatActivity implements StateObserver, Ne
     }
 
     private void sendMessage(Instance instance) {
-        String message = "Lorem ipsum dolor sit amet, consectetur adipiscing " +
+        String text = "Lorem ipsum dolor sit amet, consectetur adipiscing " +
                 "elit, sed do eiusmod tempor incididunt ut labore et dolore " +
                 "magna aliqua. Augue neque gravida in fermentum et sollicitudin " +
                 "ac orci phasellus. Magna fermentum iaculis eu non diam " +
@@ -308,17 +308,20 @@ public class MainActivity extends AppCompatActivity implements StateObserver, Ne
                  */
                 ;
 
-        Log.i(getClass().getCanonicalName(), String.format("ULX[APP] is sending %d bytes", message.getBytes().length));
+        Log.i(getClass().getCanonicalName(), String.format("ULX[APP] is sending %d bytes", text.getBytes().length));
 
         // Encode the data using UTF-8
-        byte[] data = message.getBytes(StandardCharsets.UTF_8);
+        byte[] data = text.getBytes(StandardCharsets.UTF_8);
 
         // Send "Hello World"
         ULX.send(data, instance);
     }
 
     @Override
-    public void onUlxMessageReceived(Message message, Instance instance) {
+    public void onUlxMessageReceived(Message message) {
+        String text = new String(message.getData(), StandardCharsets.UTF_8);
+
+        Log.i(getClass().getCanonicalName(), String.format("ULX[APP] received message: %s", text));
     }
 
     @Override

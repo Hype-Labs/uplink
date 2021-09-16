@@ -1,19 +1,16 @@
 package com.uplink.ulx.drivers.bluetooth.ble.model.foreign;
 
 import android.bluetooth.BluetoothGattCharacteristic;
-import android.util.Log;
 
 import com.uplink.ulx.TransportType;
 import com.uplink.ulx.drivers.bluetooth.ble.gattClient.GattClient;
 import com.uplink.ulx.drivers.commons.model.InputStreamCommons;
-import com.uplink.ulx.drivers.model.InputStream;
-import com.uplink.ulx.drivers.model.Stream;
 
 import java.util.Objects;
 
 public class BleForeignInputStream extends InputStreamCommons implements GattClient.InputStreamDelegate {
 
-    private final BluetoothGattCharacteristic inputCharacteristic;
+    private final BluetoothGattCharacteristic characteristic;
     private final GattClient gattClient;
 
     /**
@@ -21,8 +18,8 @@ public class BleForeignInputStream extends InputStreamCommons implements GattCli
      * initializes the stream to trigger hasDataAvailable delegate notifications
      * as soon as data arrives.
      * @param identifier An identifier used for JNI bridging and debugging.
-     * @param gattClient
-     * @param inputCharacteristic
+     * @param gattClient The {@link GattClient} used to interact with the adapter.
+     * @param inputCharacteristic The reliable input characteristic.
      * @param invalidationDelegate The stream's InvalidationDelegate.
      */
     public BleForeignInputStream(
@@ -37,32 +34,43 @@ public class BleForeignInputStream extends InputStreamCommons implements GattCli
         Objects.requireNonNull(inputCharacteristic);
 
         this.gattClient = gattClient;
-        this.inputCharacteristic = inputCharacteristic;
-
-        this.gattClient.setInputStreamDelegate(this);
+        this.characteristic = inputCharacteristic;
     }
 
+    /**
+     * Getter for the {@link GattClient} that is being used by the stream to
+     * interact with the adapter.
+     * @return The {@link GattClient} used by the stream.
+     */
     private GattClient getGattClient() {
         return this.gattClient;
     }
 
-    private BluetoothGattCharacteristic getInputCharacteristic() {
-        return this.inputCharacteristic;
+    /**
+     * The reliable input characteristic that is associated with this stream.
+     * @return The {@link BluetoothGattCharacteristic} associated with the
+     * stream.
+     */
+    private BluetoothGattCharacteristic getCharacteristic() {
+        return this.characteristic;
     }
 
     @Override
     public void requestAdapterToOpen() {
-        Log.i(getClass().getCanonicalName(), "ULX subscribing foreign input characteristic");
-        getGattClient().subscribeCharacteristic(getInputCharacteristic());
+        getGattClient().subscribeCharacteristic(getCharacteristic());
     }
 
     @Override
     public void requestAdapterToClose() {
-        // TODO
     }
 
     @Override
     public void onOpen(GattClient gattClient) {
         super.onOpen(this);
+    }
+
+    @Override
+    public void onCharacteristicChanged(GattClient gattClient, BluetoothGattCharacteristic characteristic) {
+        notifyDataReceived(characteristic.getValue());
     }
 }

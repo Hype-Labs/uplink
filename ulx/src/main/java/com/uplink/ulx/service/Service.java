@@ -146,6 +146,16 @@ public class Service extends android.app.Service implements
 
         void onMessageSent(Service service, MessageInfo messageInfo);
         void onMessageSendFailed(Service service, MessageInfo messageInfo, UlxError error);
+
+        /**
+         * This delegate notification is called when a message is received. The
+         * given message contains the payload and the {@link MessageInfo}
+         * metadata corresponding to that message. The message might not have
+         * been acknowledged to the originator yet.
+         * @param service The {@link Service} issuing the notification.
+         * @param message The {@link Message} received.
+         */
+        void onMessageReceived(Service service, Message message);
     }
 
     /**
@@ -229,7 +239,7 @@ public class Service extends android.app.Service implements
      * @param messageDelegate The {@link MessageDelegate} to set.
      */
     public final void setMessageDelegate(MessageDelegate messageDelegate) {
-        this.messageDelegate = new WeakReference<MessageDelegate>(messageDelegate);
+        this.messageDelegate = new WeakReference<>(messageDelegate);
     }
 
     /**
@@ -430,6 +440,14 @@ public class Service extends android.app.Service implements
         MessageDelegate messageDelegate = getMessageDelegate();
         if (messageDelegate != null) {
             messageDelegate.onMessageSendFailed(this, messageInfo, error);
+        }
+    }
+
+    @Override
+    public void onMessageReceived(Bridge bridge, Message message) {
+        MessageDelegate messageDelegate = getMessageDelegate();
+        if (messageDelegate != null) {
+            messageDelegate.onMessageReceived(this, message);
         }
     }
 }

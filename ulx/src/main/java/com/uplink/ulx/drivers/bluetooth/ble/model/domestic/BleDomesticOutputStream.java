@@ -72,13 +72,13 @@ public class BleDomesticOutputStream extends OutputStreamCommons {
 
         // Perhaps it will be enough to wait for the peripheral to connect and
         // manage the streams; we'll see how that plays out.
-        Log.i(getClass().getCanonicalName(), "ULX domestic output stream is " +
+        Log.e(getClass().getCanonicalName(), "ULX domestic output stream is " +
                 "being requested to open, but that is not supported yet");
     }
 
     @Override
     public void requestAdapterToClose() {
-        Log.i(getClass().getCanonicalName(), "ULX domestic output stream is " +
+        Log.e(getClass().getCanonicalName(), "ULX domestic output stream is " +
                 "being requested to close, but that is not supported yet");
     }
 
