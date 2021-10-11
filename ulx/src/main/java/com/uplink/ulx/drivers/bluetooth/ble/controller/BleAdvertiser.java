@@ -3,7 +3,6 @@ package com.uplink.ulx.drivers.bluetooth.ble.controller;
 import android.annotation.TargetApi;
 import android.bluetooth.BluetoothAdapter;
 import android.bluetooth.BluetoothDevice;
-import android.bluetooth.BluetoothGattCharacteristic;
 import android.bluetooth.BluetoothGattService;
 import android.bluetooth.BluetoothManager;
 import android.bluetooth.le.AdvertiseCallback;
@@ -20,8 +19,7 @@ import com.uplink.ulx.TransportType;
 import com.uplink.ulx.UlxError;
 import com.uplink.ulx.UlxErrorCode;
 import com.uplink.ulx.bridge.Registry;
-import com.uplink.ulx.drivers.bluetooth.ble.gattClient.GattClient;
-import com.uplink.ulx.drivers.bluetooth.ble.gattServer.MtuRegistry;
+import com.uplink.ulx.drivers.bluetooth.ble.gattServer.GattServer;
 import com.uplink.ulx.drivers.bluetooth.ble.model.BleChannel;
 import com.uplink.ulx.drivers.bluetooth.ble.model.BleDevice;
 import com.uplink.ulx.drivers.bluetooth.ble.model.BleTransport;
@@ -29,12 +27,13 @@ import com.uplink.ulx.drivers.bluetooth.ble.model.domestic.BleDomesticConnector;
 import com.uplink.ulx.drivers.bluetooth.ble.model.domestic.BleDomesticInputStream;
 import com.uplink.ulx.drivers.bluetooth.ble.model.domestic.BleDomesticOutputStream;
 import com.uplink.ulx.drivers.bluetooth.ble.model.domestic.BleDomesticService;
-import com.uplink.ulx.drivers.controller.Advertiser;
-import com.uplink.ulx.drivers.model.Channel;
-import com.uplink.ulx.drivers.model.Connector;
-import com.uplink.ulx.drivers.bluetooth.ble.gattServer.GattServer;
+import com.uplink.ulx.drivers.bluetooth.ble.model.foreign.BleForeignConnector;
 import com.uplink.ulx.drivers.bluetooth.commons.BluetoothStateListener;
 import com.uplink.ulx.drivers.commons.controller.AdvertiserCommons;
+import com.uplink.ulx.drivers.controller.Advertiser;
+import com.uplink.ulx.drivers.controller.Browser;
+import com.uplink.ulx.drivers.model.Channel;
+import com.uplink.ulx.drivers.model.Connector;
 import com.uplink.ulx.drivers.model.Device;
 import com.uplink.ulx.drivers.model.InputStream;
 import com.uplink.ulx.drivers.model.OutputStream;
@@ -42,7 +41,6 @@ import com.uplink.ulx.drivers.model.Stream;
 import com.uplink.ulx.drivers.model.Transport;
 import com.uplink.ulx.threading.ExecutorPool;
 
-import java.util.HashMap;
 import java.util.List;
 import java.util.UUID;
 
@@ -72,8 +70,6 @@ class BleAdvertiser extends AdvertiserCommons implements
 
     private Registry<BluetoothDevice> registry;
 
-    private Handler mainHandler;
-
     /**
      * The BleAdvertiserCallback is used to respond to the result of requesting
      * the adapter to start advertising, and handles the situations of success
@@ -83,19 +79,18 @@ class BleAdvertiser extends AdvertiserCommons implements
 
         @Override
         public void onStartSuccess(AdvertiseSettings settingsInEffect) {
-            ExecutorPool.getExecutor(getTransportType()).execute(
-                    () -> onStart(BleAdvertiser.this)
-            );
+            Log.i(getClass().getCanonicalName(), "ULX advertiser started");
+
+            onStart(BleAdvertiser.this);
         }
 
         @Override
         public void onStartFailure(int errorCode) {
+            Log.i(getClass().getCanonicalName(), "ULX advertiser failed to start");
 
             final UlxError error = makeError(errorCode);
 
-            ExecutorPool.getExecutor(getTransportType()).execute(
-                    () -> onFailedStart(BleAdvertiser.this, error)
-            );
+            onFailedStart(BleAdvertiser.this, error);
         }
 
         /**
@@ -460,7 +455,6 @@ class BleAdvertiser extends AdvertiserCommons implements
 
     @Override
     public void onCharacteristicWriteRequest(GattServer gattServer, BluetoothDevice bluetoothDevice, byte[] data) {
-
         Device device = getDevice(bluetoothDevice);
 
         // Notify the input stream of incoming data
@@ -483,6 +477,7 @@ class BleAdvertiser extends AdvertiserCommons implements
 
     @Override
     public void onInvalidation(Connector connector, UlxError error) {
+        removeActiveConnector(connector);
     }
 
     @Override
@@ -496,17 +491,12 @@ class BleAdvertiser extends AdvertiserCommons implements
      * should be up.
      */
     private void startAdvertising() {
+        Log.i(getClass().getCanonicalName(), "ULX advertiser is starting");
 
-        // This is currently being dispatched in the same thread that the app
-        // uses for UI work. It's possible that this is a system requirement,
-        // but it should be confirmed, since we should be avoiding dispatching
-        // work in this thread altogether.
-        getMainHandler().post(
-                () -> getBluetoothLeAdvertiser().startAdvertising(
-                    getAdvertiseSettings(),
-                    getAdvertiseData(),
-                    getAdvertiseCallback()
-                )
+        getBluetoothLeAdvertiser().startAdvertising(
+                getAdvertiseSettings(),
+                getAdvertiseData(),
+                getAdvertiseCallback()
         );
     }
 
@@ -558,19 +548,6 @@ class BleAdvertiser extends AdvertiserCommons implements
                 .build();
     }
 
-    /**
-     * Instantiates a Handler for the main Loop of the current process so that
-     * the implementation can dispatch work. Work dispatched here will be
-     * sharing with other application components, so it should be avoided.
-     * @return The Handler for the main Loop.
-     */
-    private Handler getMainHandler() {
-        if (this.mainHandler == null) {
-            this.mainHandler = new Handler(getContext().getMainLooper());
-        }
-        return this.mainHandler;
-    }
-
     @Override
     public void onServiceAdditionFailed(GattServer gattServer, UlxError error) {
         onFailedStart(this, error);
@@ -620,9 +597,26 @@ class BleAdvertiser extends AdvertiserCommons implements
 
     @Override
     public void onDisconnection(Connector connector, UlxError error) {
+        Log.e(getClass().getCanonicalName(), "ULX BLE advertiser disconnection");
+
+        // The connector is no longer active
+        removeActiveConnector(connector);
     }
 
     @Override
     public void onConnectionFailure(Connector connector, UlxError error) {
+        Log.e(getClass().getCanonicalName(), "ULX BLE advertiser connection failure");
+        Log.e(getClass().getCanonicalName(), String.format("ULX connector state is %s", connector.getState().toString()));
+
+        // Remove from the registry; when the device is seen again, the
+        // connection should be retried
+        removeActiveConnector(connector);   // Shouldn't matter
+
+        // Since we're having failed connections, we should ask the adapter to
+        // restart.
+        Advertiser.Delegate delegate = getDelegate();
+        if (delegate != null) {
+            delegate.onAdapterRestartRequest(this);
+        }
     }
 }

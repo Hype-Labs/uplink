@@ -1,7 +1,5 @@
 package com.uplink.ulx.drivers.commons.model;
 
-import android.util.Log;
-
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 

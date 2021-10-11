@@ -473,7 +473,7 @@ public class Implementation implements
 
     @Override
     public void onInstanceFound(Service service, Instance instance) {
-        Log.i(getClass().getCanonicalName(), String.format("ULX found instance %s", instance.getStringIdentifier()));
+        Log.i(getClass().getCanonicalName(), String.format("ULX instance found %s", instance.getStringIdentifier()));
         notifyInstanceFound(instance);
     }
 
@@ -528,7 +528,7 @@ public class Implementation implements
 
         // Create the Message container
         int messageIdentifier = generateMessageIdentifier();
-        MessageInfo messageInfo = new MessageInfo(messageIdentifier, destination, acknowledge);
+        MessageInfo messageInfo = new MessageInfo(messageIdentifier, destination);
         Message message = new Message(messageInfo, data);
 
         if (getState() == State.RUNNING) {
@@ -579,8 +579,13 @@ public class Implementation implements
     }
 
     @Override
-    public void onMessageReceived(Service service, Message message) {
-        notifyOnMessageReceived(message);
+    public void onMessageReceived(Service service, byte[] data, Instance origin) {
+        notifyOnMessageReceived(data, origin);
+    }
+
+    @Override
+    public void onMessageDelivered(Service service, MessageInfo messageInfo) {
+        notifyOnMessageDelivered(messageInfo);
     }
 
     /**
@@ -616,13 +621,22 @@ public class Implementation implements
     /**
      * Propagates a notification for an event of a message being received to
      * the {@link MessageObserver} collection, by calling the corresponding
-     * event method {@link MessageObserver#onUlxMessageReceived(Message)}.
-     * @param message The {@link Message} that was received.
+     * event method {@link MessageObserver#onUlxMessageReceived(byte[], Instance)}.
+     * @param data The data that was received.
+     * @param origin The originating {@link Instance}.
      */
-    private void notifyOnMessageReceived(Message message) {
+    private void notifyOnMessageReceived(byte[] data, Instance origin) {
         ExecutorPool.getMainExecutor().execute(() -> {
             for (MessageObserver messageObserver : getMessageObservers()) {
-                messageObserver.onUlxMessageReceived(message);
+                messageObserver.onUlxMessageReceived(data, origin);
+            }
+        });
+    }
+
+    private void notifyOnMessageDelivered(MessageInfo messageInfo) {
+        ExecutorPool.getMainExecutor().execute(() -> {
+            for (MessageObserver messageObserver : getMessageObservers()) {
+                messageObserver.onUlxMessageDelivered(messageInfo);
             }
         });
     }

@@ -9,13 +9,23 @@ import com.uplink.ulx.UlxErrorCode;
 import com.uplink.ulx.drivers.bluetooth.ble.gattClient.GattClient;
 import com.uplink.ulx.drivers.bluetooth.ble.gattServer.MtuRegistry;
 import com.uplink.ulx.drivers.commons.model.OutputStreamCommons;
-import com.uplink.ulx.drivers.model.IOResult;
+import com.uplink.ulx.drivers.model.IoResult;
 import com.uplink.ulx.utils.ByteUtils;
 
 import java.util.Objects;
 
 /**
- *
+ * A {@link BleForeignOutputStream} implements the output logic for streams on
+ * the client side of the connection. This implementation interacts with the
+ * {@link GattClient} by setting the characteristic's value on the remote
+ * central, through calls to {@link BluetoothGattCharacteristic#setValue(byte[])}
+ * and {@link GattClient#writeCharacteristic(BluetoothGattCharacteristic)}, and
+ * {@link #onCharacteristicWritten(GattClient)} and {@link
+ * #onCharacteristicWriteFailure(GattClient, UlxError)} to receive the results
+ * for a write operation. The actual logic is implemented by the {@link
+ * GattClient}, although the {@link BleForeignOutputStream} implements the
+ * abstraction for the {@link com.uplink.ulx.drivers.model.OutputStream} (by
+ * extending {@link OutputStreamCommons}).
  */
 public class BleForeignOutputStream extends OutputStreamCommons implements GattClient.OutputStreamDelegate {
 
@@ -46,10 +56,22 @@ public class BleForeignOutputStream extends OutputStreamCommons implements GattC
         this.outputCharacteristic = outputCharacteristic;
     }
 
+    /**
+     * Getter for the {@link GattClient} that will be interacting with the
+     * output stream. The {@link GattClient} is the entity responsible for
+     * writing to the remote characteristic and receiving responses from the
+     * central.
+     * @return The {@link GattClient}.
+     */
     private GattClient getGattClient() {
         return this.gattClient;
     }
 
+    /**
+     * Getter for the output characteristic that the stream uses to write to
+     * the remote central.
+     * @return The {@link BluetoothGattCharacteristic} used to produce output.
+     */
     private BluetoothGattCharacteristic getOutputCharacteristic() {
         return this.outputCharacteristic;
     }
@@ -87,16 +109,11 @@ public class BleForeignOutputStream extends OutputStreamCommons implements GattC
     }
 
     @Override
-    protected int getInitialCapacity() {
-        return getMtu();
-    }
-
-    @Override
-    public IOResult flush(byte[] data) {
+    public IoResult flush(byte[] data) {
 
         byte[] dataToSend = ByteUtils.trimCopyToSize(data, getMtu());
 
-        Log.i(getClass().getCanonicalName(), String.format("ULX sending %d of %d buffered bytes (%d%%)", dataToSend.length, data.length, (int)(dataToSend.length / (float)(data.length) * 100)));
+        Log.i(getClass().getCanonicalName(), String.format("ULX writing %d of %d buffered bytes (%d%%)", dataToSend.length, data.length, (int)(dataToSend.length / (float)(data.length) * 100)));
 
         if (!getOutputCharacteristic().setValue(dataToSend)) {
 
@@ -108,7 +125,7 @@ public class BleForeignOutputStream extends OutputStreamCommons implements GattC
                     "Try resetting the Bluetooth adapter."
             );
 
-            return new IOResult(0, error);
+            return new IoResult(0, error);
         }
 
         if (!getGattClient().writeCharacteristic(getOutputCharacteristic())) {
@@ -120,7 +137,7 @@ public class BleForeignOutputStream extends OutputStreamCommons implements GattC
                     "Try resetting the Bluetooth adapter."
             );
 
-            return new IOResult(0, error);
+            return new IoResult(0, error);
         }
 
         // Not sure what it means if these values don't match
@@ -131,7 +148,7 @@ public class BleForeignOutputStream extends OutputStreamCommons implements GattC
                     "occurred, and must be fixed by the SDK.");
         }
 
-        return new IOResult(dataToSend.length, null);
+        return new IoResult(dataToSend.length, null);
     }
 
     @Override

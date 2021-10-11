@@ -51,4 +51,20 @@ public abstract class DeviceCommons implements Device {
     public final Connector getConnector() {
         return this.connector;
     }
+
+    @Override
+    public int hashCode() {
+        return getIdentifier().hashCode();
+    }
+
+    @Override
+    public boolean equals(Object other) {
+
+        if (!(other instanceof DeviceCommons)) {
+            return false;
+        }
+
+        // Two devices equal if their identifiers equal
+        return getIdentifier().equals(((DeviceCommons)other).getIdentifier());
+    }
 }

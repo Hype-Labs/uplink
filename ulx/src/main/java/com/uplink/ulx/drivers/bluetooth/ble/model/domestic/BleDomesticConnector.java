@@ -1,6 +1,7 @@
 package com.uplink.ulx.drivers.bluetooth.ble.model.domestic;
 
 import android.bluetooth.BluetoothDevice;
+import android.util.Log;
 
 import com.uplink.ulx.TransportType;
 import com.uplink.ulx.UlxError;
@@ -64,6 +65,8 @@ public class BleDomesticConnector extends ConnectorCommons {
 
     @Override
     public void onInvalidation(Stream stream, UlxError error) {
+        Log.e(getClass().getCanonicalName(), "ULX BLE domestic connector invalidated");
+
         if (getState() != Connector.State.DISCONNECTED) {
             super.onDisconnection(this, error);
 

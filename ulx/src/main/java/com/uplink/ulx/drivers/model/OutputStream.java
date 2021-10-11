@@ -65,7 +65,7 @@ public interface OutputStream extends Stream {
      * @param data The buffer to write to the stream.
      * @return The IOResult of the operation.
      * @see OutputStream.Delegate
-     * @see IOResult
+     * @see IoResult
      */
-    IOResult write(byte [] data);
+    IoResult write(byte [] data);
 }

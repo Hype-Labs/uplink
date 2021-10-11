@@ -8,6 +8,8 @@ import com.uplink.ulx.drivers.controller.Advertiser;
 import com.uplink.ulx.drivers.model.Connector;
 import com.uplink.ulx.drivers.model.Device;
 import java.lang.ref.WeakReference;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Objects;
 
 /**
@@ -32,8 +34,10 @@ public abstract class AdvertiserCommons implements
     private final StateManager stateManager;
     private final int transportType;
     private final WeakReference<Context> context;
+    private WeakReference<Delegate> delegate;
     private WeakReference<StateDelegate> stateDelegate;
     private WeakReference<NetworkDelegate> networkDelegate;
+    private List<Connector> activeConnectors;
 
     /**
      * Constructor. Initializes with the given arguments.
@@ -50,6 +54,7 @@ public abstract class AdvertiserCommons implements
         this.stateManager = new StateManager(this);
         this.transportType = transportType;
         this.context = new WeakReference<>(context);
+        this.activeConnectors = null;
     }
 
     /**
@@ -108,6 +113,16 @@ public abstract class AdvertiserCommons implements
     }
 
     @Override
+    public void setDelegate(Delegate delegate) {
+        this.delegate = new WeakReference<>(delegate);
+    }
+
+    @Override
+    public Delegate getDelegate() {
+        return this.delegate != null ? this.delegate.get() : null;
+    }
+
+    @Override
     public final void setStateDelegate(StateDelegate stateDelegate) {
         this.stateDelegate = new WeakReference<>(stateDelegate);
     }
@@ -141,6 +156,31 @@ public abstract class AdvertiserCommons implements
     @Override
     public final int getTransportType() {
         return this.transportType;
+    }
+
+    @Override
+    public final List<Connector> getActiveConnectors() {
+        if (this.activeConnectors == null) {
+            this.activeConnectors = new ArrayList<>();
+        }
+        return this.activeConnectors;
+    }
+
+    /**
+     * Adds a {@link Connector} as being active. This will be kept until the
+     * {@link Connector} notifies an invalidation or disconnection.
+     * @param connector The {@link Connector} to add as active.
+     */
+    protected final void addActiveConnector(Connector connector) {
+        getActiveConnectors().add(connector);
+    }
+
+    /**
+     * Removes a {@link Connector} from the list of active connectors.
+     * @param connector The {@link Connector} to remove.
+     */
+    protected final void removeActiveConnector(Connector connector) {
+        getActiveConnectors().remove(connector);
     }
 
     @Override

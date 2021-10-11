@@ -16,11 +16,10 @@ public class MessageInfo {
      * Constructor.
      * @param identifier The message's identifier.
      * @param destination The destination for the message.
-     * @param acknowledgeRequested Whether the message was asked to acknowledge
      */
-    public MessageInfo(int identifier, Instance destination, boolean acknowledgeRequested) {
+    public MessageInfo(int identifier, Instance destination) {
         this.identifier = identifier;
-        this.acknowledgeRequested = acknowledgeRequested;
+        this.acknowledgeRequested = true;
         this.destination = destination;
     }
 

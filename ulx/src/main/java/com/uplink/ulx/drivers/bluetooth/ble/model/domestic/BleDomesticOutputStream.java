@@ -8,7 +8,7 @@ import com.uplink.ulx.TransportType;
 import com.uplink.ulx.UlxError;
 import com.uplink.ulx.drivers.bluetooth.ble.gattServer.GattServer;
 import com.uplink.ulx.drivers.commons.model.OutputStreamCommons;
-import com.uplink.ulx.drivers.model.IOResult;
+import com.uplink.ulx.drivers.model.IoResult;
 
 public class BleDomesticOutputStream extends OutputStreamCommons {
 
@@ -95,12 +95,7 @@ public class BleDomesticOutputStream extends OutputStreamCommons {
     }
 
     @Override
-    protected int getInitialCapacity() {
-        return 512; // Should be around the maximum MTU for BLE, even if not used
-    }
-
-    @Override
-    public IOResult flush(byte[] data) {
+    public IoResult flush(byte[] data) {
 
         // Write to the characteristic and update the remote
         int written = getGattServer().updateCharacteristic(
@@ -112,7 +107,7 @@ public class BleDomesticOutputStream extends OutputStreamCommons {
 
         Log.i(getClass().getCanonicalName(), String.format("ULX wrote %d of %d bytes (%d%%)", written, data.length, (int)(written / (float)(data.length) * 100)));
 
-        return new IOResult(written, null);
+        return new IoResult(written, null);
     }
 
     /**

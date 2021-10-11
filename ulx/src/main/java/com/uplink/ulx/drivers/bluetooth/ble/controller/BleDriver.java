@@ -2,6 +2,7 @@ package com.uplink.ulx.drivers.bluetooth.ble.controller;
 
 import android.bluetooth.BluetoothManager;
 import android.content.Context;
+import android.util.Log;
 
 import com.uplink.ulx.TransportType;
 import com.uplink.ulx.drivers.bluetooth.ble.model.domestic.BleDomesticService;
@@ -76,6 +77,7 @@ public class BleDriver extends DriverCommons implements Driver {
                     getDomesticService(),
                     getContext()
             );
+            this.advertiser.setDelegate(this);
             this.advertiser.setStateDelegate(this);
             this.advertiser.setNetworkDelegate(this);
         }
@@ -91,9 +93,18 @@ public class BleDriver extends DriverCommons implements Driver {
                     getDomesticService(),
                     getContext()
             );
+            this.browser.setDelegate(this);
             this.browser.setStateDelegate(this);
             this.browser.setNetworkDelegate(this);
         }
         return this.browser;
+    }
+
+    @Override
+    protected void requestAdapterRestart() {
+        //stop();
+        //start();
+        //Log.i(getClass().getCanonicalName(), "ULX BLE driver is restarting the adapter");
+        //getBluetoothManager().getAdapter().disable();
     }
 }

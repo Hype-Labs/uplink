@@ -94,4 +94,22 @@ public class Instance {
     public String getStringDeviceIdentifier() {
         return StringUtils.byteArrayToHexString(getDeviceIdentifier()).toUpperCase();
     }
+
+    @Override
+    public boolean equals(Object object) {
+
+        if (object == this) {
+            return true;
+        }
+
+        if (!(object instanceof Instance)) {
+            return false;
+        }
+
+        return equals((Instance)object);
+    }
+
+    public boolean equals(Instance instance) {
+        return instance != null && instance.getStringIdentifier().equals(getStringIdentifier());
+    }
 }

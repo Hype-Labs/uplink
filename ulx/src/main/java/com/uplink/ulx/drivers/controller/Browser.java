@@ -3,7 +3,10 @@ package com.uplink.ulx.drivers.controller;
 import android.content.Context;
 
 import com.uplink.ulx.UlxError;
+import com.uplink.ulx.drivers.model.Connector;
 import com.uplink.ulx.drivers.model.Device;
+
+import java.util.List;
 
 /**
  * A browser is responsible for looking for advertisement packets and other
@@ -99,6 +102,23 @@ public interface Browser {
 
             return null;
         }
+    }
+
+    /**
+     * This represents a general purpose delegate that receives notifications
+     * from the {@link Browser} that are not related with state or network
+     * events.
+     */
+    interface Delegate {
+
+        /**
+         * Requests the {@link Browser.Delegate} to process a restart on the
+         * adapter. Since the delegate for the {@link Browser} should be the
+         * {@link Driver}, the delegate is expected to manage an {@link
+         * Advertiser} as well, which means that it will be capable of checking
+         * whether there's activity occurring that shouldn't be terminated.
+         */
+        void onAdapterRestartRequest(Browser browser);
     }
 
     /**
@@ -229,6 +249,20 @@ public interface Browser {
     Browser.State getState();
 
     /**
+     * Sets the general purpose {@link Delegate} that will receive future
+     * general purpose notifications from the {@link Browser}.
+     * @param delegate The {@link Delegate} to set.
+     */
+    void setDelegate(Delegate delegate);
+
+    /**
+     * Returns a strong reference to a previously set {@link Delegate}. If no
+     * delegate was set, this method returns null.
+     * @return The {@link Delegate}.
+     */
+    Browser.Delegate getDelegate();
+
+    /**
      * Sets the StateDelegate instance that is to get notifications for state
      * change events occurring in the browser. If another delegate has
      * previously been set, this will replace it.
@@ -294,4 +328,12 @@ public interface Browser {
      * having previously started.
      */
     void destroy();
+
+    /**
+     * Lists the active connections that are managed by the {@link Browser}.
+     * All {@link Connector}s in the list should have state {@link
+     * Connector.State#CONNECTED}.
+     * @return The list of active {@link Connector}s.
+     */
+    List<Connector> getActiveConnectors();
 }

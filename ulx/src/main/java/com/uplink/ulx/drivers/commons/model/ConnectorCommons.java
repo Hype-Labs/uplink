@@ -150,7 +150,7 @@ public abstract class ConnectorCommons implements
     @Override
     public void requestStart(StateManager stateManager) {
         Log.i(getClass().getCanonicalName(), "ULX connector being requested to start");
-        this.requestAdapterToConnect();
+        requestAdapterToConnect();
     }
 
     @Override
@@ -200,7 +200,7 @@ public abstract class ConnectorCommons implements
 
     @Override
     public void onDisconnection(Connector connector, UlxError error) {
-        Log.i(getClass().getCanonicalName(), "ULX connector has disconnected");
+        Log.e(getClass().getCanonicalName(), "ULX connector has disconnected");
         getStateManager().notifyStop(error);
     }
 

@@ -2,7 +2,7 @@ package com.uplink.ulx.drivers.commons.model;
 
 import android.util.Log;
 
-import com.uplink.ulx.drivers.model.IOResult;
+import com.uplink.ulx.drivers.model.IoResult;
 import com.uplink.ulx.drivers.model.InputStream;
 import com.uplink.ulx.drivers.model.Stream;
 
@@ -90,7 +90,7 @@ public abstract class InputStreamCommons extends StreamCommons implements InputS
     }
 
     @Override
-    public final IOResult read(byte[] buffer) {
+    public final IoResult read(byte[] buffer) {
 
         if (getState() != State.OPEN) {
             throw new RuntimeException("Could not read from the InputStream because the stream is not open");
@@ -111,7 +111,7 @@ public abstract class InputStreamCommons extends StreamCommons implements InputS
             byteCount = getBuffer().consume(buffer);
         }
 
-        return new IOResult(byteCount, null);
+        return new IoResult(byteCount, null);
     }
 
     @Override

@@ -1,4 +1,4 @@
-package com.uplink.ulx.bridge;
+package com.uplink.ulx.structures;
 
 import java.util.LinkedList;
 import java.util.List;

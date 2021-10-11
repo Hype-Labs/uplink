@@ -1,6 +1,7 @@
 package com.uplink.ulx.drivers.commons.controller;
 
 import android.content.Context;
+import android.util.Log;
 
 import com.uplink.ulx.UlxError;
 import com.uplink.ulx.drivers.commons.StateManager;
@@ -32,8 +33,10 @@ import java.util.concurrent.ExecutorService;
  */
 public abstract class DriverCommons implements
         TransportDriver,
+        Advertiser.Delegate,
         Advertiser.StateDelegate,
         Advertiser.NetworkDelegate,
+        Browser.Delegate,
         Browser.StateDelegate,
         Browser.NetworkDelegate,
         StateManager.Delegate  {
@@ -405,4 +408,31 @@ public abstract class DriverCommons implements
             stateDelegate.onStateChange(this);
         }
     }
+
+    @Override
+    public void onAdapterRestartRequest(Browser browser) {
+        handleAdapterRestartRequest();
+    }
+
+    @Override
+    public void onAdapterRestartRequest(Advertiser advertiser) {
+        handleAdapterRestartRequest();
+    }
+
+    private void handleAdapterRestartRequest() {
+
+        int advertiserConnectorCount = getAdvertiser().getActiveConnectors().size();
+        int browserConnectorCount = getBrowser().getActiveConnectors().size();
+
+        if (advertiserConnectorCount != 0 || browserConnectorCount != 0) {
+            Log.i(getClass().getCanonicalName(), "ULX driver is rejecting an adapter start request");
+            Log.i(getClass().getCanonicalName(), String.format("ULX connection count is %d (advertiser) and %d (browser)", advertiserConnectorCount, browserConnectorCount));
+            return;
+        }
+
+        // Restart the adapter
+        requestAdapterRestart();
+    }
+
+    protected abstract void requestAdapterRestart();
 }

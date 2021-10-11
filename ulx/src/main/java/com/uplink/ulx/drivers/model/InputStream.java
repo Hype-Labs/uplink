@@ -70,7 +70,7 @@ public interface InputStream extends Stream {
      * @param buffer The buffer to read data into.
      * @return The IOResult for the read operation.
      * @see InputStream.Delegate
-     * @see IOResult
+     * @see IoResult
      */
-    IOResult read(byte [] buffer);
+    IoResult read(byte [] buffer);
 }

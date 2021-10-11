@@ -1,15 +1,13 @@
 package com.uplink.ulx.bridge;
 
 import android.bluetooth.BluetoothDevice;
-import android.renderscript.ScriptGroup;
 import android.util.Log;
 
 import com.uplink.ulx.UlxError;
-import com.uplink.ulx.UlxErrorCode;
-import com.uplink.ulx.drivers.commons.model.Buffer;
+import com.uplink.ulx.bridge.network.controller.NetworkController;
+import com.uplink.ulx.bridge.network.model.Ticket;
 import com.uplink.ulx.drivers.model.Connector;
 import com.uplink.ulx.drivers.model.Device;
-import com.uplink.ulx.drivers.model.IOResult;
 import com.uplink.ulx.drivers.model.InputStream;
 import com.uplink.ulx.drivers.model.OutputStream;
 import com.uplink.ulx.drivers.model.Stream;
@@ -17,13 +15,11 @@ import com.uplink.ulx.model.Instance;
 import com.uplink.ulx.model.Message;
 import com.uplink.ulx.model.MessageInfo;
 import com.uplink.ulx.threading.ExecutorPool;
-import com.uplink.ulx.utils.ByteUtils;
 import com.uplink.ulx.utils.StringUtils;
 
 import java.lang.ref.WeakReference;
 import java.nio.ByteBuffer;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Objects;
 import java.util.UUID;
 
@@ -34,12 +30,14 @@ import java.util.UUID;
  * calls between the Java abstraction and the native implementation. This class
  * will issue calls to the Core and return responses in the form of a delegate.
  * This also means that the bridge must handle the thread context changes that
- * occur between those processes.
+ * occur between those processes. At the moment, this class is a god-object,
+ * given that it's assuming all of the responsibilities that should be assigned
+ * to the core; this is expected to change once the native core implementation
+ * is in place.
  */
 public class Bridge implements
+        NetworkController.Delegate,
         Connector.StateDelegate,
-        InputStream.Delegate,
-        OutputStream.Delegate,
         Stream.StateDelegate
 {
     /**
@@ -130,17 +128,29 @@ public class Bridge implements
          * @param messageInfo The {@link MessageInfo} for the {@link Message}.
          * @param error An error, indicating a probable cause for the failure.
          */
-        void onMessageSendFailed(Bridge bridge, MessageInfo messageInfo, UlxError error);
+        void onMessageSendFailure(Bridge bridge, MessageInfo messageInfo, UlxError error);
+
+        /**
+         * This {@link MessageDelegate} notification is called when a {@link
+         * Message} is known to have been acknowledged by a destination. This
+         * means that the message was successfully received, and that the
+         * destination acknowledges receiving it.
+         * @param bridge The {@link Bridge} issuing the notification.
+         * @param messageInfo The {@link MessageInfo} corresponding to the
+         *                    {@link Message} that was acknowledged.
+         */
+        void onMessageDelivered(Bridge bridge, MessageInfo messageInfo);
 
         /**
          * This delegate notification is called when a message is received. The
-         * given message contains the payload and the {@link MessageInfo}
-         * metadata corresponding to that message. The message might not have
-         * been acknowledged to the originator yet.
+         * given data contains the payload and the {@link Instance} corresponds
+         * to the message's originator. The message might not have been
+         * acknowledged to the originator yet.
          * @param bridge The {@link Bridge} issuing the notification.
-         * @param message The {@link Message} received.
+         * @param data The payload received.
+         * @param origin The originating {@link Instance}.
          */
-        void onMessageReceived(Bridge bridge, Message message);
+        void onMessageReceived(Bridge bridge, byte[] data, Instance origin);
     }
 
     private static Bridge instance = null;
@@ -149,24 +159,10 @@ public class Bridge implements
     private WeakReference<NetworkDelegate> networkDelegate;
     private WeakReference<MessageDelegate> messageDelegate;
 
-    // The North bridge registry is a temporary data structure that will be
-    // removed once routing tables are in place. When that happens, the south
-    // bridge registry should be renamed to just "registry".
-    private Registry<Instance> northRegistry;
     private Registry<BluetoothDevice> southRegistry;
 
-    // The message queue is also a temporary data structure. Currently, the
-    // implementation sends a single message at a time, and thus the full
-    // delivery of the queued contents will mean that the first message in
-    // the queue has been delivered. Future versions will be more complex,
-    // and handle several messages at a time.
-    private Queue<Message> messageQueue;
-    private Queue<MessageInfo> messageInfoQueue;
-
-    // This is another temporary data structure that is used to hold the
-    // buffered data from input streams. It will be held until the data is
-    // successfully read and parsed.
-    private HashMap<String, Buffer> inputMap;
+    private NetworkController networkController;
+    private HashMap<Ticket, MessageInfo> tickets;
 
     /**
      * Private constructor prevents instantiation.
@@ -176,13 +172,10 @@ public class Bridge implements
         this.networkDelegate = null;
         this.messageDelegate = null;
 
-        this.northRegistry = null;
         this.southRegistry = null;
 
-        this.messageQueue = null;
-        this.messageInfoQueue = null;
-
-        this.inputMap = null;
+        this.networkController = null;
+        this.tickets = null;
     }
 
     /**
@@ -259,22 +252,6 @@ public class Bridge implements
     }
 
     /**
-     * This is getter for a temporary data structure that maps {@link Instance}
-     * with {@link Device} in direct link for the North bridge. The reason this
-     * is temporary is because this type of association will not make sense
-     * once the routing tables are in place, since instances can be reached
-     * through indirect links. This will be used in the beginning to test some
-     * basic I/O, but should be removed in future versions.
-     * @return The North bridge registry.
-     */
-    private Registry<Instance> getNorthRegistry() {
-        if (this.northRegistry == null) {
-            this.northRegistry = new Registry<>();
-        }
-        return this.northRegistry;
-    }
-
-    /**
      * Returns the device registry that is used by the South bridge to map
      * native system framework {@link BluetoothDevice} instances with their
      * corresponding abstract {@link Device} instances. This will be used by
@@ -290,42 +267,26 @@ public class Bridge implements
     }
 
     /**
-     * Returns the message queue, which is used to queue messages that are
-     * waiting to be dispatched by the device.
-     * @return The message queue.
+     * The {@link NetworkController} is the low-level module that manages all
+     * network related stuff. This includes routing tables, network updates,
+     * and so on. This method returns {@code null} until the bridge has been
+     * initialized, along with the {@link NetworkController}.
+     * @return The {@link NetworkController}.
      */
-    private Queue<Message> getMessageQueue() {
-        if (this.messageQueue == null) {
-            this.messageQueue = new Queue<>();
-        }
-        return this.messageQueue;
+    private NetworkController getNetworkController() {
+        return this.networkController;
     }
 
     /**
-     * Returns the message info queue, which is used to queue message metadata
-     * for messages that are pending replies, such as indications of success
-     * or failure.
-     * @return The message info queue.
+     * Returns the data structure that is used to map {@link Ticket}s with
+     * their corresponding {@link MessageInfo}.
+     * @return The ticket hash map.
      */
-    private Queue<MessageInfo> getMessageInfoQueue() {
-        if (this.messageInfoQueue == null) {
-            this.messageInfoQueue = new Queue<>();
+    private HashMap<Ticket, MessageInfo> getTickets() {
+        if (this.tickets == null) {
+            this.tickets = new HashMap<>();
         }
-        return this.messageInfoQueue;
-    }
-
-    /**
-     * Returns the input map, which is used to hold information with respect to
-     * input that is being read from the input streams. The streams are
-     * identified by the {@code String} key of the map. This data will be held
-     * until a full packet can be processed.
-     * @return The input map.
-     */
-    private HashMap<String, Buffer> getInputMap() {
-        if (this.inputMap == null) {
-            this.inputMap = new HashMap<>();
-        }
-        return this.inputMap;
+        return this.tickets;
     }
 
     /**
@@ -355,6 +316,11 @@ public class Bridge implements
             // Generate an identifier for the host instance
             byte[] hostIdentifier = generateIdentifier(appIdentifier);
             Instance hostInstance = new Instance(hostIdentifier);
+
+            // Instantiate the network controller, which will hold the host
+            // instance.
+            this.networkController = new NetworkController(hostInstance);
+            this.networkController.setDelegate(this);
 
             // If the Bridge was deallocated in the meanwhile, do nothing.
             if (strongSelf != null) {
@@ -445,154 +411,14 @@ public class Bridge implements
 
     @Override
     public void onConnectionFailure(Connector connector, UlxError error) {
+        Log.e(getClass().getCanonicalName(), "ULX connection failed");
+
+        // Try again?
+        connector.connect();
     }
 
     @Override
     public void onStateChange(Connector connector) {
-    }
-
-    @Override
-    public void hasDataAvailable(InputStream inputStream) {
-        Log.i(getClass().getCanonicalName(), "ULX input stream has data available");
-
-        IOResult result;
-
-        // This is the buffer that will receive the data
-        Buffer buffer = getBufferForStream(inputStream);
-
-        Message message;
-
-        synchronized (buffer.getLock()) {
-
-            // We're allocating 1024 bytes, being that double the maximum we'd
-            // ever need; but this is a temporary allocation.
-            byte[] aux = new byte[1024];
-
-            do {
-
-                // Read from the stream
-                result = inputStream.read(aux);
-
-                Log.i(getClass().getCanonicalName(), String.format("ULX input stream read %d bytes", result.getByteCount()));
-
-                // Append to the buffer, the amount of bytes read
-                buffer.append(aux, result.getByteCount());
-
-            } while (result.getByteCount() > 0);
-
-            // Proceed by parsing messages from the input
-            message = attemptParse(buffer);
-
-            if (message == null) {
-                return;
-            }
-
-            Log.i(getClass().getCanonicalName(), String.format("ULX got message [%d] from (null)", message.getIdentifier()));
-
-            // Reduce the buffer by the amount parsed
-            buffer.trim(message.getData().length);
-        }
-
-        MessageDelegate messageDelegate = getMessageDelegate();
-        if (messageDelegate != null) {
-            messageDelegate.onMessageReceived(this, message);
-        }
-    }
-
-    private Buffer getBufferForStream(InputStream inputStream) {
-
-        Buffer buffer = getInputMap().get(inputStream.getIdentifier());
-
-        // Allocate a buffer, if needed
-        if (buffer == null) {
-            getInputMap().put(inputStream.getIdentifier(), buffer = new Buffer(0));
-        }
-
-        return buffer;
-    }
-
-    private Message attemptParse(Buffer buffer) {
-        Log.i(getClass().getCanonicalName(), "ULX is attempting to parse a message");
-
-        // For now, we're just discarding
-        synchronized (buffer.getLock()) {
-
-            Message message;
-
-            synchronized (buffer.getLock()) {
-                message = Encoder.decode(buffer.getData());
-            }
-
-            // If no message can be parsed, don't proceed
-            if (message == null) {
-                Log.i(getClass().getCanonicalName(), String.format("ULX input stream could not parse message from buffer with %d; waiting for more data", buffer.getOccupiedByteCount()));
-                return null;
-            }
-
-            Log.i(getClass().getCanonicalName(), String.format("ULX parsed a message, clearing %d from %d bytes from the input buffer", 4 + message.getData().length, buffer.getOccupiedByteCount()));
-
-            // Reduce the buffer by the amount parsed
-            // The "4" being added is the reserved bytes for size. In the final
-            // version, with the protocol in place, this will not be a magical
-            // constant, but instead we'll have a more complex parser for the
-            // headers
-            synchronized (buffer.getLock()) {
-                buffer.trim(message.getData().length + 4);
-            }
-
-            return message;
-        }
-    }
-
-    @Override
-    public void hasSpaceAvailable(OutputStream outputStream) {
-        Log.i(getClass().getCanonicalName(), "ULX output stream has space available");
-
-        // The stream declaring space available should not be a synonym of a
-        // message being dispatched, but the current implementation dispatches
-        // a single message at a time. This is temporary implementation of the
-        // Bridge, so it will work for now.
-        handleMessageSent();
-
-        // Dispatch more, while we have them
-        while (!getMessageQueue().isEmpty()) {
-            if (dequeueMessage()) {
-                break;
-            }
-        }
-    }
-
-    /**
-     * Removes a {@link MessageInfo} from the message info queue and declares
-     * it as sent. The current implementation only dispatches a single message
-     * at a time, so this will correspond to the message for the data that was
-     * just written.
-     */
-    private void handleMessageSent() {
-
-        // The MessageInfo is removed from the queue
-        MessageInfo messageInfo = getMessageInfoQueue().dequeue();
-
-        // Propagate a notification for dispatched messages. This will be null
-        // when the stream is first opened, in which case we're not flagging
-        // any message has having been sent.
-        if (messageInfo != null) {
-            notifyMessageSent(messageInfo);
-        }
-    }
-
-    /**
-     * Propagates a notification to the {@link MessageDelegate} that the {@link
-     * Message} corresponding to the given {@link MessageInfo} was successfully
-     * written to the output stream.
-     * @param messageInfo The {@link MessageInfo} with the meta information for
-     *                    the {@link Message} that was sent.
-     */
-    private void notifyMessageSent(MessageInfo messageInfo) {
-        MessageDelegate messageDelegate = getMessageDelegate();
-        if (messageDelegate != null) {
-            messageDelegate.onMessageSent(this, messageInfo);
-        }
     }
 
     @Override
@@ -613,10 +439,9 @@ public class Bridge implements
                 outputStream.getState().toString()
         ));
 
-        // When both streams are open, we can proceed with the creation of the
-        // instance, which will map the given device.
+        // When both streams are open, we can proceed
         if (inputStream.getState() == Stream.State.OPEN && outputStream.getState() == Stream.State.OPEN) {
-            associateInstance(device);
+            getNetworkController().negotiate(device);
         }
     }
 
@@ -654,130 +479,134 @@ public class Bridge implements
         inputStream.setStateDelegate(this);
         outputStream.setStateDelegate(this);
 
-        // Assume the stream-specific delegates as well
-        inputStream.setDelegate(this);
-        outputStream.setDelegate(this);
+        // Assume the stream-specific delegates as well.
+        // TODO I don't like the the getter for the IoController is public, but
+        //  I'm not seeing how this can be set otherwise.
+        //  Edit: one way that makes sense is to move the south bridge to the
+        //  IoController; that is the one, after all, that manages the streams.
+        inputStream.setDelegate(getNetworkController().getIoController());
+        outputStream.setDelegate(getNetworkController().getIoController());
 
         // Open the streams
         inputStream.open();
         outputStream.open();
     }
 
-    /**
-     * Creates a new Instance and associates with the given Device. This method
-     * is a simplification of what it should be, since it currently only
-     * supports a single transport and doesn't care about extending into other
-     * types of transport. The given device will be mapped with an instance
-     * created with the same identifier, which is also not how the protocol is
-     * actually designed. Instead, this new identifier should be negotiated,
-     * implying already some sort of I/O. This implementation will not negotiate
-     * and instead just open the streams and given the Instance as ready for I/O.
-     * @param device The {@code Device} to register.
-     */
-    private void associateInstance(Device device) {
+    public void send(Message message) {
 
-        // TODO this method is temporary as well; once the routing tables are
-        //      in place this should be refactored to work the them instead.
+        // Send the data to the network controller, which will look for proper
+        // links on the routing tables
+        Ticket ticket = getNetworkController().send(message.getData(), message.getDestination());
 
-        byte[] identifier = ByteUtils.uuidToBytes(UUID.fromString(device.getIdentifier()));
-        Instance instance = new Instance(identifier);
+        // Associate the ticket
+        setMessageInfo(ticket, message.getMessageInfo());
+    }
 
-        // Associate the device with the newly created instance
-        getNorthRegistry().setDevice(device.getIdentifier(), device);
-        getNorthRegistry().setGeneric(instance.getStringIdentifier(), instance);
-        getNorthRegistry().associate(instance.getStringIdentifier(), device.getIdentifier());
-
-        // Notify the delegate of a newly found instance. Future versions might
-        // skip this step is the instance had already been found before over
-        // another type of transport.
+    @Override
+    public void onInstanceFound(NetworkController networkController, Instance instance) {
         NetworkDelegate networkDelegate = getNetworkDelegate();
         if (networkDelegate != null) {
             networkDelegate.onInstanceFound(this, instance);
         }
     }
 
-    public void send(Message message) {
+    @Override
+    public void onInstanceLost(NetworkController networkController, Instance instance, UlxError error) {
 
-        Log.i(getClass().getCanonicalName(), String.format("ULX queueing message [%d] to destination %s", message.getIdentifier(), message.getDestination().getStringIdentifier()));
-
-        // Queue the message
-        getMessageQueue().queue(message);
-
-        // Attempt to dispatch
-        dequeueMessage();
     }
 
-    private void send(Message message, Device device) {
-
-        byte[] data = Encoder.encode(message);
-
-        // Send
-        device.getTransport().getReliableChannel().getOutputStream().write(data);
+    @Override
+    public void onReceived(NetworkController networkController, byte[] data, Instance origin) {
+        notifyOnMessageReceived(data, origin);
     }
 
-    private boolean dequeueMessage() {
+    @Override
+    public void onSent(NetworkController networkController, Ticket ticket) {
+        notifyOnMessageSent(getMessageInfo(ticket));
+    }
 
-        Message message = getMessageQueue().dequeue();
+    @Override
+    public void onSendFailure(NetworkController networkController, Ticket ticket, UlxError error) {
+        notifyOnMessageSendFailure(getMessageInfo(ticket), error);
 
-        // Nothing to do; wait for more input
-        if (message == null) {
-            return false;
-        }
+        // Send failures don't expect an acknowledgement
+        clearMessageInfo(ticket);
+    }
 
-        Log.i(getClass().getCanonicalName(), String.format("ULX dequeued message [%d] to destination %s", message.getIdentifier(), message.getDestination().getStringIdentifier()));
+    @Override
+    public void onAcknowledgement(NetworkController networkController, Ticket ticket) {
+        MessageInfo messageInfo = getMessageInfo(ticket);
+        notifyOnMessageDelivered(messageInfo);
 
-        // The message gets replaced with the message info structure, which is
-        // lighter because it does not include the payload
-        getMessageInfoQueue().queue(message.getMessageInfo());
+        // Once the message is acknowledged, the ticket is no longer needed
+        clearMessageInfo(ticket);
+    }
 
-        // Get the devices associated with the destination
-        String destinationIdentifier = message.getDestination().getStringIdentifier();
-        List<Device> devices = getNorthRegistry().getDevicesFromGenericIdentifier(destinationIdentifier);
+    private void setMessageInfo(Ticket ticket, MessageInfo messageInfo) {
+        getTickets().put(ticket, messageInfo);
+    }
 
-        // The instance is not mapped to any known devices
-        if (devices.size() == 0) {
+    private MessageInfo getMessageInfo(Ticket ticket) {
+        return getTickets().get(ticket);
+    }
 
-            UlxError error = new UlxError(
-                    UlxErrorCode.NOT_CONNECTED,
-                    "Could not send a message to the given destination.",
-                    "The destination is not known or reachable.",
-                    "Try coming in close range with the destination or " +
-                            "making sure that the connection has been established " +
-                            "before attempting to send content."
-            );
-
-            notifyFailedSend(message.getMessageInfo(), error);
-
-            // The message was not sent, but it was dequeued
-            return true;
-        }
-
-        // If more than one device is mapped, something went wrong
-        if (devices.size() != 1) {
-            throw new RuntimeException("An unexpected amount of devices is mapped " +
-                    "to the same instance. This is not expected because the " +
-                    "current version of the SDK supports only a single transport " +
-                    "and is not using routing tables.");
-        }
-
-        // Proceed
-        send(message, devices.get(0));
-
-        return true;
+    private void clearMessageInfo(Ticket ticket) {
+        getTickets().remove(ticket);
     }
 
     /**
-     * Propagates a notification for a failed message, when attempting to send
-     * one. This means that the message did not leave the device, in part or in
-     * full.
-     * @param messageInfo The {@link MessageInfo} corresponding to the failed
-     *                    {@link Message}.
-     * @param error An error, indicating the probable cause for the failure.
+     * Propagates a notification to the {@link MessageDelegate} that the {@link
+     * Message} corresponding to the given {@link MessageInfo} was successfully
+     * written to the output stream.
+     * @param messageInfo The {@link MessageInfo} with the meta information for
+     *                    the {@link Message} that was sent.
      */
-    private void notifyFailedSend(MessageInfo messageInfo, UlxError error) {
+    private void notifyOnMessageSent(MessageInfo messageInfo) {
         MessageDelegate messageDelegate = getMessageDelegate();
         if (messageDelegate != null) {
-            messageDelegate.onMessageSendFailed(this, messageInfo, error);
+            messageDelegate.onMessageSent(this, messageInfo);
+        }
+    }
+
+    /**
+     * Propagates a {@link MessageDelegate#onMessageSendFailure(Bridge,
+     * MessageInfo, UlxError)} delegate event with the given {@link MessageInfo}
+     * and {@link UlxError}.
+     * @param messageInfo The {@link MessageInfo} for the message that failed.
+     * @param error A {@link UlxError}, indicating the cause for the failure.
+     */
+    private void notifyOnMessageSendFailure(MessageInfo messageInfo, UlxError error) {
+        MessageDelegate messageDelegate = getMessageDelegate();
+        if (messageDelegate != null) {
+            messageDelegate.onMessageSendFailure(this, messageInfo, error);
+        }
+    }
+
+    /**
+     * Propagates a notification to the {@link MessageDelegate} that the given
+     * data payload has been received.
+     * @param data The payload that was received.
+     * @param origin The {@link Instance} that sent the message.
+     */
+    private void notifyOnMessageReceived(byte[] data, Instance origin) {
+        MessageDelegate messageDelegate = getMessageDelegate();
+        if (messageDelegate != null) {
+            messageDelegate.onMessageReceived(this, data, origin);
+        }
+    }
+
+    /**
+     * Propagates a notification to the {@link MessageDelegate} giving 
+     * indication that a {@link Message} was acknowledged by the destination.
+     * This corresponds to calling {@link MessageDelegate#onMessageDelivered(Bridge, MessageInfo)}
+     * on the {@link MessageDelegate}.
+     * @param messageInfo The {@link MessageInfo} corresponding to the {@link
+     *                    Message} that was acknowledged.
+     */
+    private void notifyOnMessageDelivered(MessageInfo messageInfo) {
+        MessageDelegate messageDelegate = getMessageDelegate();
+        if (messageDelegate != null) {
+            messageDelegate.onMessageDelivered(this, messageInfo);
         }
     }
 }

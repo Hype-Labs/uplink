@@ -36,7 +36,6 @@ import com.uplink.ulx.drivers.controller.Browser;
 import com.uplink.ulx.drivers.model.Channel;
 import com.uplink.ulx.drivers.model.Connector;
 import com.uplink.ulx.drivers.model.Transport;
-import com.uplink.ulx.threading.ExecutorPool;
 import com.uplink.ulx.utils.StringUtils;
 
 import java.util.ArrayList;
@@ -53,7 +52,6 @@ class BleBrowser extends BrowserCommons implements
         Connector.StateDelegate,
         BluetoothStateListener.Observer
 {
-
     private final BluetoothManager bluetoothManager;
     private BluetoothAdapter bluetoothAdapter;
     private ScanSettings.Builder bluetoothLeBrowsingSettings;
@@ -65,6 +63,7 @@ class BleBrowser extends BrowserCommons implements
     private Map<String, BluetoothDevice> knownDevices;
     private Map<String, Connector> knownConnectors;
     private List<Connector> connectorQueue;
+    private Connector currentConnector;
 
     /**
      * The BLEScannerCallback implements the Bluetooth LE scan callbacks that
@@ -80,10 +79,7 @@ class BleBrowser extends BrowserCommons implements
                 return;
             }
 
-            // Dispatch in the appropriate pool
-            ExecutorPool.getExecutor(getTransportType()).execute(
-                    () -> handleDeviceFound(scanResult.getDevice(), scanResult.getScanRecord())
-            );
+            handleDeviceFound(scanResult.getDevice(), scanResult.getScanRecord());
         }
 
         @Override
@@ -154,6 +150,8 @@ class BleBrowser extends BrowserCommons implements
 
         this.bluetoothManager = bluetoothManager;
         this.domesticService = domesticService;
+
+        this.currentConnector = null;
 
         // Leaking "this" in the constructor
         BluetoothStateListener.addObserver(this);
@@ -328,9 +326,18 @@ class BleBrowser extends BrowserCommons implements
         return getCoreServiceUuid().toString();
     }
 
+    private Connector getCurrentConnector() {
+        return this.currentConnector;
+    }
+
+    private void setCurrentConnector(Connector connector) {
+        this.currentConnector = connector;
+    }
+
     @SuppressLint("MissingPermission")
     @Override
     public void requestAdapterToStart() {
+        Log.i(getClass().getCanonicalName(), "ULX BLE browser is requesting the adapter to start");
 
         // Are the necessary permissions in place?
         if (!BluetoothPermissionChecker.isLocationPermissionGranted(getContext())) {
@@ -392,11 +399,15 @@ class BleBrowser extends BrowserCommons implements
                 "Try turning Bluetooth on.");
 
         onFailedStart(this, error);
+
+        // Restart the adapter
+        getBluetoothAdapter().enable();
     }
 
     @SuppressLint("MissingPermission")
     @Override
     public void requestAdapterToStop() {
+        Log.i(getClass().getCanonicalName(), "ULX BLE browser requesting the adapter to stop");
 
         // Is the adapter enabled?
         if (getBluetoothAdapter().isEnabled()) {
@@ -533,6 +544,7 @@ class BleBrowser extends BrowserCommons implements
         // Don't proceed if the device is already known; this would mean that
         // some connection attempt is already in progress.
         if (getKnownDevices().get(bluetoothDevice.getAddress()) != null) {
+            Log.i(getClass().getCanonicalName(), "ULX ignoring a queue request because the device is already known");
             return;
         }
 
@@ -563,12 +575,8 @@ class BleBrowser extends BrowserCommons implements
         // Queue the connector
         getConnectorQueue().add(connector);
 
-        // If this is the only connection in the queue, we need to tell the
-        // queue to try it, since otherwise it will not be triggered by the
-        // normal connection queue lifecycle.
-        if (getConnectorQueue().size() == 1) {
-            attemptConnection();
-        }
+        // Attempt to connect
+        attemptConnection();
     }
 
     /**
@@ -606,6 +614,14 @@ class BleBrowser extends BrowserCommons implements
      * queue, this method does nothing.
      */
     private void attemptConnection() {
+        Log.i(getClass().getCanonicalName(), "ULX connector being dequeued");
+
+        // Don't proceed if busy
+        if (getCurrentConnector() != null) {
+            Log.i(getClass().getCanonicalName(), "ULX connector queue not proceeding because it's busy");
+            return;
+        }
+
         Connector connector = dequeueConnector();
 
         // Don't proceed if there's no connector
@@ -613,6 +629,9 @@ class BleBrowser extends BrowserCommons implements
             Log.i(getClass().getCanonicalName(), "ULX attempted to connect with an empty connection queue");
             return;
         }
+
+        // Set as busy
+        setCurrentConnector(connector);
 
         // Request the connector at the top of the queue to connect
         connector.connect();
@@ -624,6 +643,7 @@ class BleBrowser extends BrowserCommons implements
 
     @Override
     public void onInvalidation(Connector connector, UlxError error) {
+        removeActiveConnector(connector);
     }
 
     @Override
@@ -635,6 +655,7 @@ class BleBrowser extends BrowserCommons implements
 
     @Override
     public void onAdapterDisabled(BluetoothStateListener bluetoothStateListener) {
+        Log.i(getClass().getCanonicalName(), "ULX BLE adapter disabled");
 
         if (getState() == Browser.State.RUNNING || getState() == Browser.State.STARTING) {
 
@@ -650,6 +671,10 @@ class BleBrowser extends BrowserCommons implements
 
         // The adapter being turned off, means that all connections where lost
         notifyAllDevicesAsDisconnected();
+
+        // Enable
+        Log.i(getClass().getCanonicalName(), "ULX is enabling the BLE adapter");
+        getBluetoothAdapter().enable();
     }
 
     private void notifyAllDevicesAsDisconnected() {
@@ -660,7 +685,11 @@ class BleBrowser extends BrowserCommons implements
     public void onConnected(Connector connector) {
         Log.i(getClass().getCanonicalName(), "ULX BLE browser connector connected");
 
+        // This connector is now active
+        addActiveConnector(connector);
+
         // Dequeue another connector, in case any is waiting
+        setCurrentConnector(null);
         attemptConnection();
 
         BleDevice device = createDevice((BleForeignConnector)connector);
@@ -737,9 +766,38 @@ class BleBrowser extends BrowserCommons implements
 
     @Override
     public void onDisconnection(Connector connector, UlxError error) {
+        Log.e(getClass().getCanonicalName(), "ULX BLE browser disconnection");
+
+        // The connector is no longer active
+        removeActiveConnector(connector);
     }
 
     @Override
     public void onConnectionFailure(Connector connector, UlxError error) {
+        Log.e(getClass().getCanonicalName(), "ULX BLE browser connection failure");
+        Log.e(getClass().getCanonicalName(), String.format("ULX connector state is %s", connector.getState().toString()));
+
+        BleForeignConnector bleForeignConnector = (BleForeignConnector)connector;
+        BluetoothDevice bluetoothDevice = bleForeignConnector.getGattClient().getBluetoothDevice();
+
+        Log.e(getClass().getCanonicalName(), String.format("ULX is removing [%s] from the registry", bluetoothDevice.getAddress()));
+
+        // Remove from the registry; when the device is seen again, the
+        // connection should be retried
+        getKnownDevices().remove(bluetoothDevice.getAddress());
+        getKnownConnectors().remove(connector.getIdentifier());
+        removeActiveConnector(connector);   // Shouldn't matter
+
+        // Free the queue
+        setCurrentConnector(null);
+
+        Log.e(getClass().getCanonicalName(), String.format("ULX known connector size is %d", getKnownConnectors().size()));
+
+        // Since we're having failed connections, we should ask the adapter to
+        // restart.
+        Delegate delegate = getDelegate();
+        if (delegate != null) {
+            delegate.onAdapterRestartRequest(this);
+        }
     }
 }

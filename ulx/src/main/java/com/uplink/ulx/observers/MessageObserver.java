@@ -22,9 +22,10 @@ public interface MessageObserver {
      * The framework passes the data as it is received and makes no attempt of
      * processing it (other than encrypting and decrypting it, when applicable).
      * The instance parameter indicates the originating instance.
-     * @param message A container for the data and metadata for the message received.
+     * @param data The data that was received.
+     * @param origin The {@link Instance} that originated the message.
      */
-    void onUlxMessageReceived(Message message);
+    void onUlxMessageReceived(byte[] data, Instance origin);
 
     /**
      * This notification is issued when a message is known to have failed being
@@ -66,7 +67,7 @@ public interface MessageObserver {
 
     /**
      * This notification indicates that the message with the identifier given by
-     * the messageInfo parameter has progressed in reaching its destination. The
+     * the messageInfo parameter has reached its destination and that . The
      * amount of data that has been delivered is indicated by the "progress"
      * argument. This argument holds a value between 0 and 1, indicating the
      * percentage of the data that the destination has acknowledge back to the
@@ -81,9 +82,6 @@ public interface MessageObserver {
      * change in future release, and progress bars will be possible on both the
      * originating and receiving devices.
      * @param messageInfo Metadata about the message being delivered.
-     * @param instance The destination instance.
-     * @param progress Percentage of content of the message that was delivered.
-     * @param done Whether the message was fully delivered to the destination.
      */
-    void onUlxMessageDelivered(MessageInfo messageInfo, Instance instance, float progress, boolean done);
+    void onUlxMessageDelivered(MessageInfo messageInfo);
 }

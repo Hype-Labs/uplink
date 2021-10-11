@@ -61,6 +61,7 @@ public class BleForeignConnector extends ConnectorCommons implements GattClient.
 
     @Override
     public void requestAdapterToDisconnect() {
+        Log.e(getClass().getCanonicalName(), "ULX connector is being requested to disconnect, but that's not supported yet");
     }
 
     @Override
@@ -74,9 +75,11 @@ public class BleForeignConnector extends ConnectorCommons implements GattClient.
 
     @Override
     public void onConnectionFailure(GattClient gattClient, UlxError error) {
+        super.onConnectionFailure(this, error);
     }
 
     @Override
-    public void onDisconnected(GattClient gattClient, UlxError error) {
+    public void onDisconnection(GattClient gattClient, UlxError error) {
+        super.onDisconnection(this, error);
     }
 }

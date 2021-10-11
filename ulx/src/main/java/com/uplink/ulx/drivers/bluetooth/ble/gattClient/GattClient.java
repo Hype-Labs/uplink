@@ -18,10 +18,13 @@ import com.uplink.ulx.UlxErrorCode;
 import com.uplink.ulx.drivers.bluetooth.ble.gattServer.MtuRegistry;
 import com.uplink.ulx.drivers.bluetooth.ble.model.domestic.BleDomesticService;
 import com.uplink.ulx.drivers.bluetooth.ble.model.foreign.BleForeignService;
+import com.uplink.ulx.threading.ExecutorPool;
 
 import java.lang.ref.WeakReference;
 import java.util.List;
 import java.util.Objects;
+import java.util.Timer;
+import java.util.TimerTask;
 import java.util.UUID;
 
 /**
@@ -64,7 +67,7 @@ public class GattClient extends BluetoothGattCallback {
          * @param gattClient The GATT client that failed connecting.
          * @param error An error, indicating a probable cause for the failure.
          */
-        void onDisconnected(GattClient gattClient, UlxError error);
+        void onDisconnection(GattClient gattClient, UlxError error);
     }
 
     /**
@@ -147,6 +150,8 @@ public class GattClient extends BluetoothGattCallback {
     private BluetoothGatt bluetoothGatt;
     private int mtu;
 
+    private Timer connectionTimeout;
+
     private final WeakReference<Context> context;
 
     /**
@@ -178,6 +183,7 @@ public class GattClient extends BluetoothGattCallback {
         this.bluetoothAdapter = null;
         this.bluetoothGatt = null;
         this.mtu = MtuRegistry.DEFAULT_MTU;
+        this.connectionTimeout = null;
 
         this.domesticService = domesticService;
 
@@ -261,7 +267,7 @@ public class GattClient extends BluetoothGattCallback {
      *
      * @return The BluetoothDevice instance.
      */
-    private BluetoothDevice getBluetoothDevice() {
+    public final BluetoothDevice getBluetoothDevice() {
         return this.bluetoothDevice;
     }
 
@@ -321,6 +327,58 @@ public class GattClient extends BluetoothGattCallback {
         return this.context.get();
     }
 
+    private void setConnectionTimeout(BluetoothGatt bluetoothGatt, long timeout) {
+        Log.i(getClass().getCanonicalName(), String.format("ULX is setting connection timeout %d for %s", timeout, bluetoothGatt.getDevice().getAddress()));
+
+        if (this.connectionTimeout != null) {
+            throw new RuntimeException("The implementation is trying to reset " +
+                    "a timer that did not yet complete. This overlap shouldn't " +
+                    "occur, since it nullifies the first timeout.");
+        }
+
+        this.connectionTimeout = new Timer();
+        this.connectionTimeout.schedule(new TimerTask() {
+
+            @Override
+            public void run() {
+
+                Log.e(GattClient.this.getClass().getCanonicalName(), String.format("ULX is canceling connection %s", bluetoothGatt.getDevice().getAddress()));
+
+                // Cancel in the main thread
+                ExecutorPool.getMainExecutor().execute(() -> {
+                    bluetoothGatt.disconnect();
+                    bluetoothGatt.close();
+
+
+                    UlxError error = new UlxError(
+                            UlxErrorCode.UNKNOWN,
+                            "Could not connect or hold the connection to the remote device.",
+                            "The connection could not be established or was lost.",
+                            "Please try reconnecting or restarting the Bluetooth adapter."
+                    );
+
+                    notifyOnConnectionFailure(error);
+                });
+
+                GattClient.this.connectionTimeout = null;
+            }
+        }, timeout);
+    }
+
+    private void cancelConnectionTimeout() {
+        Log.i(getClass().getCanonicalName(), "ULX connection timeout being canceled");
+
+        if (this.connectionTimeout != null) {
+            this.connectionTimeout.cancel();
+        }
+
+        this.connectionTimeout = null;
+    }
+
+    private boolean isConnectionTimeoutSet() {
+        return this.connectionTimeout != null;
+    }
+
     /**
      * Connects to the GATT server on this device and returns the BluetoothGatt
      * handler for the Bluetooth GATT profile.
@@ -355,6 +413,11 @@ public class GattClient extends BluetoothGattCallback {
 
         BluetoothGatt bluetoothGatt = getBluetoothGatt();
 
+        // Just making sure everything is disconnected before attempting to
+        // connect; does this make sense?
+        bluetoothGatt.disconnect();
+        bluetoothGatt.close();
+
         if (!bluetoothGatt.connect()) {
 
             // We should try to figure out a better error message
@@ -366,12 +429,20 @@ public class GattClient extends BluetoothGattCallback {
             );
 
             notifyOnConnectionFailure(error);
+        } else {
+            Log.i(getClass().getCanonicalName(), "ULX connection request accepted");
+
+            // Set a timeout for 3s
+            setConnectionTimeout(bluetoothGatt, 3000);
         }
     }
 
     @Override
     public void onConnectionStateChange(BluetoothGatt bluetoothGatt, int status, int newState) {
         ConnectorDelegate connectorDelegate = getConnectorDelegate();
+
+        // Don't wait anymore to drop the connection attempt
+        cancelConnectionTimeout();
 
         // Don't proceed without a delegate; although this means that the
         // state change will simply be ignored.
@@ -386,7 +457,13 @@ public class GattClient extends BluetoothGattCallback {
             negotiateMtu();
 
         } else {
-            Log.i(getClass().getCanonicalName(), String.format("ULX GATT client connection failed [%s]", bluetoothGatt.getDevice().getAddress()));
+            Log.e(getClass().getCanonicalName(), String.format("ULX GATT client connection failed [%s] with status %d", bluetoothGatt.getDevice().getAddress(), status));
+
+            // Clean up; without this, future attempts to connect between these
+            // same two devices should result in more 133 error codes. See:
+            // https://stackoverflow.com/questions/25330938/android-bluetoothgatt-status-133-register-callback
+            bluetoothGatt.disconnect();
+            bluetoothGatt.close();
 
             UlxError error = new UlxError(
                     UlxErrorCode.UNKNOWN,
@@ -395,7 +472,13 @@ public class GattClient extends BluetoothGattCallback {
                     "Please try reconnecting or restarting the Bluetooth adapter."
             );
 
-            notifyOnConnectionFailure(error);
+            // Checking the connection timeout is a hack to check if the
+            // connection could not be established or crashed
+            if (isConnectionTimeoutSet()) {
+                notifyOnConnectionFailure(error);
+            } else {
+                notifyOnDisconnection(error);
+            }
         }
     }
 
@@ -777,11 +860,16 @@ public class GattClient extends BluetoothGattCallback {
      * @param error The error (UlxError) to propagate.
      */
     private void notifyOnConnectionFailure(UlxError error) {
-        Log.e(getClass().getCanonicalName(), "ULX characteristic subscription failed");
-
         ConnectorDelegate connectorDelegate = getConnectorDelegate();
         if (connectorDelegate != null) {
             connectorDelegate.onConnectionFailure(this, error);
+        }
+    }
+
+    private void notifyOnDisconnection(UlxError error) {
+        ConnectorDelegate connectorDelegate = getConnectorDelegate();
+        if (connectorDelegate != null) {
+            connectorDelegate.onDisconnection(this, error);
         }
     }
 
@@ -809,6 +897,8 @@ public class GattClient extends BluetoothGattCallback {
     }
 
     public boolean writeCharacteristic(BluetoothGattCharacteristic characteristic) {
+        Log.i(getClass().getCanonicalName(), "ULX is writing characteristic");
+
         return getBluetoothGatt().writeCharacteristic(characteristic);
     }
 
@@ -821,8 +911,6 @@ public class GattClient extends BluetoothGattCallback {
         }
 
         else {
-
-            Log.i(getClass().getCanonicalName(), String.format("ULX failed writing to characteristic with status %02X", status));
 
             UlxError error = new UlxError(
                     UlxErrorCode.UNKNOWN,

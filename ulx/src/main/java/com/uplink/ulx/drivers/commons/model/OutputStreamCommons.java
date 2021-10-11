@@ -1,6 +1,6 @@
 package com.uplink.ulx.drivers.commons.model;
 
-import com.uplink.ulx.drivers.model.IOResult;
+import com.uplink.ulx.drivers.model.IoResult;
 import com.uplink.ulx.drivers.model.OutputStream;
 import com.uplink.ulx.drivers.model.Stream;
 
@@ -39,9 +39,7 @@ public abstract class OutputStreamCommons extends StreamCommons implements Outpu
 
     /**
      * Returns the buffer that is being used for the stream to cache output
-     * data. If the buffer hasn't been created yet, it will now, call
-     * {@link OutputStreamCommons#getInitialCapacity()} and use the return
-     * value as the buffer's initial capacity setting.
+     * data. If the buffer hasn't been created yet, it will now.
      * @return The stream's buffer.
      */
     protected synchronized final Buffer getBuffer() {
@@ -50,15 +48,6 @@ public abstract class OutputStreamCommons extends StreamCommons implements Outpu
         }
         return this.buffer;
     }
-
-    /**
-     * This method is overridden by child classes to define the buffer's
-     * initial capacity setting. Child classes should return a value that is
-     * seen as a reasonable trade-off between memory use and expected buffer
-     * size.
-     * @return The buffer's initial capacity.
-     */
-    protected abstract int getInitialCapacity();
 
     @Override
     public final void setDelegate(OutputStream.Delegate delegate) {
@@ -81,7 +70,7 @@ public abstract class OutputStreamCommons extends StreamCommons implements Outpu
                 notifyHasSpaceAvailable();
             }
 
-            // A non-empty buffer means that we keep writting
+            // A non-empty buffer means that we keep writing
             else flushAndTrim();
         }
     }
@@ -94,7 +83,7 @@ public abstract class OutputStreamCommons extends StreamCommons implements Outpu
     }
 
     @Override
-    public IOResult write(byte[] data) {
+    public IoResult write(byte[] data) {
 
         if (getState() != State.OPEN) {
             throw new RuntimeException("Could not write to the OutputStream because the stream is not open");
@@ -112,23 +101,30 @@ public abstract class OutputStreamCommons extends StreamCommons implements Outpu
 
         // Write to buffer
         synchronized (getBuffer().getLock()) {
-
             byteCount = getBuffer().append(data);
             flushAndTrim();
         }
 
         // Return the number of bytes buffered, not actually written
-        return new IOResult(byteCount, null);
+        return new IoResult(byteCount, null);
     }
 
     private void flushAndTrim() {
 
         synchronized (getBuffer().getLock()) {
 
+            // TODO notice that the data being returned here is not trimmed to
+            //      the actual byte count. The data will have the same size as
+            //      the buffer's capacity, which is not what is expected when
+            //      writing. Instead, the whole buffer should never be returned
+            //      to the outside since it can create major problems: e.g.
+            //      we write the buffer's to its "capacity", instead of its
+            //      "byte count"/size.
+
             byte[] data = getBuffer().getData();
 
             // Ask the stream to flush data
-            IOResult result = flush(data);
+            IoResult result = flush(data);
 
             // Trim the buffer
             getBuffer().trim(result.getByteCount());
@@ -142,7 +138,7 @@ public abstract class OutputStreamCommons extends StreamCommons implements Outpu
      * should be notified on the {@link OutputStreamCommons} through the
      * {@link OutputStream.Delegate} API interface.
      * @param data The data to write.
-     * @return The {@link IOResult} for the operation.
+     * @return The {@link IoResult} for the operation.
      */
-    protected abstract IOResult flush(byte[] data);
+    protected abstract IoResult flush(byte[] data);
 }
