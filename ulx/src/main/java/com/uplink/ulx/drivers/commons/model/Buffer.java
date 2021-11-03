@@ -190,7 +190,7 @@ public class Buffer {
         byte[] newBuffer = new byte[toSize];
 
         // Make a copy
-        System.arraycopy(getData(), getData().length - toSize, newBuffer, 0, toSize);
+        System.arraycopy(getData(), 0, newBuffer, 0, toSize);
 
         // Replace the current buffer
         setData(newBuffer);

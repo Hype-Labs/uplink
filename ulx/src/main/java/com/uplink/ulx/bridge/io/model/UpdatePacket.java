@@ -18,14 +18,14 @@ public class UpdatePacket extends AbstractPacket {
     private final Instance instance;
     private final int hopCount;
     private final boolean reachable;
-    private final boolean internetReachable;
+    private final int internetHopCount;
 
     public UpdatePacket(
             int sequenceIdentifier,
             Instance instance,
             int hopCount,
             boolean reachable,
-            boolean internetReachable
+            int internetHopCount
     ) {
         super(sequenceIdentifier, PacketType.UPDATE);
 
@@ -35,7 +35,7 @@ public class UpdatePacket extends AbstractPacket {
         this.instance = Objects.requireNonNull(instance);
         this.hopCount = hopCount;
         this.reachable = reachable;
-        this.internetReachable = internetReachable;
+        this.internetHopCount = internetHopCount;
     }
 
     public final Instance getInstance() {
@@ -50,7 +50,7 @@ public class UpdatePacket extends AbstractPacket {
         return this.reachable;
     }
 
-    public final boolean isInternetReachable() {
-        return this.internetReachable;
+    public final int getInternetHopCount() {
+        return this.internetHopCount;
     }
 }

@@ -113,14 +113,6 @@ public abstract class OutputStreamCommons extends StreamCommons implements Outpu
 
         synchronized (getBuffer().getLock()) {
 
-            // TODO notice that the data being returned here is not trimmed to
-            //      the actual byte count. The data will have the same size as
-            //      the buffer's capacity, which is not what is expected when
-            //      writing. Instead, the whole buffer should never be returned
-            //      to the outside since it can create major problems: e.g.
-            //      we write the buffer's to its "capacity", instead of its
-            //      "byte count"/size.
-
             byte[] data = getBuffer().getData();
 
             // Ask the stream to flush data

@@ -13,16 +13,22 @@ import java.util.Objects;
 public class HandshakePacket extends AbstractPacket {
 
     private final Instance originator;
+    private final int internetHops;
 
     /**
      * Constructor.
      * @param sequenceIdentifier The packet's sequence identifier.
      * @param originator The originator {@link Instance}'s identifier.
+     * @param internetHops How many hops it takes for the originator to reach
+     *                     the Internet.
      */
-    public HandshakePacket(int sequenceIdentifier, Instance originator) {
+    public HandshakePacket(int sequenceIdentifier, Instance originator, int internetHops) {
         super(sequenceIdentifier, PacketType.HANDSHAKE);
 
-        this.originator = Objects.requireNonNull(originator);
+        Objects.requireNonNull(originator);
+
+        this.originator = originator;
+        this.internetHops = internetHops;
     }
 
     /**
@@ -32,5 +38,16 @@ public class HandshakePacket extends AbstractPacket {
      */
     public final Instance getOriginator() {
         return this.originator;
+    }
+
+    /**
+     * Getter for the number of hops that it takes for the packet's originator
+     * to reach the Internet. Zero means a direct connection, while infinity
+     * means no connection at all.
+     * @return The number of hops it takes for the originator to reach the
+     * Internet.
+     */
+    public final int getInternetHops() {
+        return this.internetHops;
     }
 }

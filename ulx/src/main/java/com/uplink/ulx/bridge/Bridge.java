@@ -1,6 +1,7 @@
 package com.uplink.ulx.bridge;
 
 import android.bluetooth.BluetoothDevice;
+import android.content.Context;
 import android.util.Log;
 
 import com.uplink.ulx.UlxError;
@@ -17,7 +18,10 @@ import com.uplink.ulx.model.MessageInfo;
 import com.uplink.ulx.threading.ExecutorPool;
 import com.uplink.ulx.utils.StringUtils;
 
+import org.json.JSONObject;
+
 import java.lang.ref.WeakReference;
+import java.net.URL;
 import java.nio.ByteBuffer;
 import java.util.HashMap;
 import java.util.Objects;
@@ -37,6 +41,7 @@ import java.util.UUID;
  */
 public class Bridge implements
         NetworkController.Delegate,
+        NetworkController.InternetRequestDelegate,
         Connector.StateDelegate,
         Stream.StateDelegate
 {
@@ -151,6 +156,17 @@ public class Bridge implements
          * @param origin The originating {@link Instance}.
          */
         void onMessageReceived(Bridge bridge, byte[] data, Instance origin);
+
+        /**
+         * This {@link MessageDelegate} notification is called when an Internet
+         * response is received meant for the host instance. This means that
+         * the request was done either locally or through the mesh, but that
+         * either way the response is meant for the host.
+         * @param bridge the {@link Bridge}.
+         * @param code The server HTTP status response code.
+         * @param content The server response content.
+         */
+        void onInternetResponse(Bridge bridge, int code, String content);
     }
 
     private static Bridge instance = null;
@@ -164,10 +180,13 @@ public class Bridge implements
     private NetworkController networkController;
     private HashMap<Ticket, MessageInfo> tickets;
 
+    private WeakReference<Context> context;
+
     /**
      * Private constructor prevents instantiation.
      */
     private Bridge() {
+
         this.stateDelegate = null;
         this.networkDelegate = null;
         this.messageDelegate = null;
@@ -176,6 +195,26 @@ public class Bridge implements
 
         this.networkController = null;
         this.tickets = null;
+
+        this.context = null;
+    }
+
+    /**
+     * Sets the Android environment {@link Context} that will be propagated
+     * throughout the implementation.
+     * @param context The {@link Context} to set.
+     */
+    public void setContext(Context context) {
+        Objects.requireNonNull(context);
+        this.context = new WeakReference<>(context);
+    }
+
+    /**
+     * Returns the Android environment {@link Context}.
+     * @return The Android environment {@link Context}.
+     */
+    private Context getContext() {
+        return this.context.get();
     }
 
     /**
@@ -319,8 +358,9 @@ public class Bridge implements
 
             // Instantiate the network controller, which will hold the host
             // instance.
-            this.networkController = new NetworkController(hostInstance);
+            this.networkController = new NetworkController(hostInstance, getContext());
             this.networkController.setDelegate(this);
+            this.networkController.setInternetRequestDelegate(this);
 
             // If the Bridge was deallocated in the meanwhile, do nothing.
             if (strongSelf != null) {
@@ -542,6 +582,17 @@ public class Bridge implements
         clearMessageInfo(ticket);
     }
 
+    @Override
+    public void onInternetResponse(NetworkController networkController, int code, String message) {
+        Log.i(getClass().getCanonicalName(), String.format("ULX Internet response received [%d, %s]", code, message));
+        notifyOnInternetResponse(code, message);
+    }
+
+    @Override
+    public void onInternetRequestFailure(NetworkController networkController, int sequence) {
+        Log.e(getClass().getCanonicalName(), "ULX internet request failure");
+    }
+
     private void setMessageInfo(Ticket ticket, MessageInfo messageInfo) {
         getTickets().put(ticket, messageInfo);
     }
@@ -608,5 +659,16 @@ public class Bridge implements
         if (messageDelegate != null) {
             messageDelegate.onMessageDelivered(this, messageInfo);
         }
+    }
+
+    private void notifyOnInternetResponse(int code, String content) {
+        MessageDelegate messageDelegate = getMessageDelegate();
+        if (messageDelegate != null) {
+            messageDelegate.onInternetResponse(this, code, content);
+        }
+    }
+
+    public void sendInternet(URL url, JSONObject jsonObject, int test) {
+        getNetworkController().sendInternet(url, jsonObject, test);
     }
 }

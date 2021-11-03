@@ -54,7 +54,7 @@ public class UpdatePacketDecoder implements Decoder {
         // Read the hop count, event type, and whether it has Internet
         int hopCount = inputStream.read();
         int reachable = inputStream.read();
-        int internetReachable = inputStream.read();
+        int internetHopCount = inputStream.read();
 
         // Read the instance
         byte[] instance = new byte[16];
@@ -69,9 +69,9 @@ public class UpdatePacketDecoder implements Decoder {
         Object object = makeObject(
                 sequenceIdentifier,
                 new Instance(instance),
-                (byte)hopCount,
+                hopCount,
                 reachable != 0,
-                internetReachable != 0
+                internetHopCount
         );
 
         // Return the result with the decoded object
@@ -95,16 +95,16 @@ public class UpdatePacketDecoder implements Decoder {
     private Object makeObject(
             int sequenceIdentifier,
             Instance instance,
-            byte hopCount,
+            int hopCount,
             boolean reachable,
-            boolean internetReachable) {
+            int internetHopCount) {
 
         return new UpdatePacket(
                 sequenceIdentifier,
                 instance,
                 hopCount,
                 reachable,
-                internetReachable
+                internetHopCount
         );
     }
 }

@@ -3,6 +3,7 @@ package com.uplink.app;
 import android.Manifest;
 import android.os.Bundle;
 import android.util.Log;
+import android.view.View;
 
 import androidx.activity.result.ActivityResultLauncher;
 import androidx.activity.result.contract.ActivityResultContracts;
@@ -16,8 +17,12 @@ import com.uplink.ulx.observers.MessageObserver;
 import com.uplink.ulx.observers.NetworkObserver;
 import com.uplink.ulx.observers.StateObserver;
 
+import org.json.JSONException;
+import org.json.JSONObject;
+
+import java.net.MalformedURLException;
+import java.net.URL;
 import java.nio.charset.StandardCharsets;
-import java.util.Timer;
 
 public class MainActivity extends AppCompatActivity implements StateObserver, NetworkObserver, MessageObserver {
 
@@ -57,6 +62,21 @@ public class MainActivity extends AppCompatActivity implements StateObserver, Ne
         Log.i(getClass().getCanonicalName(), "ULX[APP] has started");
     }
 
+    private URL makeUrl() throws MalformedURLException {
+        return new URL("http://15.237.128.149/relay/AuthorizationRequest");
+    }
+
+    private JSONObject makeObject() throws JSONException {
+
+        JSONObject obj = new JSONObject();
+
+        obj.put("field1", "1");
+        obj.put("field2", "2");
+        obj.put("field3", "3");
+
+        return obj;
+    }
+
     @Override
     public void onUlxStop(UlxError error) {
         Log.i(getClass().getCanonicalName(), String.format("ULX[APP] has stopped [%s]", error.toString()));
@@ -80,7 +100,7 @@ public class MainActivity extends AppCompatActivity implements StateObserver, Ne
     public void onUlxInstanceFound(Instance instance) {
         Log.i(getClass().getCanonicalName(), String.format("ULX[APP] found instance [%s]", instance.getStringIdentifier()));
 
-        sendMessage(instance);
+        //sendMessage(instance);
     }
 
     @Override
@@ -159,6 +179,22 @@ public class MainActivity extends AppCompatActivity implements StateObserver, Ne
         Log.i(getClass().getCanonicalName(), String.format("ULX[APP] message [%d] was delivered", messageInfo.getIdentifier()));
 
         // Flood the network
-        sendMessage(messageInfo.getDestination());
+        //sendMessage(messageInfo.getDestination());
+    }
+
+    @Override
+    public void onUlxInternetResponse(int code, String content) {
+        Log.i(getClass().getCanonicalName(), String.format("ULX[APP] got a response from the server: %d", code));
+        Log.i(getClass().getCanonicalName(), String.format("ULX[APP] Server response is: %s", content));
+    }
+
+    public void onButtonClick(View view) {
+        Log.i(getClass().getCanonicalName(), "ULX[APP] Sending transaction");
+
+        try {
+            ULX.sendInternet(makeUrl(), makeObject(), 1);
+        } catch (MalformedURLException | JSONException e) {
+            throw new RuntimeException("Malformed URL or JSON exception");
+        }
     }
 }

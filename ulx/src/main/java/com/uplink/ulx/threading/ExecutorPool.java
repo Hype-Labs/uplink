@@ -17,6 +17,7 @@ public class ExecutorPool {
     private static HashMap<Integer, ScheduledExecutorService> scheduledExecutors;
     private static ExecutorService mainExecutor;
     private static ExecutorService coreExecutor;
+    private static ExecutorService internetExecutor;
     private static ExecutorService driverManagerExecutor;
 
     /**
@@ -139,5 +140,12 @@ public class ExecutorPool {
             ExecutorPool.driverManagerExecutor = Executors.newSingleThreadExecutor();
         }
         return ExecutorPool.driverManagerExecutor;
+    }
+
+    public static ExecutorService getInternetExecutor() {
+        if (ExecutorPool.internetExecutor == null) {
+            ExecutorPool.internetExecutor = Executors.newSingleThreadExecutor();
+        }
+        return ExecutorPool.internetExecutor;
     }
 }

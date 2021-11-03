@@ -1,5 +1,7 @@
 package com.uplink.ulx.bridge.network.model;
 
+import android.widget.ArrayAdapter;
+
 import com.uplink.ulx.UlxError;
 import com.uplink.ulx.UlxErrorCode;
 import com.uplink.ulx.drivers.model.Device;
@@ -7,6 +9,7 @@ import com.uplink.ulx.model.Instance;
 
 import java.lang.ref.WeakReference;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -20,6 +23,15 @@ public class RoutingTable {
      * count are not reachable.
      */
     public static int HOP_COUNT_INFINITY = 0xFF;
+
+    /**
+     * This constant yields the maximum hop count that the network will accept
+     * to process. Its original value is 3, since that should be enough to
+     * prevent network loops (given that split horizon is in place). In order
+     * to enable the maximum supported number of hops, set {@link
+     * RoutingTable#HOP_COUNT_INFINITY}.
+     */
+    public static final int MAXIMUM_HOP_COUNT = 3;
 
     /**
      * The {@link RoutingTable} delegate propagates events that occur in the
@@ -138,16 +150,16 @@ public class RoutingTable {
          * updated with the given metadata.
          * @param instance The {@link Instance} to register as reachable.
          * @param hopCount The minimum known number of hops.
-         * @param isInternetReachable Whether the given {@link Instance} is
-         *                            connected to the Internet.
+         * @param internetHopCount The number of hops that it takes for the
+         *                         {@link Link} to reach the Internet.
          * @return The {@link Link} that was created or updated.
          */
-        public Link add(Instance instance, int hopCount, boolean isInternetReachable) {
+        public Link add(Instance instance, int hopCount, int internetHopCount) {
 
             Link link = get(instance);
 
             if (link == null) {
-                link = new Link(getDevice(), instance, hopCount, isInternetReachable);
+                link = new Link(getDevice(), instance, hopCount, internetHopCount);
 
                 // Also register
                 getLinks().add(link);
@@ -155,7 +167,7 @@ public class RoutingTable {
 
                 // If the link is already known, we'll consider this an update
                 link.setHopCount(hopCount);
-                link.setIsInternetReachable(isInternetReachable);
+                link.setInternetHopCount(internetHopCount);
             }
 
             return link;
@@ -201,6 +213,42 @@ public class RoutingTable {
                 }
             }
             return null;
+        }
+
+        /**
+         * Returns the Internet-connected {@link Link} that compares the best
+         * against all others, also known to have {@link #getDevice()} as the
+         * next hop.
+         * @return The best known Internet connection for this {@link Entry}.
+         */
+        public Link getBestInternetLink() {
+
+            List<Link> internetLinks = compileInternetLinks();
+
+            // Sorting the links will compare them over stability and number of
+            // hops. This will yield the best links at the top.
+            Collections.sort(internetLinks);
+
+            return internetLinks.size() > 0 ? internetLinks.get(0) : null;
+        }
+
+        /**
+         * Compiles a {@link List} of {@link Link}s that are known to be
+         * connected to the Internet over the next-hop that corresponds to
+         * this table entry. If there are no known links to be connected, the
+         * implementation will return an empty {@link List}.
+         * @return A list of Internet-connected {@link Link}s.
+         */
+        private List<Link> compileInternetLinks() {
+            List<Link> linkList = new ArrayList<>();
+
+            for (Link link : getLinks()) {
+                if (link.getInternetHopCount() != RoutingTable.HOP_COUNT_INFINITY) {
+                    linkList.add(link);
+                }
+            }
+
+            return linkList;
         }
     }
 
@@ -367,10 +415,13 @@ public class RoutingTable {
      * {@link Instance} as being reachable through the given {@link Device}.
      * This corresponds to a {@link Link} being created on the table.
      * @param device The next-hop {@link Device}.
-     * @param hopCount The minimum known hop count.
      * @param instance The {@link Instance} that is now reachable.
+     * @param hopCount The minimum known hop count.
+     * @param internetHopCount The number of hops that it takes for the instance
+     *                         to reach the Internet.
+     *
      */
-    public void registerOrUpdate(Device device, Instance instance, int hopCount, boolean isInternetReachable) {
+    public void registerOrUpdate(Device device, Instance instance, int hopCount, int internetHopCount) {
 
         // Values of infinity are deleted instead, since the instance is no
         // longer reachable
@@ -384,7 +435,7 @@ public class RoutingTable {
         Link bestLink = getBestLink(instance, device);
 
         // Register the link
-        Link newLink = getLinkMapEntry(device).add(instance, hopCount, isInternetReachable);
+        Link newLink = getLinkMapEntry(device).add(instance, hopCount, internetHopCount);
 
         // If the link did not previously exist, then it's new, which results
         // in two events (found and update). If it's not new, then it's an
@@ -457,6 +508,28 @@ public class RoutingTable {
     }
 
     /**
+     * Returns the best known mesh link to the Internet. The factor of quality
+     * is determined by comparing the links using the {@link Link#compareTo(Link)}
+     * method, which accounts for stability and number of hops. The {@code
+     * splitHorizon} argument is not used yet, but will be in future versions
+     * to prevent determining paths that loop on some previous hop. If the
+     * split horizon is {@code null}, the implementation should perform the
+     * calculation without having the previous hop in consideration.
+     * @param splitHorizon Not used.
+     * @return The best known mesh link to the Internet.
+     */
+    public Link getBestInternetLink(Device splitHorizon) {
+
+        List<Link> links = compileInternetLinks();
+
+        // Sorting the list will yield the best links at the top
+        Collections.sort(links);
+
+        // The best link should be the first, if one exists
+        return links.size() > 0 ? links.get(0) : null;
+    }
+
+    /**
      * Returns the best link known to a given instance. In fact, this method
      * currently just returns the first link that is found, since it currently
      * does not implement any heuristic for "best link". The {@code splitHorizon}
@@ -494,6 +567,21 @@ public class RoutingTable {
             Link link = entry.getValue().get(instance);
 
             // Only a single entry is expected
+            if (link != null) {
+                linkList.add(link);
+            }
+        }
+
+        return linkList;
+    }
+
+    private List<Link> compileInternetLinks() {
+
+        List<Link> linkList = new ArrayList<>();
+
+        for (Map.Entry<Device, Entry> entry : getLinkMap().entrySet()) {
+            Link link = entry.getValue().getBestInternetLink();
+
             if (link != null) {
                 linkList.add(link);
             }
@@ -550,5 +638,27 @@ public class RoutingTable {
      */
     public Set<Device> getDeviceList() {
         return getLinkMap().keySet();
+    }
+
+    /**
+     * Returns a {@link List} of all {@link Link}s known to the routing table.
+     * All links will be under the threshold of {@link #MAXIMUM_HOP_COUNT}
+     * number of hops. The return list is a copy and is generated with each
+     * call.
+     * @return A {@link List} of {@link Link}s.
+     */
+    public List<Link> getLinks() {
+
+        List<Link> linkList = new ArrayList<>();
+
+        for (Map.Entry<Device, Entry> entry : getLinkMap().entrySet()) {
+            for (Link link : entry.getValue().getLinks()) {
+                if (link.getHopCount() < MAXIMUM_HOP_COUNT) {
+                    linkList.add(link);
+                }
+            }
+        }
+
+        return linkList;
     }
 }

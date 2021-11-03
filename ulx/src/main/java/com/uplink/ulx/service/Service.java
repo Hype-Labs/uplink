@@ -15,9 +15,11 @@ import com.uplink.ulx.model.Instance;
 import com.uplink.ulx.model.Message;
 import com.uplink.ulx.model.MessageInfo;
 import com.uplink.ulx.model.State;
-import com.uplink.ulx.serialization.Serializer;
+
+import org.json.JSONObject;
 
 import java.lang.ref.WeakReference;
+import java.net.URL;
 import java.util.UUID;
 
 /**
@@ -170,6 +172,17 @@ public class Service extends android.app.Service implements
          *                    {@link Message} that was delivered.
          */
         void onMessageDelivered(Service service, MessageInfo messageInfo);
+
+        /**
+         * This {@link MessageDelegate} notification is triggered when an
+         * Internet response is received for the host device. This could
+         * originate either from a direct call to the server or from a mesh
+         * relay.
+         * @param service The {@link Service}.
+         * @param code The HTTP status code.
+         * @param content The server response content.
+         */
+        void onInternetResponse(Service service, int code, String content);
     }
 
     /**
@@ -350,6 +363,7 @@ public class Service extends android.app.Service implements
      * @param appIdentifier The app identifier for the SDK instance.
      */
     public void initialize(String appIdentifier) {
+        Bridge.getInstance().setContext(getContext());
         Bridge.getInstance().setStateDelegate(this);
         Bridge.getInstance().setNetworkDelegate(this);
         Bridge.getInstance().setMessageDelegate(this);
@@ -474,6 +488,14 @@ public class Service extends android.app.Service implements
         }
     }
 
+    @Override
+    public void onInternetResponse(Bridge bridge, int code, String content) {
+        MessageDelegate messageDelegate = getMessageDelegate();
+        if (messageDelegate != null) {
+            messageDelegate.onInternetResponse(this, code, content);
+        }
+    }
+
     /**
      * The {@link #pause()} procedure is a temporary experimental feature to
      * assert whether the browser and advertiser's activity is causing the I/O
@@ -523,5 +545,18 @@ public class Service extends android.app.Service implements
             this.isPausing = false;
             start();
         }
+    }
+
+    /**
+     * Attempts to send a message over the Internet, relying on the mesh if the
+     * host device is not connected to an Internet exit point at the moment. The
+     * message will be sent to the given {@code URL} as JSON, by setting the
+     * HTTP Content-Type header to {@code application/json}. The reply is
+     * expected from a delegate.
+     * @param url The destination {@code URL}.
+     * @param jsonObject The data to send, encoded as JSON.
+     */
+    public void sendInternet(URL url, JSONObject jsonObject, int test) {
+        Bridge.getInstance().sendInternet(url, jsonObject, test);
     }
 }

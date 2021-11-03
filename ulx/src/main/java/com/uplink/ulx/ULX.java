@@ -9,6 +9,10 @@ import com.uplink.ulx.observers.MessageObserver;
 import com.uplink.ulx.observers.NetworkObserver;
 import com.uplink.ulx.observers.StateObserver;
 
+import org.json.JSONObject;
+
+import java.net.URL;
+
 /**
  * This class is the main entry point for the SDK. It provides facade access to
  * the service running on the background. This class wraps the domestic instance
@@ -232,14 +236,34 @@ public class ULX {
 
     /**
      * Sends a message to a given instance without tracking progress. This
-     * method calls send(byte [], Instance, boolean) with the progress tracking
-     * option set to false. All other technicalities described for that method
-     * also apply.
+     * method calls {@link #send(byte[], Instance, boolean)} with the progress
+     * tracking option set to false. All other technicalities described for
+     * that method also apply.
      * @param data The data to send.
      * @param instance The instance to send the data to.
      * @return A message wrapper containing some metadata.
      */
     public static Message send(byte [] data, Instance instance) {
         return send(data, instance, false);
+    }
+
+    /**
+     * Sends a message string to the given {@link URL} over the mesh or in
+     * direct link, depending on whether the host device is currently connected
+     * to the Internet. The data string will circulate over the network encoded
+     * in UTF-8, and sent that way to the server. This method will also set a
+     * single header when sending the contents, defining the HTTP Content-Type
+     * header to {@code application/json}. This is temporary, since future
+     * versions should support other headers and additional types of encodings.
+     * This also means that the given {@code data} string must contain data
+     * that is encoded in that format. The test identifier is used to aggregate
+     * transactions on the backend. This value occupies a single byte, which
+     * means that 255 tests are possible.
+     * @param url The destination server.
+     * @param jsonObject The JSON data to send.
+     * @param test The test identifier.
+     */
+    public static void sendInternet(URL url, JSONObject jsonObject, int test) {
+        Implementation.getInstance().sendInternet(url, jsonObject, test);
     }
 }

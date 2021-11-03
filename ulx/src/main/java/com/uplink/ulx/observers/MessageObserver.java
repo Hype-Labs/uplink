@@ -51,16 +51,15 @@ public interface MessageObserver {
      * the messageInfo parameter has been sent to the network. This does not
      * mean that it has been delivered, but rather that it was written to the
      * streams and acknowledged by the next hop device. The delegate method
-     * {@link #onUlxMessageDelivered(MessageInfo, Instance, float, boolean)},
-     * on the other hand, indicates delivery to the receiving end. That method
-     * is preferred if the intent is to track delivery, especially when messages
-     * are being sent over a mesh network and not direct link. At this point,
-     * it's not known whether the content has been or will be delivered. The
-     * messageInfo instance maps to a message identifier of a {@link Message}
-     * instance that was returned by the send method. In order to keep track of
-     * which messages are sent, store this identifier in a data structure and
-     * wait for notifications with the same identifier. This step is, however,
-     * optional.
+     * {@link ##onUlxMessageDelivered(MessageInfo)}, on the other hand,
+     * indicates delivery to the receiving end. That method is preferred if the
+     * intent is to track delivery, especially when messages are being sent over
+     * a mesh network and not direct link. At this point, it's not known whether
+     * the content has been or will be delivered. The messageInfo instance maps
+     * to a message identifier of a {@link Message} instance that was returned
+     * by the send method. In order to keep track of which messages are sent,
+     * store this identifier in a data structure and wait for notifications
+     * with the same identifier. This step is, however, optional.
      * @param messageInfo A container for the message being sent.
      */
     void onUlxMessageSent(MessageInfo messageInfo);
@@ -84,4 +83,19 @@ public interface MessageObserver {
      * @param messageInfo Metadata about the message being delivered.
      */
     void onUlxMessageDelivered(MessageInfo messageInfo);
+
+    /**
+     * This notification indicates that a server response was received for a
+     * previous Internet request. That request is known to have been made by
+     * the host device, which means that the response is not to be forwarded
+     * on the mesh. It's not known, at this point, whether the message was made
+     * through direct link or through the mesh, only that the data comes from
+     * the requested server. The status {@code code} indicates the server's
+     * HTTP response code, while the {@code content} string is the server's
+     * response content. This is expected to be a string encoded in JSON,
+     * although that will depend on the server that was initially requested.
+     * @param code The HTTP status code returned from the server.
+     * @param content The server response content.
+     */
+    void onUlxInternetResponse(int code, String content);
 }

@@ -36,6 +36,7 @@ public class HandshakePacketEncoder implements Encoder {
         outputStream.write(packet.getType().getId());
         outputStream.write(sequenceIdentifier.array());
         outputStream.write(packet.getOriginator().getIdentifier());
+        outputStream.write(packet.getInternetHops());
 
         return new Result(outputStream.toByteArray(), null);
     }

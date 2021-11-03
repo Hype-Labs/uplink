@@ -20,7 +20,7 @@ public class Link implements Comparable<Link> {
     private final Device nextHop;
     private final Instance destination;
     private int hopCount;
-    private boolean isInternetReachable;
+    private int internetHopCount;
     private final long timestamp;
 
     /**
@@ -28,10 +28,10 @@ public class Link implements Comparable<Link> {
      * @param nextHop The device in LoS that makes the {@link Instance} reachable.
      * @param destination The final destination {@link Instance}.
      * @param hopCount The number of hops to the final destination.
-     * @param isInternetReachable Whether the link's destination is connected to
-     *                            the Internet.
+     * @param internetHopCount The number of hops that it takes for this link
+     *                         to reach the Internet.
      */
-    public Link(Device nextHop, Instance destination, int hopCount, boolean isInternetReachable)  {
+    public Link(Device nextHop, Instance destination, int hopCount, int internetHopCount)  {
 
         Objects.requireNonNull(nextHop);
         Objects.requireNonNull(destination);
@@ -39,7 +39,7 @@ public class Link implements Comparable<Link> {
         this.nextHop = nextHop;
         this.destination = destination;
         this.hopCount = hopCount;
-        this.isInternetReachable = isInternetReachable;
+        this.internetHopCount = internetHopCount;
         this.timestamp = System.currentTimeMillis();
     }
 
@@ -83,22 +83,23 @@ public class Link implements Comparable<Link> {
     }
 
     /**
-     * Updates the indication as to whether the link makes the Internet
-     * reachable. The previous value will be replaced.
-     * @param isInternetReachable Whether the {@link Link} makes the Internet
-     *                            reachable.
+     * Setter for the number of hops that it takes for this {@link Link} to
+     * reach the Internet. A value of {@link RoutingTable#HOP_COUNT_INFINITY}
+     * means that the Internet is not reachable at all.
+     * @param internetHopCount The number of hops to reach the Internet.
      */
-    public final void setIsInternetReachable(boolean isInternetReachable) {
-        this.isInternetReachable = isInternetReachable;
+    public final void setInternetHopCount(int internetHopCount) {
+        this.internetHopCount = internetHopCount;
     }
 
     /**
-     * Returns a flag that indicates whether the {@link Link} makes the Internet
-     * reachable.
-     * @return Whether the {@link Link} makes the Internet reachable.
+     * Getter for the number of hops that it takes for this {@link Link} to
+     * reach the Internet. A value of {@link RoutingTable#HOP_COUNT_INFINITY}
+     * means that the Internet is not reachable at all.
+     * @return The number of hops to reach the Internet.
      */
-    public final boolean isInternetReachable() {
-        return this.isInternetReachable;
+    public final int getInternetHopCount() {
+        return this.internetHopCount;
     }
 
     /**

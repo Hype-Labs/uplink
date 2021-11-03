@@ -4,22 +4,19 @@ import android.util.Log;
 
 import com.uplink.ulx.UlxError;
 import com.uplink.ulx.UlxErrorCode;
-import com.uplink.ulx.bridge.network.model.Link;
-import com.uplink.ulx.drivers.model.Device;
 import com.uplink.ulx.model.Instance;
 import com.uplink.ulx.serialization.Decoder;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.nio.ByteBuffer;
-import java.util.ArrayList;
-import java.util.List;
+import java.nio.charset.StandardCharsets;
 
-public class HandshakePacketDecoder implements Decoder {
+public class InternetResponsePacketDecoder implements Decoder {
 
     @Override
     public Decoder.Result decode(byte[] data) throws IOException {
-        Log.i(getClass().getCanonicalName(), "ULX attempting to decode HandshakePacket");
+        Log.i(getClass().getCanonicalName(), "ULX attempting to decode InternetResponsePacket");
 
         ByteArrayInputStream inputStream = new ByteArrayInputStream(data);
 
@@ -41,7 +38,7 @@ public class HandshakePacketDecoder implements Decoder {
         }
 
         // Reject the packet based on the wrong packet type.
-        if (type != PacketType.HANDSHAKE.getId()) {
+        if (type != PacketType.INTERNET_RESPONSE.getId()) {
             return null;
         }
 
@@ -62,20 +59,40 @@ public class HandshakePacketDecoder implements Decoder {
             return new Result(null, 0, makeGeneralError());
         }
 
-        // Read the number of internet hops
-        int internetHops = inputStream.read();
+        // Read the HTTP status code
+        int code = inputStream.read();
 
-        if (internetHops == -1) {
-            return null;
+        if (code == -1) {
+            return new Result(null, 0, makeGeneralError());
         }
+
+        // Read the content length
+        byte[] sizeBuffer = new byte[4];
+
+        if (inputStream.read(sizeBuffer) != sizeBuffer.length) {
+            return new Result(null, 0, makeGeneralError());
+        }
+
+        // The size is a 32-bit integer in big-endian
+        int size = ByteBuffer.wrap(sizeBuffer).getInt();
+
+        // Read the data
+        byte[] messageData = new byte[size];
+
+        if (inputStream.read(messageData) != size) {
+            return new Result(null, 0, makeGeneralError());
+        }
+
+        String message = new String(messageData, StandardCharsets.UTF_8);
 
         // Create the object. It's notable that version and type are losing
         // precision. This is an unchecked cast that is probably dangerous,
         // and should be reviewed in the future.
         Object object = makeObject(
                 sequenceIdentifier,
-                origin,
-                internetHops
+                code,
+                message,
+                origin
         );
 
         // Return the result with the decoded object
@@ -96,11 +113,12 @@ public class HandshakePacketDecoder implements Decoder {
         );
     }
 
-    private Object makeObject(int sequenceIdentifier, byte[] origin, int internetHops) {
-        return new HandshakePacket(
+    private Object makeObject(int sequenceIdentifier, int code, String data, byte[] originator) {
+        return new InternetResponsePacket(
                 sequenceIdentifier,
-                new Instance(origin),
-                internetHops
+                code,
+                data,
+                new Instance(originator)
         );
     }
 }

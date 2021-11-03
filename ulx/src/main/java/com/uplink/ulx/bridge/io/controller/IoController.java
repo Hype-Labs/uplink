@@ -3,6 +3,7 @@ package com.uplink.ulx.bridge.io.controller;
 import android.util.Log;
 
 import com.uplink.ulx.UlxError;
+import com.uplink.ulx.UlxErrorCode;
 import com.uplink.ulx.bridge.io.model.AcknowledgementPacket;
 import com.uplink.ulx.bridge.io.model.AcknowledgementPacketDecoder;
 import com.uplink.ulx.bridge.io.model.AcknowledgementPacketEncoder;
@@ -12,6 +13,12 @@ import com.uplink.ulx.bridge.io.model.DataPacketEncoder;
 import com.uplink.ulx.bridge.io.model.HandshakePacket;
 import com.uplink.ulx.bridge.io.model.HandshakePacketDecoder;
 import com.uplink.ulx.bridge.io.model.HandshakePacketEncoder;
+import com.uplink.ulx.bridge.io.model.InternetPacket;
+import com.uplink.ulx.bridge.io.model.InternetPacketDecoder;
+import com.uplink.ulx.bridge.io.model.InternetPacketEncoder;
+import com.uplink.ulx.bridge.io.model.InternetResponsePacket;
+import com.uplink.ulx.bridge.io.model.InternetResponsePacketDecoder;
+import com.uplink.ulx.bridge.io.model.InternetResponsePacketEncoder;
 import com.uplink.ulx.bridge.io.model.Packet;
 import com.uplink.ulx.bridge.io.model.UpdatePacket;
 import com.uplink.ulx.bridge.io.model.UpdatePacketDecoder;
@@ -195,6 +202,8 @@ public class IoController implements InputStream.Delegate, OutputStream.Delegate
             this.serializer.register(UpdatePacket.class, new UpdatePacketEncoder(), new UpdatePacketDecoder());
             this.serializer.register(DataPacket.class, new DataPacketEncoder(), new DataPacketDecoder());
             this.serializer.register(AcknowledgementPacket.class, new AcknowledgementPacketEncoder(), new AcknowledgementPacketDecoder());
+            this.serializer.register(InternetPacket.class, new InternetPacketEncoder(), new InternetPacketDecoder());
+            this.serializer.register(InternetResponsePacket.class, new InternetResponsePacketEncoder(), new InternetResponsePacketDecoder());
         }
         return this.serializer;
     }
@@ -289,8 +298,26 @@ public class IoController implements InputStream.Delegate, OutputStream.Delegate
         // Flag the controller as busy, so packets do not overlap
         setCurrentPacket(ioPacket);
 
+        Device device = ioPacket.getDevice();
+
+        if (device == null) {
+            Log.e(getClass().getCanonicalName(), "ULX destination not found");
+
+            UlxError error = new UlxError(
+                    UlxErrorCode.UNKNOWN,
+                    "Could not send a packet to a destination.",
+                    "The destination is not known or reachable.",
+                    "Try bringing the destination closer to the host " +
+                            "device or restarting the Bluetooth adapter."
+            );
+
+            notifyOnPacketWriteFailure(null, ioPacket, error);
+
+            return;
+        }
+
         // Write to the stream
-        add(ioPacket, ioPacket.getDevice().getTransport().getReliableChannel().getOutputStream());
+        add(ioPacket, device.getTransport().getReliableChannel().getOutputStream());
     }
 
     /**
@@ -404,8 +431,6 @@ public class IoController implements InputStream.Delegate, OutputStream.Delegate
 
                 // Append to the buffer, the amount of bytes read
                 buffer.append(aux, ioResult.getByteCount());
-
-                Log.e(getClass().getCanonicalName(), String.format("ULX read %d bytes; buffer is now %d", ioResult.getByteCount(), buffer.getOccupiedByteCount()));
 
             } while (ioResult.getByteCount() > 0);
 

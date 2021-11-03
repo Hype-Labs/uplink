@@ -105,8 +105,6 @@ public class BleDomesticOutputStream extends OutputStreamCommons {
                 data
         );
 
-        Log.i(getClass().getCanonicalName(), String.format("ULX wrote %d of %d bytes (%d%%)", written, data.length, (int)(written / (float)(data.length) * 100)));
-
         return new IoResult(written, null);
     }
 

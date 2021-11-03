@@ -34,7 +34,18 @@ public enum PacketType {
      * This type represents a packet that is used to acknowledge the reception
      * of some other packet.
      */
-    ACKNOWLEDGEMENT(3)
+    ACKNOWLEDGEMENT(3),
+
+    /**
+     * This type represents a packet that is sent over the network to relay an
+     * Internet request over the mesh.
+     */
+    INTERNET(4),
+
+    /**
+     * This type represents a response to an Internet request.
+     */
+    INTERNET_RESPONSE(5)
     ;
 
     private final int id;

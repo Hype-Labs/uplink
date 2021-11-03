@@ -14,7 +14,10 @@ import com.uplink.ulx.observers.StateObserver;
 import com.uplink.ulx.service.Service;
 import com.uplink.ulx.threading.ExecutorPool;
 
+import org.json.JSONObject;
+
 import java.lang.ref.WeakReference;
+import java.net.URL;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
@@ -521,7 +524,7 @@ public class Implementation implements
      * @param acknowledge Whether to track delivery progress.
      * @return A message wrapper containing some metadata.
      */
-    public synchronized Message send(byte [] data, Instance destination, boolean acknowledge) {
+    public Message send(byte [] data, Instance destination, boolean acknowledge) {
 
         Objects.requireNonNull(data);
         Objects.requireNonNull(destination);
@@ -588,6 +591,11 @@ public class Implementation implements
         notifyOnMessageDelivered(messageInfo);
     }
 
+    @Override
+    public void onInternetResponse(Service service, int code, String content) {
+        notifyOnInternetResponse(code, content);
+    }
+
     /**
      * Propagates a notification of a failed attempt to send a message to the
      * {@link MessageObserver} collection, by calling the corresponding event
@@ -633,11 +641,35 @@ public class Implementation implements
         });
     }
 
+    /**
+     * Propagates a notification for an event of a message being delivered,
+     * which corresponds to the destination having acknowledged the reception
+     * of the contents in full. The propagation occurs by calling {@link
+     * MessageObserver#onUlxMessageDelivered(MessageInfo)}.
+     * @param messageInfo The {@link MessageInfo} meta data corresponding to
+     *                    the original message.
+     */
     private void notifyOnMessageDelivered(MessageInfo messageInfo) {
         ExecutorPool.getMainExecutor().execute(() -> {
             for (MessageObserver messageObserver : getMessageObservers()) {
                 messageObserver.onUlxMessageDelivered(messageInfo);
             }
         });
+    }
+
+    private void notifyOnInternetResponse(int code, String content) {
+        ExecutorPool.getMainExecutor().execute(() -> {
+            for (MessageObserver messageObserver : getMessageObservers()) {
+                messageObserver.onUlxInternetResponse(code, content);
+            }
+        });
+    }
+
+    public void sendInternet(URL url, JSONObject jsonObject, int test) {
+
+        Objects.requireNonNull(url);
+        Objects.requireNonNull(jsonObject);
+
+        getService().sendInternet(url, jsonObject, test);
     }
 }
