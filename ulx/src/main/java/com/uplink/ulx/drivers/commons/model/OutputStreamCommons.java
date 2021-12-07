@@ -3,6 +3,7 @@ package com.uplink.ulx.drivers.commons.model;
 import com.uplink.ulx.drivers.model.IoResult;
 import com.uplink.ulx.drivers.model.OutputStream;
 import com.uplink.ulx.drivers.model.Stream;
+import com.uplink.ulx.threading.Dispatch;
 
 import java.lang.ref.WeakReference;
 
@@ -111,16 +112,19 @@ public abstract class OutputStreamCommons extends StreamCommons implements Outpu
 
     private void flushAndTrim() {
 
-        synchronized (getBuffer().getLock()) {
+        Dispatch.post(() -> {
 
-            byte[] data = getBuffer().getData();
+            synchronized (getBuffer().getLock()) {
 
-            // Ask the stream to flush data
-            IoResult result = flush(data);
+                byte[] data = getBuffer().getData();
 
-            // Trim the buffer
-            getBuffer().trim(result.getByteCount());
-        }
+                // Ask the stream to flush data
+                IoResult result = flush(data);
+
+                // Trim the buffer
+                getBuffer().trim(result.getByteCount());
+            }
+        });
     }
 
     /**

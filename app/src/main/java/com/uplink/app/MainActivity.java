@@ -23,8 +23,31 @@ import org.json.JSONObject;
 import java.net.MalformedURLException;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
+import java.util.HashMap;
+import java.util.LinkedList;
+import java.util.Map;
+import java.util.Queue;
+import java.util.Set;
 
 public class MainActivity extends AppCompatActivity implements StateObserver, NetworkObserver, MessageObserver {
+
+    private HashMap<String, Instance> instanceMap;
+    private Queue<Instance> probeQueue;
+    private boolean probing = false;
+
+    private HashMap<String, Instance> getInstanceMap() {
+        if (this.instanceMap == null) {
+            this.instanceMap = new HashMap<>();
+        }
+        return this.instanceMap;
+    }
+
+    private Queue<Instance> getProbeQueue() {
+        if (this.probeQueue == null) {
+            this.probeQueue = new LinkedList<>();
+        }
+        return this.probeQueue;
+    }
 
     private final ActivityResultLauncher<String> requestPermissionLauncher =
             registerForActivityResult(new ActivityResultContracts.RequestPermission(), isGranted -> {
@@ -101,11 +124,14 @@ public class MainActivity extends AppCompatActivity implements StateObserver, Ne
         Log.i(getClass().getCanonicalName(), String.format("ULX[APP] found instance [%s]", instance.getStringIdentifier()));
 
         //sendMessage(instance);
+        getInstanceMap().put(instance.getStringIdentifier(), instance);
     }
 
     @Override
     public void onUlxInstanceLost(Instance instance, UlxError error) {
         Log.i(getClass().getCanonicalName(), String.format("ULX[APP] lost instance [%s: %s]", instance.getStringIdentifier(), error.toString()));
+
+        getInstanceMap().remove(instance.getStringIdentifier());
     }
 
     private void sendMessage(Instance instance) {
@@ -178,8 +204,8 @@ public class MainActivity extends AppCompatActivity implements StateObserver, Ne
     public void onUlxMessageDelivered(MessageInfo messageInfo) {
         Log.i(getClass().getCanonicalName(), String.format("ULX[APP] message [%d] was delivered", messageInfo.getIdentifier()));
 
-        // Flood the network
-        //sendMessage(messageInfo.getDestination());
+        // Probe?
+        dequeue();
     }
 
     @Override
@@ -188,7 +214,7 @@ public class MainActivity extends AppCompatActivity implements StateObserver, Ne
         Log.i(getClass().getCanonicalName(), String.format("ULX[APP] Server response is: %s", content));
     }
 
-    public void onButtonClick(View view) {
+    public void onSendTransactionClick(View view) {
         Log.i(getClass().getCanonicalName(), "ULX[APP] Sending transaction");
 
         try {
@@ -196,5 +222,59 @@ public class MainActivity extends AppCompatActivity implements StateObserver, Ne
         } catch (MalformedURLException | JSONException e) {
             throw new RuntimeException("Malformed URL or JSON exception");
         }
+    }
+
+    public void onSendMessageClick(View view) {
+
+        if (getInstanceMap().isEmpty()) {
+            Log.e(getClass().getCanonicalName(), "ULX[APP] No known instances");
+            return;
+        }
+
+        Set<String> keySet = getInstanceMap().keySet();
+        Instance instance = getInstanceMap().get(keySet.iterator().next());
+
+        if (instance == null) {
+            Log.e(getClass().getCanonicalName(), "ULX[APP] Instance is null");
+            return;
+        }
+
+        Log.i(getClass().getCanonicalName(), String.format("ULX[APP] Sending message to %s", instance.getStringIdentifier()));
+
+        byte[] data = "message".getBytes(StandardCharsets.UTF_8);
+
+        ULX.send(data, instance);
+    }
+
+    public void onProbeClick(View view) {
+
+        probing = true;
+
+        // Send "probe" to all instances
+        for (Map.Entry<String, Instance> entry : getInstanceMap().entrySet()) {
+            getProbeQueue().add(entry.getValue());
+        }
+
+        dequeue();
+    }
+
+    private void dequeue() {
+
+        if (!probing) {
+            return;
+        }
+
+        Instance instance = getProbeQueue().poll();
+
+        if (instance == null) {
+            Log.i(getClass().getCanonicalName(), "ULX[APP] Done probing");
+            probing = false;
+            return;
+        }
+
+        Log.i(getClass().getCanonicalName(), String.format("ULX[APP] Probing instance %s", instance.getStringIdentifier()));
+
+        byte[] data = "probe".getBytes(StandardCharsets.UTF_8);
+        ULX.send(data, instance);
     }
 }

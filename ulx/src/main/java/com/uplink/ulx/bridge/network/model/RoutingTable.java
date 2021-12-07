@@ -1,6 +1,6 @@
 package com.uplink.ulx.bridge.network.model;
 
-import android.widget.ArrayAdapter;
+import android.util.Log;
 
 import com.uplink.ulx.UlxError;
 import com.uplink.ulx.UlxErrorCode;
@@ -9,9 +9,9 @@ import com.uplink.ulx.model.Instance;
 
 import java.lang.ref.WeakReference;
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -76,11 +76,9 @@ public class RoutingTable {
          * might happen that the previous best link was lost and replaced by
          * a second best alternative.
          * @param routingTable  The {@link RoutingTable} issuing the notification.
-         * @param destination The {@link Instance} destination.
-         * @param splitHorizon The device that propagated the update.
          * @param link The {@link Link} that was updated.
          */
-        void onLinkUpdate(RoutingTable routingTable, Instance destination, Device splitHorizon, Link link);
+        void onLinkUpdate(RoutingTable routingTable, Link link);
     }
 
     /**
@@ -159,9 +157,9 @@ public class RoutingTable {
             Link link = get(instance);
 
             if (link == null) {
-                link = new Link(getDevice(), instance, hopCount, internetHopCount);
 
-                // Also register
+                // Register a new link
+                link = new Link(getDevice(), instance, hopCount, internetHopCount);
                 getLinks().add(link);
             } else {
 
@@ -175,9 +173,10 @@ public class RoutingTable {
 
         /**
          * Removes the {@link Link} to the given {@link Instance} from the
-         * registry. If the link is removed, the method will return {@code true},
-         * but it didn't already existed, nothing happens and the method returns
-         * {@code false} instead.
+         * registry. If the link is removed, the method will return {@code true}.
+         * But if the link didn't already exit, nothing happens, and the method
+         * returns {@code false} instead. This means that this method is safe to
+         * call without previously checking for the instance's existance.
          * @param instance Whether the {@link Link} was removed.
          */
         public boolean remove(Instance instance) {
@@ -226,8 +225,12 @@ public class RoutingTable {
             List<Link> internetLinks = compileInternetLinks();
 
             // Sorting the links will compare them over stability and number of
-            // hops. This will yield the best links at the top.
-            Collections.sort(internetLinks);
+            // hops. This will yield the best links at the top. However, this
+            // are not necessarily the best Internet links, but rather overall
+            // links. Still, we known that the links provide Internet
+            // reachability, even if not ideally.
+            Collections.sort(internetLinks, (o1, o2) ->
+                    Integer.signum(o1.getInternetHopCount() - o2.getInternetHopCount()));
 
             return internetLinks.size() > 0 ? internetLinks.get(0) : null;
         }
@@ -243,7 +246,7 @@ public class RoutingTable {
             List<Link> linkList = new ArrayList<>();
 
             for (Link link : getLinks()) {
-                if (link.getInternetHopCount() != RoutingTable.HOP_COUNT_INFINITY) {
+                if (link.getInternetHopCount() < RoutingTable.HOP_COUNT_INFINITY) {
                     linkList.add(link);
                 }
             }
@@ -323,7 +326,7 @@ public class RoutingTable {
      * @return The {@link Device} registered with the given identifier or {@code
      * null}.
      */
-    public Device getDevice(String identifier) {
+    public synchronized Device getDevice(String identifier) {
         for (Map.Entry<Device, Entry> entry : getLinkMap().entrySet()) {
             if (entry.getKey().getIdentifier().equals(identifier)) {
                 return entry.getKey();
@@ -339,7 +342,7 @@ public class RoutingTable {
      * identifier, with {@link Device#getIdentifier()}.
      * @param device The {@link Device} to register.
      */
-    public void register(Device device) {
+    public synchronized void register(Device device) {
 
         // If the registry already exists, don't proceed. Doing so would erase
         // the current registry, and all known links would be lost.
@@ -359,7 +362,7 @@ public class RoutingTable {
      * given {@link Device} drops and it becomes unreachable.
      * @param device The {@link Device} to remove.
      */
-    public void unregister(Device device) {
+    public synchronized void unregister(Device device) {
 
         Entry entry = getLinkMap().get(device);
 
@@ -382,7 +385,7 @@ public class RoutingTable {
     }
 
     /**
-     * Flags all given {@link Instance}s as lost if no more paths exist for
+     * Flags each given {@link Instance} as lost if no more paths exist for
      * it. This should be called after an {@link Entry} is cleared from the
      * table.
      * @param destinations The destinations to lose.
@@ -391,11 +394,8 @@ public class RoutingTable {
 
         for (Instance instance : destinations) {
 
-            // Instances that are no longer reachable are lost. The split
-            // horizon is notably null, since this is supposed to be used
-            // in cases where a device was lost. The split horizon doesn't
-            // make sense in that case
-            if (getBestLink(instance, null) == null) {
+            // Instances that are no longer reachable are lost
+            if (isReachable(instance)) {
 
                 UlxError error = new UlxError(
                         UlxErrorCode.UNKNOWN,
@@ -419,20 +419,31 @@ public class RoutingTable {
      * @param hopCount The minimum known hop count.
      * @param internetHopCount The number of hops that it takes for the instance
      *                         to reach the Internet.
-     *
      */
-    public void registerOrUpdate(Device device, Instance instance, int hopCount, int internetHopCount) {
+    public synchronized void registerOrUpdate(Device device, Instance instance, int hopCount, int internetHopCount) {
+        Log.i(getClass().getCanonicalName(),
+                String.format(
+                        "ULX-M registering an update: %s %s %d %d",
+                        device.getIdentifier(),
+                        instance.getStringIdentifier(),
+                        hopCount,
+                        internetHopCount
+                )
+        );
 
         // Values of infinity are deleted instead, since the instance is no
         // longer reachable
         if (hopCount == HOP_COUNT_INFINITY) {
-            unregister(device, instance);
-            return;
+
+            throw new RuntimeException("Link removal is not supported yet");
+
+            //unregister(device, instance);
+            //return;
         }
 
         // We're querying the best link (or any link) so that we know whether
         // the link already existed after insertion
-        Link bestLink = getBestLink(instance, device);
+        Link oldBestLink = getBestLink(instance, null);
 
         // Register the link
         Link newLink = getLinkMapEntry(device).add(instance, hopCount, internetHopCount);
@@ -440,11 +451,21 @@ public class RoutingTable {
         // If the link did not previously exist, then it's new, which results
         // in two events (found and update). If it's not new, then it's an
         // update if its better than the previous one.
-        if (bestLink == null) {
+        if (oldBestLink == null) {
+            Log.i(getClass().getCanonicalName(), String.format("ULX-M %s instance is new and will be propagated as found", instance.getStringIdentifier()));
             notifyOnInstanceFound(instance);
-            notifyOnLinkUpdate(instance, device, newLink);
-        } else if (newLink.compareTo(bestLink) < 0) {
-            notifyOnLinkUpdate(instance, device, newLink);
+            notifyOnLinkUpdate(newLink);
+        } else {
+
+            // Query the best link again, to check if quality changed
+            Link newBestLink = getBestLink(instance, null);
+
+            if (newBestLink.compareTo(oldBestLink) != 0) {
+                Log.i(getClass().getCanonicalName(), "ULX link quality changed, and an update will be propagated");
+                notifyOnLinkUpdate(newLink);
+            } else {
+                Log.e(getClass().getCanonicalName(), String.format("ULX link not being relaxed: %s %s", oldBestLink.toString(), newBestLink.toString()));
+            }
         }
     }
 
@@ -458,22 +479,21 @@ public class RoutingTable {
      * @param instance The {@link Instance} for the {@link Link} to remove.
      */
     private void unregister(Device device, Instance instance) {
+        /*
+        Log.i(getClass().getCanonicalName(), "ULX deleting an instance from the registry");
 
         Link bestLink = getBestLink(instance, null);
 
-        // The absence of a "best link" means the absence of any link at all
+        // The absence of a "best link" means the absence of any link at all,
+        // even thought that shouldn't happen at this point
         if (bestLink == null) {
-            return;
-        }
-
-        // If the entry for the given device does not exist, don't create one,
-        // and instead just don't proceed
-        if (!getLinkMap().containsKey(device)) {
+            Log.e(getClass().getCanonicalName(), "ULX is trying to delete a link for an instance that is not reachable");
             return;
         }
 
         // If nothing is removed, no changes occurred
         if (!getLinkMapEntry(device).remove(instance)) {
+            Log.e(getClass().getCanonicalName(), "ULX is trying to delete a link that is not registered");
             return;
         }
 
@@ -482,6 +502,7 @@ public class RoutingTable {
 
         // No new "best link" means no link at all, so the instance is lost
         if (newBestLink == null) {
+            Log.i(getClass().getCanonicalName(), String.format("ULX instance %s is lost, since no other links exist", instance.getStringIdentifier()));
 
             UlxError error = new UlxError(
                     UlxErrorCode.UNKNOWN,
@@ -495,7 +516,7 @@ public class RoutingTable {
 
             // A link update is flagged as a lost instance by the link being
             // null (e.g. no link is known to it)
-            notifyOnLinkUpdate(instance, device, null);
+            notifyOnLinkUpdate(null);
 
             return;
         }
@@ -503,8 +524,10 @@ public class RoutingTable {
         // If the link quality changed, then we propagate an update. Most
         // likely, this will relax the link's quality
         if (bestLink.compareTo(newBestLink) != 0) {
-            notifyOnLinkUpdate(instance, device, newBestLink);
+            Log.i(getClass().getCanonicalName(), "ULX link quality degraded, and an update is being propagated");
+            notifyOnLinkUpdate(newBestLink);
         }
+         */
     }
 
     /**
@@ -523,7 +546,8 @@ public class RoutingTable {
         List<Link> links = compileInternetLinks();
 
         // Sorting the list will yield the best links at the top
-        Collections.sort(links);
+        Collections.sort(links, (o1, o2)
+                -> Integer.signum(o1.getInternetHopCount() - o2.getInternetHopCount()));
 
         // The best link should be the first, if one exists
         return links.size() > 0 ? links.get(0) : null;
@@ -543,7 +567,7 @@ public class RoutingTable {
      */
     public Link getBestLink(Instance instance, Device splitHorizon) {
 
-        List<Link> links = compileLinksTo(instance);
+        List<Link> links = compileLinksTo(instance, splitHorizon);
 
         // Sorting the list will yield the best links at the top
         Collections.sort(links);
@@ -553,21 +577,30 @@ public class RoutingTable {
     }
 
     /**
+     * Determines whether an {@link Instance} is still reachable.
+     * @param instance The {@link Instance} to check.
+     * @return Whether the {@link Instance} is reachable.
+     */
+    private boolean isReachable(Instance instance) {
+        return !compileLinksTo(instance, null).isEmpty();
+    }
+
+    /**
      * Compiles all known {@link Link}s to the given {@link Instance}. The links
      * will not be in any particular order, but it's known that only one exists
      * per next-hop {@link Device}.
      * @param instance The {@link Instance} to lookup.
+     * @param splitHorizon
      * @return A {@link List} of {@link Link}s to the given {@link Instance}.
      */
-    private List<Link> compileLinksTo(Instance instance) {
+    private List<Link> compileLinksTo(Instance instance, Device splitHorizon) {
 
         List<Link> linkList = new ArrayList<>();
 
         for (Map.Entry<Device, Entry> entry : getLinkMap().entrySet()) {
             Link link = entry.getValue().get(instance);
 
-            // Only a single entry is expected
-            if (link != null) {
+            if (link != null && !link.getNextHop().equals(splitHorizon)) {
                 linkList.add(link);
             }
         }
@@ -575,6 +608,14 @@ public class RoutingTable {
         return linkList;
     }
 
+    /**
+     * Compiles a {@link List} of Internet links known to the {@link
+     * RoutingTable}. This includes all links that are known, and the list is
+     * created on the fly with each call. The list will include only one {@link
+     * Link} per connected {@link Device}, corresponding to the best known link
+     * going through that device.
+     * @return A {@link List} of known Internet {@link Link}s.
+     */
     private List<Link> compileInternetLinks() {
 
         List<Link> linkList = new ArrayList<>();
@@ -619,14 +660,12 @@ public class RoutingTable {
 
     /**
      * Propagates a {@link Delegate} notification for a {@link Link} update.
-     * @param destination The {@link Instance} destination.
-     * @param splitHorizon A {@link Device} to not report back.
      * @param link The new best {@link Link} for its destination.
      */
-    private void notifyOnLinkUpdate(Instance destination, Device splitHorizon, Link link) {
+    private void notifyOnLinkUpdate(Link link) {
         Delegate delegate = getDelegate();
         if (delegate != null) {
-            delegate.onLinkUpdate(this, destination, splitHorizon, link);
+            delegate.onLinkUpdate(this, link);
         }
     }
 
@@ -643,7 +682,7 @@ public class RoutingTable {
     /**
      * Returns a {@link List} of all {@link Link}s known to the routing table.
      * All links will be under the threshold of {@link #MAXIMUM_HOP_COUNT}
-     * number of hops. The return list is a copy and is generated with each
+     * number of hops. The returned list is a copy and is generated with each
      * call.
      * @return A {@link List} of {@link Link}s.
      */
@@ -660,5 +699,36 @@ public class RoutingTable {
         }
 
         return linkList;
+    }
+
+    /**
+     * Compiles all {@link Instance}s that are known to the routing table, as
+     * a set. This method iterates through the entire table, which can be
+     * optimized in the future.
+     * @return A {@link Set} of all known {@link Instance}s.
+     */
+    public Set<Instance> getInstances() {
+
+        Set<Instance> instanceSet = new HashSet<>();
+
+        for (Map.Entry<Device, Entry> entry : getLinkMap().entrySet()) {
+            for (Link link : entry.getValue().getLinks()) {
+                instanceSet.add(link.getDestination());
+            }
+        }
+
+        return instanceSet;
+    }
+
+    public void log() {
+        Log.e(getClass().getCanonicalName(), "ULX-M logging the routing table");
+        for (HashMap.Entry<Device, Entry> entry : getLinkMap().entrySet()) {
+
+            Entry deviceEntry = entry.getValue();
+
+            for (Link link : deviceEntry.getLinks()) {
+                Log.e(getClass().getCanonicalName(), String.format("ULX-M RTR %s", link.toString()));
+            }
+        }
     }
 }

@@ -3,6 +3,7 @@ package com.uplink.ulx.bridge.io.model;
 import com.uplink.ulx.model.Instance;
 
 import java.net.URL;
+import java.util.Locale;
 import java.util.Objects;
 
 /**
@@ -91,5 +92,15 @@ public class InternetPacket extends AbstractPacket {
      */
     public final int getTest() {
         return this.test;
+    }
+
+    @Override
+    public String toString() {
+        return String.format(Locale.ENGLISH,"%s(seq: %d, src: %s, hops: %d)",
+                getClass().getSimpleName(),
+                getSequenceIdentifier(),
+                getOriginator().getStringIdentifier(),
+                getHopCount()
+        );
     }
 }

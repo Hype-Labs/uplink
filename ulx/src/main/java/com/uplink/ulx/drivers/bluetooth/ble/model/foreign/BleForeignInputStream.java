@@ -1,6 +1,7 @@
 package com.uplink.ulx.drivers.bluetooth.ble.model.foreign;
 
 import android.bluetooth.BluetoothGattCharacteristic;
+import android.os.Looper;
 
 import com.uplink.ulx.TransportType;
 import com.uplink.ulx.drivers.bluetooth.ble.gattClient.GattClient;
@@ -57,6 +58,7 @@ public class BleForeignInputStream extends InputStreamCommons implements GattCli
 
     @Override
     public void requestAdapterToOpen() {
+        assert Looper.myLooper() == Looper.getMainLooper();
         getGattClient().subscribeCharacteristic(getCharacteristic());
     }
 

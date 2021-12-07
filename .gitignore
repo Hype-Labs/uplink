@@ -1,3 +1,5 @@
+docs/
+
 *.iml
 .gradle
 /local.properties

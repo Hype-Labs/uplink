@@ -11,7 +11,6 @@ import android.bluetooth.le.AdvertiseSettings;
 import android.bluetooth.le.BluetoothLeAdvertiser;
 import android.content.Context;
 import android.os.Build;
-import android.os.Handler;
 import android.os.ParcelUuid;
 import android.util.Log;
 
@@ -27,11 +26,9 @@ import com.uplink.ulx.drivers.bluetooth.ble.model.domestic.BleDomesticConnector;
 import com.uplink.ulx.drivers.bluetooth.ble.model.domestic.BleDomesticInputStream;
 import com.uplink.ulx.drivers.bluetooth.ble.model.domestic.BleDomesticOutputStream;
 import com.uplink.ulx.drivers.bluetooth.ble.model.domestic.BleDomesticService;
-import com.uplink.ulx.drivers.bluetooth.ble.model.foreign.BleForeignConnector;
 import com.uplink.ulx.drivers.bluetooth.commons.BluetoothStateListener;
 import com.uplink.ulx.drivers.commons.controller.AdvertiserCommons;
 import com.uplink.ulx.drivers.controller.Advertiser;
-import com.uplink.ulx.drivers.controller.Browser;
 import com.uplink.ulx.drivers.model.Channel;
 import com.uplink.ulx.drivers.model.Connector;
 import com.uplink.ulx.drivers.model.Device;
@@ -39,7 +36,7 @@ import com.uplink.ulx.drivers.model.InputStream;
 import com.uplink.ulx.drivers.model.OutputStream;
 import com.uplink.ulx.drivers.model.Stream;
 import com.uplink.ulx.drivers.model.Transport;
-import com.uplink.ulx.threading.ExecutorPool;
+import com.uplink.ulx.threading.Dispatch;
 
 import java.util.List;
 import java.util.UUID;
@@ -81,6 +78,7 @@ class BleAdvertiser extends AdvertiserCommons implements
         public void onStartSuccess(AdvertiseSettings settingsInEffect) {
             Log.i(getClass().getCanonicalName(), "ULX advertiser started");
 
+            // This is propagated to the AdvertiserCommons
             onStart(BleAdvertiser.this);
         }
 
@@ -90,6 +88,7 @@ class BleAdvertiser extends AdvertiserCommons implements
 
             final UlxError error = makeError(errorCode);
 
+            // This is propagated to the AdvertiserCommons
             onFailedStart(BleAdvertiser.this, error);
         }
 
@@ -295,14 +294,17 @@ class BleAdvertiser extends AdvertiserCommons implements
     @Override
     public void requestAdapterToStart() {
 
-        // Is BLE supported by this device?
-        if (getBluetoothLeAdvertiser() == null) {
-            handleStartUnsupportedTechnology();
-            return;
-        }
+        Dispatch.post(() -> {
 
-        // Start the service
-        getGattServer().addService();
+            // Is BLE supported by this device?
+            if (getBluetoothLeAdvertiser() == null) {
+                handleStartUnsupportedTechnology();
+                return;
+            }
+
+            // Start the service
+            getGattServer().addService();
+        });
     }
 
     /**
@@ -311,12 +313,14 @@ class BleAdvertiser extends AdvertiserCommons implements
      * notifies the delegate.
      */
     private void handleStartUnsupportedTechnology() {
+
         UlxError error = new UlxError(
                 UlxErrorCode.ADAPTER_NOT_SUPPORTED,
                 "Could not start Bluetooth Low Energy.",
                 "The Bluetooth Low Energy technology is not supported by this device.",
                 "Try a system update or contacting the manufacturer."
         );
+
         onFailedStart(this, error);
     }
 
@@ -381,6 +385,9 @@ class BleAdvertiser extends AdvertiserCommons implements
                 bluetoothDevice,
                 getDomesticService()
         );
+
+        // This connector is now active
+        addActiveConnector(connector);
 
         connector.setStateDelegate(this);
         connector.setInvalidationDelegate(this);
@@ -472,6 +479,15 @@ class BleAdvertiser extends AdvertiserCommons implements
         // expecting. If so, start advertising.
         if (addedServiceUuid.equalsIgnoreCase(modelServiceUuid)) {
             startAdvertising();
+        } else {
+
+            // I'm not sure when this happens, so we need to throw an exception.
+            // If this does happen in any event, we might need to give some form
+            // of indication as to what the result of the start request is, since
+            // there must not be any loose ends.
+            throw new RuntimeException("The BLE Advertiser got a successful" +
+                    "service addition notification for a service that it does " +
+                    "not recognize. This scenario is not expected.");
         }
     }
 
@@ -493,11 +509,13 @@ class BleAdvertiser extends AdvertiserCommons implements
     private void startAdvertising() {
         Log.i(getClass().getCanonicalName(), "ULX advertiser is starting");
 
-        getBluetoothLeAdvertiser().startAdvertising(
-                getAdvertiseSettings(),
-                getAdvertiseData(),
-                getAdvertiseCallback()
-        );
+        Dispatch.post(() -> {
+            getBluetoothLeAdvertiser().startAdvertising(
+                    getAdvertiseSettings(),
+                    getAdvertiseData(),
+                    getAdvertiseCallback()
+            );
+        });
     }
 
     /**

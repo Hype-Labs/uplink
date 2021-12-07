@@ -2,6 +2,7 @@ package com.uplink.ulx.bridge.io.model;
 
 import com.uplink.ulx.model.Instance;
 
+import java.util.Locale;
 import java.util.Objects;
 
 /**
@@ -49,5 +50,15 @@ public class HandshakePacket extends AbstractPacket {
      */
     public final int getInternetHops() {
         return this.internetHops;
+    }
+
+    @Override
+    public String toString() {
+        return String.format(Locale.ENGLISH,"%s(seq: %d, src: %s, i-hops: %d)",
+                getClass().getSimpleName(),
+                getSequenceIdentifier(),
+                getOriginator().getStringIdentifier(),
+                getInternetHops()
+        );
     }
 }

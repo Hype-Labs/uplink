@@ -3,6 +3,7 @@ package com.uplink.ulx.bridge.network.model;
 import com.uplink.ulx.drivers.model.Device;
 import com.uplink.ulx.model.Instance;
 
+import java.util.Locale;
 import java.util.Objects;
 
 /**
@@ -160,11 +161,23 @@ public class Link implements Comparable<Link> {
         // we're not looking at the stability. This may prove wrong in the
         // future
         if (getHopCount() != o.getHopCount()) {
-            return Integer.signum(-(getHopCount() - o.getHopCount()));
+            return Integer.signum(getHopCount() - o.getHopCount());
         }
 
         // The link's stability is the second factor: a link is better if it
         // has less hops and is more stable
-        return Integer.signum((int) (getStability() - o.getStability()));
+        return Integer.signum((int) -(getStability() - o.getStability()));
+    }
+
+    @Override
+    public String toString() {
+        return String.format(Locale.ENGLISH, "%s(hop: %s, dst: %s, hops: %d, i-hops: %d, s: %d)",
+                getClass().getSimpleName(),
+                getNextHop().getIdentifier(),
+                getDestination().getStringIdentifier(),
+                getHopCount(),
+                getInternetHopCount(),
+                getStability()
+        );
     }
 }

@@ -1,6 +1,7 @@
 package com.uplink.ulx.drivers.bluetooth.ble.model.foreign;
 
 import android.bluetooth.BluetoothGattCharacteristic;
+import android.os.Looper;
 import android.util.Log;
 
 import com.uplink.ulx.TransportType;
@@ -111,9 +112,11 @@ public class BleForeignOutputStream extends OutputStreamCommons implements GattC
     @Override
     public IoResult flush(byte[] data) {
 
+        assert Looper.myLooper() == Looper.getMainLooper();
+
         byte[] dataToSend = ByteUtils.trimCopyToSize(data, getMtu());
 
-        Log.i(getClass().getCanonicalName(), String.format("ULX writing %d of %d buffered bytes (%d%%)", dataToSend.length, data.length, (int)(dataToSend.length / (float)(data.length) * 100)));
+        Log.i(getClass().getCanonicalName(), String.format("ULX writing %d of %d buffered bytes (%d%%) to stream %s", dataToSend.length, data.length, (int)(dataToSend.length / (float)(data.length) * 100), getIdentifier()));
 
         if (!getOutputCharacteristic().setValue(dataToSend)) {
 

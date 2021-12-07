@@ -36,6 +36,7 @@ import java.io.IOException;
 import java.lang.ref.WeakReference;
 import java.util.HashMap;
 import java.util.LinkedList;
+import java.util.Locale;
 import java.util.Objects;
 import java.util.Queue;
 
@@ -132,6 +133,17 @@ public class IoController implements InputStream.Delegate, OutputStream.Delegate
          * @return The next-hop {@link Device} for the {@link Packet}.
          */
         public abstract Device getDevice();
+
+        @Override
+        public String toString() {
+
+            Device device = getDevice();
+
+            return String.format(Locale.ENGLISH, "IoPacket(%s): %s",
+                    device == null ? "(null)" : device.getIdentifier(),
+                    getPacket().toString()
+            );
+        }
     }
 
     private HashMap<String, Buffer> inputMap;
@@ -256,6 +268,7 @@ public class IoController implements InputStream.Delegate, OutputStream.Delegate
      * @param ioPacket The {@link IoPacket} to queue.
      */
     public void add(IoPacket ioPacket) {
+        Log.i(getClass().getCanonicalName(), String.format("ULX queueing packet %s", ioPacket));
 
         // Queue the packet
         synchronized (getQueue()) {
@@ -276,12 +289,14 @@ public class IoController implements InputStream.Delegate, OutputStream.Delegate
      * nothing, and simply returns.
      */
     private void attemptDequeue() {
+        Log.i(getClass().getCanonicalName(), "ULX dequeueing packet");
 
         IoPacket ioPacket;
 
         // If another packet is already being processed, do not proceed, and
         // instead let if finish
         if (getCurrentPacket() != null) {
+            Log.i(getClass().getCanonicalName(), "ULX packet not dequeued because the queue is busy");
             return;
         }
 
@@ -292,8 +307,11 @@ public class IoController implements InputStream.Delegate, OutputStream.Delegate
 
         // Don't proceed if the queue is empty
         if (ioPacket == null) {
+            Log.i(getClass().getCanonicalName(), "ULX queue not proceeding because the queue is empty");
             return;
         }
+
+        Log.i(getClass().getCanonicalName(), String.format("ULX current packet is %s", ioPacket.toString()));
 
         // Flag the controller as busy, so packets do not overlap
         setCurrentPacket(ioPacket);
@@ -310,6 +328,9 @@ public class IoController implements InputStream.Delegate, OutputStream.Delegate
                     "Try bringing the destination closer to the host " +
                             "device or restarting the Bluetooth adapter."
             );
+
+            // Clear the current packet, so the queue may proceed
+            setCurrentPacket(null);
 
             notifyOnPacketWriteFailure(null, ioPacket, error);
 
@@ -359,6 +380,7 @@ public class IoController implements InputStream.Delegate, OutputStream.Delegate
         }
 
         // Write the result
+        Log.i(getClass().getCanonicalName(), String.format("ULX-M writing packet %s", ioPacket.toString()));
         outputStream.write(result.getData());
     }
 
@@ -407,7 +429,7 @@ public class IoController implements InputStream.Delegate, OutputStream.Delegate
 
     @Override
     public void hasDataAvailable(InputStream inputStream) {
-        Log.i(getClass().getCanonicalName(), "ULX input stream has data available");
+        Log.i(getClass().getCanonicalName(), String.format("ULX input stream %s has data available", inputStream.getIdentifier()));
 
         // This is the buffer that will receive the data
         Buffer buffer = getBufferForStream(inputStream);
@@ -415,8 +437,6 @@ public class IoController implements InputStream.Delegate, OutputStream.Delegate
         Decoder.Result result;
 
         synchronized (buffer.getLock()) {
-
-            Log.i(getClass().getCanonicalName(), "ULX acquired the input buffer lock");
 
             // We're allocating 1024 bytes, being that double the maximum we'd
             // ever need (since it's BLE); but this is a temporary allocation.
@@ -437,6 +457,7 @@ public class IoController implements InputStream.Delegate, OutputStream.Delegate
             // The stream is depleted for the moment; either decoding succeeds
             // or we need to wait for more data.
             try {
+                Log.i(getClass().getCanonicalName(), String.format("ULX attempting to decode packet from input stream %s", inputStream.getIdentifier()));
                 result = getSerializer().decode(buffer);
             } catch (IOException e) {
 

@@ -650,6 +650,9 @@ public class Implementation implements
      *                    the original message.
      */
     private void notifyOnMessageDelivered(MessageInfo messageInfo) {
+
+        Objects.requireNonNull(messageInfo);
+
         ExecutorPool.getMainExecutor().execute(() -> {
             for (MessageObserver messageObserver : getMessageObservers()) {
                 messageObserver.onUlxMessageDelivered(messageInfo);

@@ -6,11 +6,11 @@ import android.util.Log;
 
 import com.uplink.ulx.TransportType;
 import com.uplink.ulx.drivers.bluetooth.ble.model.domestic.BleDomesticService;
-import com.uplink.ulx.drivers.controller.Advertiser;
 import com.uplink.ulx.drivers.bluetooth.commons.BluetoothStateListener;
+import com.uplink.ulx.drivers.commons.controller.DriverCommons;
+import com.uplink.ulx.drivers.controller.Advertiser;
 import com.uplink.ulx.drivers.controller.Browser;
 import com.uplink.ulx.drivers.controller.Driver;
-import com.uplink.ulx.drivers.commons.controller.DriverCommons;
 
 /**
  * This is the implementation of the Driver interface for the specific transport
@@ -102,9 +102,20 @@ public class BleDriver extends DriverCommons implements Driver {
 
     @Override
     protected void requestAdapterRestart() {
-        //stop();
-        //start();
-        //Log.i(getClass().getCanonicalName(), "ULX BLE driver is restarting the adapter");
-        //getBluetoothManager().getAdapter().disable();
+        Log.i(getClass().getCanonicalName(), "ULX BLE driver is restarting the adapter");
+
+        // TODO I've seen some cases in which the adapter restart request is
+        //      performed but another device attempts to connect in the
+        //      meanwhile. Obviously, this means that a connection is lost.
+        //      In that case, the connection happened immediately after (only
+        //      a few milliseconds) after the adapter restart request, was
+        //      established successfully and then the adapter was turned off.
+        //      It would likely be a better option if the adapter restart was
+        //      delayed, and could be canceled if an incoming connection was
+        //      to occur. This would give other devices time to try to connect,
+        //      while the restart would occur if no activity was seen for a
+        //      while.
+
+        getBluetoothManager().getAdapter().disable();
     }
 }

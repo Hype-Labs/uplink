@@ -2,6 +2,7 @@ package com.uplink.ulx.drivers.bluetooth.ble.model.domestic;
 
 import android.bluetooth.BluetoothDevice;
 import android.bluetooth.BluetoothGattCharacteristic;
+import android.os.Looper;
 import android.util.Log;
 
 import com.uplink.ulx.TransportType;
@@ -96,6 +97,8 @@ public class BleDomesticOutputStream extends OutputStreamCommons {
 
     @Override
     public IoResult flush(byte[] data) {
+
+        assert Looper.myLooper() == Looper.getMainLooper();
 
         // Write to the characteristic and update the remote
         int written = getGattServer().updateCharacteristic(

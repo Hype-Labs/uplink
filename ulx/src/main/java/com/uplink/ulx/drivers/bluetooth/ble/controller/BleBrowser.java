@@ -36,6 +36,7 @@ import com.uplink.ulx.drivers.controller.Browser;
 import com.uplink.ulx.drivers.model.Channel;
 import com.uplink.ulx.drivers.model.Connector;
 import com.uplink.ulx.drivers.model.Transport;
+import com.uplink.ulx.threading.Dispatch;
 import com.uplink.ulx.utils.StringUtils;
 
 import java.util.ArrayList;
@@ -76,6 +77,7 @@ class BleBrowser extends BrowserCommons implements
 
             // The host may find itself in a scan, and that must be ignored
             if (isHostDevice(scanResult)) {
+                Log.i(BleBrowser.this.getClass().getCanonicalName(), "ULX ignoring host device");
                 return;
             }
 
@@ -113,10 +115,10 @@ class BleBrowser extends BrowserCommons implements
         }
 
         /**
-         * Checks if a given ScanResult corresponds to the host device. This
-         * may happen if the host device sees its own advertisement, in which
-         * case it will find itself. Such matches are filtered out of the batch
-         * of results.
+         * Checks if a given {@link ScanResult} corresponds to the host device.
+         * This may happen if the host device sees its own advertisement, in
+         * which case it will find itself. Such matches are filtered out of the
+         * batch of results.
          * @param scanResult The ScanResult to check.
          * @return Whether the ScanResult corresponds to the host device.
          */
@@ -153,7 +155,7 @@ class BleBrowser extends BrowserCommons implements
 
         this.currentConnector = null;
 
-        // Leaking "this" in the constructor
+        // TODO Leaking "this" in the constructor
         BluetoothStateListener.addObserver(this);
     }
 
@@ -227,8 +229,6 @@ class BleBrowser extends BrowserCommons implements
             UUID coreServiceUuid = getCoreService().getUuid();
             ParcelUuid uuid = new ParcelUuid(coreServiceUuid);
             ScanFilter filter = new ScanFilter.Builder().setServiceUuid(uuid).build();
-
-            Log.i(getClass().getCanonicalName(), String.format("ULX Bluetooth LE scanner is using %s as a service UUID filter", uuid.toString()));
 
             this.scanFilters.add(filter);
         }
@@ -326,10 +326,21 @@ class BleBrowser extends BrowserCommons implements
         return getCoreServiceUuid().toString();
     }
 
+    /**
+     * The current connector is a {@link Connector} that is currently attempting
+     * to connect. This getter returns such a connector. When not {@code null},
+     * the connector is busy and thus no new connections should overlap.
+     * @return The active {@link Connector}.
+     */
     private Connector getCurrentConnector() {
         return this.currentConnector;
     }
 
+    /**
+     * Sets the active {@link Connector}. If a previous {@link Connector} was
+     * defined as active, it will be overridden.
+     * @param connector The {@link Connector} to set.
+     */
     private void setCurrentConnector(Connector connector) {
         this.currentConnector = connector;
     }
@@ -352,20 +363,29 @@ class BleBrowser extends BrowserCommons implements
         }
 
         // Start scanning
-        if (android.os.Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
-            getBluetoothLeScanner().startScan(
-                    getScanFilters(),
-                    getScanSettings(),
-                    getScanCallback()
-            );
-        } else {
-            getBluetoothLeScanner().startScan(
-                    getScanCallback()
-            );
-        }
+        startScanning();
 
         // Notify the delegate
         onStart(this);
+    }
+
+    private void startScanning() {
+        Log.i(getClass().getCanonicalName(), "ULX BLE scanner starting");
+
+        Dispatch.post(() -> {
+
+            if (android.os.Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+                getBluetoothLeScanner().startScan(
+                        getScanFilters(),
+                        getScanSettings(),
+                        getScanCallback()
+                );
+            } else {
+                getBluetoothLeScanner().startScan(
+                        getScanCallback()
+                );
+            }
+        });
     }
 
     /**
@@ -415,10 +435,14 @@ class BleBrowser extends BrowserCommons implements
         }
 
         // Stop the scanner
-        getBluetoothLeScanner().stopScan(getScanCallback());
+        stopScanning();
 
         // Notify the delegate; we're stopping gracefully
         onStop(this, null);
+    }
+
+    private void stopScanning() {
+        getBluetoothLeScanner().stopScan(getScanCallback());
     }
 
     /**
@@ -429,19 +453,23 @@ class BleBrowser extends BrowserCommons implements
      * @param scanRecord The ScanRecord corresponding to the given device.
      */
     private synchronized void handleDeviceFound(BluetoothDevice bluetoothDevice, ScanRecord scanRecord) {
+        //Log.i(BleBrowser.this.getClass().getCanonicalName(), String.format("ULX BLE browser found native device %s", bluetoothDevice.getAddress()));
 
         // Was the bluetoothDevice already seen?
         if (getKnownDevices().get(bluetoothDevice.getAddress()) != null) {
+            //Log.i(getClass().getCanonicalName(), String.format("ULX BLE browser ignoring device %s because it's already known", bluetoothDevice.getAddress()));
             return;
         }
 
         // Is the record found by the scanner publishing the expected service?
         if (!isCoreServiceScanRecord(scanRecord)) {
+            //Log.i(getClass().getCanonicalName(), String.format("ULX BLE browser ignoring device %s because it doesn't publish a core service", bluetoothDevice.getAddress()));
             return;
         }
 
         // Is the host supposed to initiate, or is the foreign bluetoothDevice?
         if (!isConnectableScanRecord(scanRecord)) {
+            //Log.i(getClass().getCanonicalName(), String.format("ULX BLE browser ignoring device %s because the remote is the initiator", bluetoothDevice.getAddress()));
             return;
         }
 
@@ -539,7 +567,7 @@ class BleBrowser extends BrowserCommons implements
      */
     @SuppressWarnings("MissingPermission")
     private void queueConnection(BluetoothDevice bluetoothDevice) {
-        Log.i(getClass().getCanonicalName(), String.format("ULX Bluetooth LE scanner queueing connection [%s]", bluetoothDevice.toString()));
+        Log.i(getClass().getCanonicalName(), String.format("ULX BLE scanner is queueing connection %s", bluetoothDevice.getAddress()));
 
         // Don't proceed if the device is already known; this would mean that
         // some connection attempt is already in progress.
@@ -574,6 +602,7 @@ class BleBrowser extends BrowserCommons implements
 
         // Queue the connector
         getConnectorQueue().add(connector);
+        Log.i(getClass().getCanonicalName(), String.format("ULX BLE scanner queued connector %s for native device %s", connector.getIdentifier(), bluetoothDevice.getAddress()));
 
         // Attempt to connect
         attemptConnection();
@@ -608,13 +637,13 @@ class BleBrowser extends BrowserCommons implements
     }
 
     /**
-     * Removes a Connector from the queue and asks it to connect. The Connector
-     * will initiate the connection with the foreign device by following the
-     * normal connection lifecycle. If there are no connectors pending on the
-     * queue, this method does nothing.
+     * Removes a {@link Connector} from the queue and asks it to connect. The
+     * {@link Connector} will initiate the connection with the foreign device
+     * by following the normal connection lifecycle. If there are no connectors
+     * pending on the queue, this method does nothing.
      */
     private void attemptConnection() {
-        Log.i(getClass().getCanonicalName(), "ULX connector being dequeued");
+        Log.i(getClass().getCanonicalName(), "ULX is removing the next connector from the queue");
 
         // Don't proceed if busy
         if (getCurrentConnector() != null) {
@@ -626,14 +655,21 @@ class BleBrowser extends BrowserCommons implements
 
         // Don't proceed if there's no connector
         if (connector == null) {
-            Log.i(getClass().getCanonicalName(), "ULX attempted to connect with an empty connection queue");
+            Log.i(getClass().getCanonicalName(), "ULX attempted to dequeue a connector, but the queue was empty");
+
+            // Resume scanning, no connection is in progress
+            startScanning();
             return;
         }
 
         // Set as busy
         setCurrentConnector(connector);
 
+        // Stop scanning while connecting
+        stopScanning();
+
         // Request the connector at the top of the queue to connect
+        Log.i(getClass().getCanonicalName(), String.format("ULX connector queue proceeding with connector %s", connector.getIdentifier()));
         connector.connect();
     }
 
@@ -683,19 +719,22 @@ class BleBrowser extends BrowserCommons implements
 
     @Override
     public void onConnected(Connector connector) {
-        Log.i(getClass().getCanonicalName(), "ULX BLE browser connector connected");
+        Log.i(getClass().getCanonicalName(), String.format("ULX BLE browser connector %s connected", connector.getIdentifier()));
 
-        // This connector is now active
-        addActiveConnector(connector);
+        Dispatch.post(() -> {
 
-        // Dequeue another connector, in case any is waiting
-        setCurrentConnector(null);
-        attemptConnection();
+            // This connector is now active
+            addActiveConnector(connector);
 
-        BleDevice device = createDevice((BleForeignConnector)connector);
+            // Dequeue another connector, in case any is waiting
+            setCurrentConnector(null);
+            attemptConnection();
 
-        // Propagate to the delegate
-        super.onDeviceFound(this, device);
+            BleDevice device = createDevice((BleForeignConnector)connector);
+
+            // Propagate to the delegate
+            super.onDeviceFound(this, device);
+        });
     }
 
     /**
@@ -766,7 +805,7 @@ class BleBrowser extends BrowserCommons implements
 
     @Override
     public void onDisconnection(Connector connector, UlxError error) {
-        Log.e(getClass().getCanonicalName(), "ULX BLE browser disconnection");
+        Log.e(getClass().getCanonicalName(), String.format("ULX BLE browser disconnection for connector %s", connector.getIdentifier()));
 
         // The connector is no longer active
         removeActiveConnector(connector);
@@ -774,13 +813,10 @@ class BleBrowser extends BrowserCommons implements
 
     @Override
     public void onConnectionFailure(Connector connector, UlxError error) {
-        Log.e(getClass().getCanonicalName(), "ULX BLE browser connection failure");
-        Log.e(getClass().getCanonicalName(), String.format("ULX connector state is %s", connector.getState().toString()));
+        Log.e(getClass().getCanonicalName(), String.format("ULX BLE browser connection failure for connector %s with state %s", connector.getIdentifier(), connector.getState().toString()));
 
         BleForeignConnector bleForeignConnector = (BleForeignConnector)connector;
         BluetoothDevice bluetoothDevice = bleForeignConnector.getGattClient().getBluetoothDevice();
-
-        Log.e(getClass().getCanonicalName(), String.format("ULX is removing [%s] from the registry", bluetoothDevice.getAddress()));
 
         // Remove from the registry; when the device is seen again, the
         // connection should be retried
@@ -790,8 +826,6 @@ class BleBrowser extends BrowserCommons implements
 
         // Free the queue
         setCurrentConnector(null);
-
-        Log.e(getClass().getCanonicalName(), String.format("ULX known connector size is %d", getKnownConnectors().size()));
 
         // Since we're having failed connections, we should ask the adapter to
         // restart.

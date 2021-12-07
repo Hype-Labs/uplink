@@ -67,9 +67,7 @@ public class AcknowledgementPacketDecoder implements Decoder {
             return new Result(null, 0, makeGeneralError());
         }
 
-        // Create the object. It's notable that version and type are losing
-        // precision. This is an unchecked cast that is probably dangerous,
-        // and should be reviewed in the future.
+        // Create the object
         Object object = makeObject(
                 sequenceIdentifier,
                 destination,
@@ -97,8 +95,8 @@ public class AcknowledgementPacketDecoder implements Decoder {
     private Object makeObject(int sequenceIdentifier, byte[] destination, byte[] origin) {
         return new AcknowledgementPacket(
                 sequenceIdentifier,
-                new Instance(destination),
-                new Instance(origin)
+                new Instance(origin),
+                new Instance(destination)
         );
     }
 }

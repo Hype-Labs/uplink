@@ -121,7 +121,7 @@ public class BluetoothBroadcastReceiver extends BroadcastReceiver {
                 }
             }
 
-            // The adapter is not ON
+            // The adapter is OFF
             else if (getState() != State.DISABLED) {
                 setState(State.DISABLED);
 

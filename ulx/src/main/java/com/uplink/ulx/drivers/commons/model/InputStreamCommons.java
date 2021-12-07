@@ -61,7 +61,7 @@ public abstract class InputStreamCommons extends StreamCommons implements InputS
      */
     protected final void notifyDataReceived(byte[] data) {
 
-        Log.i(getClass().getCanonicalName(), String.format("ULX data received with size %d", data.length));
+        Log.i(getClass().getCanonicalName(), String.format("ULX input stream %s received %d bytes of data", getIdentifier(), data.length));
 
         // The hasDataAvailable event is only triggered if data is being
         // appended to an empty buffer

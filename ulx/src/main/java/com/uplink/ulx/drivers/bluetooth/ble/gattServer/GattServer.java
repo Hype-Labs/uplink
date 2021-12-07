@@ -11,14 +11,14 @@ import android.bluetooth.BluetoothGattService;
 import android.bluetooth.BluetoothManager;
 import android.content.Context;
 import android.os.Build;
+import android.os.Looper;
 import android.util.Log;
 
-import com.uplink.ulx.TransportType;
 import com.uplink.ulx.UlxError;
 import com.uplink.ulx.UlxErrorCode;
 import com.uplink.ulx.drivers.bluetooth.ble.model.domestic.BleDomesticService;
 import com.uplink.ulx.drivers.model.Device;
-import com.uplink.ulx.threading.ExecutorPool;
+import com.uplink.ulx.threading.Dispatch;
 
 import java.lang.ref.WeakReference;
 import java.util.HashMap;
@@ -249,20 +249,16 @@ public class GattServer extends BluetoothGattServerCallback {
     }
 
     /**
-     * Requested the GattServer to register the BLE service within the adapter.
-     * This will make the service available for operations, such as advertising.
-     * As soon as this process completes, the delegate will get a notification
-     * for either onServiceAdded() or onServiceFailedToAdd(), yielding the
-     * result of the operation.
+     * Request the {@link GattServer} to register the BLE service within the
+     * adapter. This will make the service available for operations, such as
+     * advertising. As soon as this process completes, the delegate will get a
+     * notification for either {@link Delegate#onServiceAdded(int,
+     * BluetoothGattService)} or {@link Delegate#onServiceAdditionFailed(
+     * GattServer, UlxError)}, yielding the result of the operation.
      */
     public void addService() {
 
-        Delegate delegate = getDelegate();
-
-        // Don't proceed without the delegate; is there any clean up to do?
-        if (delegate == null) {
-            return;
-        }
+        assert Looper.myLooper() == Looper.getMainLooper();
 
         BluetoothGattService coreService = getDomesticService().getCoreService();
 
@@ -287,22 +283,19 @@ public class GattServer extends BluetoothGattServerCallback {
     public void onServiceAdded(final int status, final BluetoothGattService service) {
         super.onServiceAdded(status, service);
 
-        ExecutorPool.getExecutor(TransportType.BLUETOOTH_LOW_ENERGY).execute(() -> {
+        if (status == BluetoothGatt.GATT_SUCCESS) {
+            notifyOnServiceAdded(service);
+        } else {
 
-            if (status == BluetoothGatt.GATT_SUCCESS) {
-                notifyOnServiceAdded(service);
-            } else {
+            UlxError error = new UlxError(
+                    UlxErrorCode.UNKNOWN,
+                    "Could not advertise using Bluetooth Low Energy.",
+                    "The service could not be properly registered to initiate the activity.",
+                    "Try restarting the Bluetooth adapter."
+            );
 
-                UlxError error = new UlxError(
-                        UlxErrorCode.UNKNOWN,
-                        "Could not advertise using Bluetooth Low Energy.",
-                        "The service could not be properly registered to initiate the activity.",
-                        "Try restarting the Bluetooth adapter."
-                );
-
-                notifyOnServiceAdditionFailed(error);
-            }
-        });
+            notifyOnServiceAdditionFailed(error);
+        }
     }
 
     /**
@@ -339,33 +332,38 @@ public class GattServer extends BluetoothGattServerCallback {
             int offset,
             byte[] value
     ) {
-        Log.i(getClass().getCanonicalName(), "ULX descriptor got a write request");
+        Log.i(getClass().getCanonicalName(), String.format("ULX descriptor got a write request with %d bytes from %s", value.length, device.getAddress()));
 
-        // Respond to the requester
-        if (responseNeeded) {
-            if (!getBluetoothGattServer().sendResponse(
-                    device,
-                    requestId,
-                    BluetoothGatt.GATT_SUCCESS,
-                    offset,
-                    value
-            )) {
-                Log.e(getClass().getCanonicalName(), "ULX failed to respond to a descriptor write request");
-                return;
+        Dispatch.post(() -> {
+
+            // Respond to the requester
+            if (responseNeeded) {
+                Log.i(getClass().getCanonicalName(), String.format("ULX responding to a descriptor write request for device %s", device.getAddress()));
+
+                if (!getBluetoothGattServer().sendResponse(
+                        device,
+                        requestId,
+                        BluetoothGatt.GATT_SUCCESS,
+                        offset,
+                        value
+                )) {
+                    Log.e(getClass().getCanonicalName(), "ULX failed to respond to a descriptor write request");
+                    return;
+                }
             }
-        }
 
-        // The connection process is completed when the reliable control
-        // characteristic is subscribed
-        if (getDomesticService().isReliableControl(descriptor)) {
-            notifyOnDeviceConnected(device);
-        }
+            // The connection process is completed when the reliable control
+            // characteristic is subscribed
+            if (getDomesticService().isReliableControl(descriptor)) {
+                notifyOnDeviceConnected(device);
+            }
 
-        // When subscribing the reliable output characteristic, the devices
-        // are already connected and preparing the streams for I/O
-        else if (getDomesticService().isReliableOutput(descriptor)) {
-            notifyOnOutputStreamSubscribed(device);
-        }
+            // When subscribing the reliable output characteristic, the devices
+            // are already connected and preparing the streams for I/O
+            else if (getDomesticService().isReliableOutput(descriptor)) {
+                notifyOnOutputStreamSubscribed(device);
+            }
+        });
     }
 
     /**
@@ -413,23 +411,28 @@ public class GattServer extends BluetoothGattServerCallback {
             int offset,
             byte[] value) {
 
-        Log.i(getClass().getCanonicalName(), String.format("ULX got %d bytes of data", value.length));
+        Dispatch.post(() -> {
 
-        if (responseNeeded) {
-            if (!getBluetoothGattServer().sendResponse(
-                    device,
-                    requestId,
-                    BluetoothGatt.GATT_SUCCESS,
-                    offset,
-                    value
-            )) {
-                Log.e(getClass().getCanonicalName(), "ULX failed to send characteristic write request response");
-                return;
+            Log.i(getClass().getCanonicalName(), String.format("ULX characteristic changed with %d bytes of data from device %s", value.length, device.getAddress()));
+
+            if (responseNeeded) {
+                Log.i(getClass().getCanonicalName(), String.format("ULX sending characteristic write request response to device %s", device.getAddress()));
+
+                if (!getBluetoothGattServer().sendResponse(
+                        device,
+                        requestId,
+                        BluetoothGatt.GATT_SUCCESS,
+                        offset,
+                        value
+                )) {
+                    Log.e(getClass().getCanonicalName(), "ULX failed to send characteristic write request response");
+                    return;
+                }
             }
-        }
 
-        // Propagate the event
-        notifyOnCharacteristicWriteRequest(device, value);
+            // Propagate the event
+            notifyOnCharacteristicWriteRequest(device, value);
+        });
     }
 
     private void notifyOnCharacteristicWriteRequest(
@@ -462,6 +465,8 @@ public class GattServer extends BluetoothGattServerCallback {
      */
     public int updateCharacteristic(BluetoothDevice bluetoothDevice, BluetoothGattCharacteristic characteristic, boolean confirm, byte[] data) {
 
+        assert Looper.myLooper() == Looper.getMainLooper();
+
         byte[] dataToSend = new byte[Math.min(data.length, getMtu(bluetoothDevice))];
 
         // Copy the data
@@ -472,8 +477,37 @@ public class GattServer extends BluetoothGattServerCallback {
             return 0;
         }
 
-        // Notify the characteristic as changed
-        if (!getBluetoothGattServer().notifyCharacteristicChanged(bluetoothDevice, characteristic, confirm)) {
+        try {
+
+            // Notify the characteristic as changed
+            if (!getBluetoothGattServer().notifyCharacteristicChanged(bluetoothDevice, characteristic, confirm)) {
+                return 0;
+            }
+        } catch (Exception ex) {
+
+            // java.lang.NullPointerException: Attempt to invoke virtual method 'int java.lang.Integer.intValue()' on a null object reference
+            //        at android.os.Parcel.readException(Parcel.java:1698)
+            //        at android.os.Parcel.readException(Parcel.java:1645)
+            //        at android.bluetooth.IBluetoothGatt$Stub$Proxy.sendNotification(IBluetoothGatt.java:1318)
+            //        at android.bluetooth.BluetoothGattServer.notifyCharacteristicChanged(BluetoothGattServer.java:590)
+            //        at com.uplink.ulx.drivers.bluetooth.ble.gattServer.GattServer.updateCharacteristic(GattServer.java:465)
+            //
+            // This exception occurs sometimes, but it appears to be one that
+            // we can't handle. This will result in the buffer not being trimmed,
+            // meaning that the no data is removed from it, and the writer will
+            // simply attempt to send the same data again.
+            //
+            // android.os.DeadObjectException
+            //        at android.os.BinderProxy.transactNative(Native Method)
+            //        at android.os.BinderProxy.transact(Binder.java:622)
+            //        at android.bluetooth.IBluetoothGatt$Stub$Proxy.sendNotification(IBluetoothGatt.java:1317)
+            //        at android.bluetooth.BluetoothGattServer.notifyCharacteristicChanged(BluetoothGattServer.java:590)
+            //        at com.uplink.ulx.drivers.bluetooth.ble.gattServer.GattServer.updateCharacteristic(GattServer.java:467)
+            //
+            ex.printStackTrace();
+            Log.e(getClass().getCanonicalName(), "ULX handled an exception by " +
+                    "printing the stack trace, but operations will resume");
+
             return 0;
         }
 
@@ -484,19 +518,22 @@ public class GattServer extends BluetoothGattServerCallback {
     public void onNotificationSent(BluetoothDevice bluetoothDevice, int status) {
         Log.i(getClass().getCanonicalName(), String.format("ULX sent a notification to %s", bluetoothDevice.getAddress()));
 
-        if (status == BluetoothGatt.GATT_SUCCESS) {
-            notifyOnNotificationSent(bluetoothDevice);
-        } else {
+        Dispatch.post(() -> {
 
-            UlxError error = new UlxError(
-                    UlxErrorCode.UNKNOWN,
-                    "Could not deliver the message to the remote device.",
-                    "The device failed to acknowledge reception of the data was not delivered.",
-                    "Try sending the message again."
-            );
+            if (status == BluetoothGatt.GATT_SUCCESS) {
+                notifyOnNotificationSent(bluetoothDevice);
+            } else {
 
-            notifyOnNotificationSentFailure(bluetoothDevice, error);
-        }
+                UlxError error = new UlxError(
+                        UlxErrorCode.UNKNOWN,
+                        "Could not deliver the message to the remote device.",
+                        "The device failed to acknowledge reception of the data was not delivered.",
+                        "Try sending the message again."
+                );
+
+                notifyOnNotificationSentFailure(bluetoothDevice, error);
+            }
+        });
     }
 
     /**

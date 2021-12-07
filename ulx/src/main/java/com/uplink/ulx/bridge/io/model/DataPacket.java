@@ -2,6 +2,7 @@ package com.uplink.ulx.bridge.io.model;
 
 import com.uplink.ulx.model.Instance;
 
+import java.util.Locale;
 import java.util.Objects;
 
 public class DataPacket extends AbstractPacket {
@@ -32,5 +33,16 @@ public class DataPacket extends AbstractPacket {
 
     public final byte[] getData() {
         return this.data;
+    }
+
+    @Override
+    public String toString() {
+        return String.format(Locale.ENGLISH,"%s(seq: %d, src: %s, dst: %s, payload: %d)",
+                getClass().getSimpleName(),
+                getSequenceIdentifier(),
+                getOrigin().getStringIdentifier(),
+                getDestination().getStringIdentifier(),
+                getData().length
+        );
     }
 }

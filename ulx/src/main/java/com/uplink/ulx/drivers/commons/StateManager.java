@@ -1,7 +1,7 @@
 package com.uplink.ulx.drivers.commons;
 
-import com.uplink.ulx.model.State;
 import com.uplink.ulx.UlxError;
+import com.uplink.ulx.model.State;
 
 import java.lang.ref.WeakReference;
 import java.util.Objects;
@@ -325,8 +325,13 @@ public class StateManager {
                     break;
                 }
 
-                case IDLE:
-                case STARTING: {
+                case STARTING:
+
+                    setState(State.IDLE);
+                    delegate.onFailedStart(this, error);
+                    break;
+
+                case IDLE: {    // Spontaneous, but not running or trying to
                     break;
                 }
             }
@@ -355,8 +360,15 @@ public class StateManager {
                     break;
                 }
 
-                case IDLE:
                 case STARTING: {
+
+                    // We're told that we've stopped while in a starting state,
+                    // but no error was given.
+                    throw new RuntimeException("Unexpected stop notification " +
+                            "must have an error.");
+                }
+
+                case IDLE: {
                     break;
                 }
             }

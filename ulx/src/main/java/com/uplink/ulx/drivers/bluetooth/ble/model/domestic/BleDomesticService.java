@@ -3,7 +3,7 @@ package com.uplink.ulx.drivers.bluetooth.ble.model.domestic;
 import android.bluetooth.BluetoothGattCharacteristic;
 import android.bluetooth.BluetoothGattDescriptor;
 import android.bluetooth.BluetoothGattService;
-import android.util.Log;
+import android.os.Looper;
 
 import com.uplink.ulx.utils.StringUtils;
 
@@ -81,6 +81,8 @@ public class BleDomesticService {
     public final BluetoothGattService getCoreService() {
         if (this.coreService == null) {
 
+            assert Looper.myLooper() == Looper.getMainLooper();
+
             BluetoothGattService coreService = new BluetoothGattService(
                     UUID.fromString(GATT_SERVICE_IDENTIFIER),
                     BluetoothGattService.SERVICE_TYPE_PRIMARY
@@ -123,10 +125,12 @@ public class BleDomesticService {
      * @return Whether the characteristics have been successfully added.
      */
     private boolean addCharacteristics(BluetoothGattService service) {
-            return service.addCharacteristic(getReliableInputCharacteristic())
-                    && service.addCharacteristic(getReliableOutputCharacteristic())
-                    && service.addCharacteristic(getReliableControl())
-                    ;
+        assert Looper.myLooper() == Looper.getMainLooper();
+
+        return service.addCharacteristic(getReliableInputCharacteristic())
+                && service.addCharacteristic(getReliableOutputCharacteristic())
+                && service.addCharacteristic(getReliableControl())
+                ;
     }
 
     /**
@@ -157,6 +161,7 @@ public class BleDomesticService {
      */
     public final BluetoothGattCharacteristic getReliableOutputCharacteristic() {
         if (this.reliableOutputRead == null) {
+            assert Looper.myLooper() == Looper.getMainLooper();
             this.reliableOutputRead = new BluetoothGattCharacteristic(
                     UUID.fromString(RELIABLE_OUTPUT_IDENTIFIER),
                     BluetoothGattCharacteristic.PROPERTY_READ | BluetoothGattCharacteristic.PROPERTY_INDICATE,
@@ -182,6 +187,7 @@ public class BleDomesticService {
      */
     public final BluetoothGattCharacteristic getReliableControl() {
         if (this.reliableControl == null) {
+            assert Looper.myLooper() == Looper.getMainLooper();
             this.reliableControl = new BluetoothGattCharacteristic(
                     UUID.fromString(getControlCharacteristicIdentifier()),
                     BluetoothGattCharacteristic.PROPERTY_READ | BluetoothGattCharacteristic.PROPERTY_INDICATE,

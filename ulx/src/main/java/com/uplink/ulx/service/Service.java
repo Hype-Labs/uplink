@@ -319,6 +319,7 @@ public class Service extends android.app.Service implements
 
     @Override
     public IBinder onBind(Intent intent) {
+        Log.i(getClass().getCanonicalName(), "ULX binding service");
         return this.binder;
     }
 
@@ -372,8 +373,6 @@ public class Service extends android.app.Service implements
 
     @Override
     public void onInitialization(Bridge bridge, Instance hostInstance) {
-        Log.i(getClass().getCanonicalName(), String.format("ULX instance created [%s]", hostInstance.getStringIdentifier()));
-
         StateDelegate stateDelegate = getStateDelegate();
         if (stateDelegate != null) {
             stateDelegate.onInitialization(this, hostInstance);
@@ -450,13 +449,13 @@ public class Service extends android.app.Service implements
     }
 
     public void send(Message message) {
-        pause();
+        //pause();
         Bridge.getInstance().send(message);
     }
 
     @Override
     public void onMessageSent(Bridge bridge, MessageInfo messageInfo) {
-        resume();
+        //resume();
         MessageDelegate messageDelegate = getMessageDelegate();
         if (messageDelegate != null) {
             messageDelegate.onMessageSent(this, messageInfo);
@@ -465,7 +464,7 @@ public class Service extends android.app.Service implements
 
     @Override
     public void onMessageSendFailure(Bridge bridge, MessageInfo messageInfo, UlxError error) {
-        resume();
+        //resume();
         MessageDelegate messageDelegate = getMessageDelegate();
         if (messageDelegate != null) {
             messageDelegate.onMessageSendFailed(this, messageInfo, error);
@@ -493,57 +492,6 @@ public class Service extends android.app.Service implements
         MessageDelegate messageDelegate = getMessageDelegate();
         if (messageDelegate != null) {
             messageDelegate.onInternetResponse(this, code, content);
-        }
-    }
-
-    /**
-     * The {@link #pause()} procedure is a temporary experimental feature to
-     * assert whether the browser and advertiser's activity is causing the I/O
-     * streams to crash (and possibly become slower). This method doesn't
-     * destroy the drivers or the published services, but instead just stops
-     * the activity temporarily. This will cause the device to not be
-     * discoverable while sending messages, but perhaps optimize the I/O
-     * operations and the stream's life span. Future versions may or may not
-     * implement a pause method, but, if they do, it shouldn't work in the
-     * same manner that it's working now; that's because the current
-     * implementation just stops the drivers, which means that a notification
-     * will propagate to the app with respect to this change. We don't want
-     * that. If this works, the implementation should just silently stop the
-     * browser, the advertiser, or both, temporarily, for as long as the streams
-     * are busy with data.
-     */
-    private boolean isPausing = false;
-
-    /**
-     * I'm seeing some apparent aggravated difficulty with initial connections
-     * after this hack. This variable is used to make sure that we don't pause
-     * the first time we send something, only in the remaining sends.
-     */
-    private boolean wasPaused = false;
-
-    /**
-     * Stops the service but in a pausing state. This is called when sending
-     * messages. When done, the implementation should call {@link #resume()}
-     * in order to resume the driver's activity.
-     */
-    private void pause() {
-        Log.i(getClass().getCanonicalName(), "ULX is pausing");
-        if (this.wasPaused) {
-            this.isPausing = true;
-            stop();
-        }
-        this.wasPaused = true;
-    }
-
-    /**
-     * Resumes the driver's activity when in a pausing state. When not in a
-     * pausing state, this method does nothing.
-     */
-    private void resume() {
-        if (this.isPausing) {
-            Log.i(getClass().getCanonicalName(), "ULX is resuming");
-            this.isPausing = false;
-            start();
         }
     }
 

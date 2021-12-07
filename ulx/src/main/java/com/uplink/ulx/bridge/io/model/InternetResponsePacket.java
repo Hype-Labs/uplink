@@ -2,6 +2,7 @@ package com.uplink.ulx.bridge.io.model;
 
 import com.uplink.ulx.model.Instance;
 
+import java.util.Locale;
 import java.util.Objects;
 
 public class InternetResponsePacket extends AbstractPacket {
@@ -31,5 +32,14 @@ public class InternetResponsePacket extends AbstractPacket {
 
     public final Instance getOriginator() {
         return this.originator;
+    }
+
+    @Override
+    public String toString() {
+        return String.format(Locale.ENGLISH,"%s(seq: %d, dst: %s)",
+                getClass().getSimpleName(),
+                getSequenceIdentifier(),
+                getOriginator().getStringIdentifier()
+        );
     }
 }

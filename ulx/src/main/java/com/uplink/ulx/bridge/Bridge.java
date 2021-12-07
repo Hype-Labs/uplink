@@ -171,6 +171,8 @@ public class Bridge implements
 
     private static Bridge instance = null;
 
+    private Instance hostInstance;
+
     private WeakReference<StateDelegate> stateDelegate;
     private WeakReference<NetworkDelegate> networkDelegate;
     private WeakReference<MessageDelegate> messageDelegate;
@@ -187,6 +189,8 @@ public class Bridge implements
      */
     private Bridge() {
 
+        this.hostInstance = null;
+
         this.stateDelegate = null;
         this.networkDelegate = null;
         this.messageDelegate = null;
@@ -197,6 +201,15 @@ public class Bridge implements
         this.tickets = null;
 
         this.context = null;
+    }
+
+    /**
+     * Returns the host {@link Instance} if one has already been initialized.
+     * If not, this method returns {@code null}.
+     * @return The host {@link Instance}.
+     */
+    private Instance getHostInstance() {
+        return this.hostInstance;
     }
 
     /**
@@ -352,19 +365,30 @@ public class Bridge implements
 
             Bridge strongSelf = weakSelf.get();
 
-            // Generate an identifier for the host instance
-            byte[] hostIdentifier = generateIdentifier(appIdentifier);
-            Instance hostInstance = new Instance(hostIdentifier);
+            if (strongSelf != null && strongSelf.getHostInstance() == null) {
 
-            // Instantiate the network controller, which will hold the host
-            // instance.
-            this.networkController = new NetworkController(hostInstance, getContext());
-            this.networkController.setDelegate(this);
-            this.networkController.setInternetRequestDelegate(this);
+                // Generate an identifier for the host instance
+                byte[] hostIdentifier = generateIdentifier(appIdentifier);
+                Instance hostInstance = new Instance(hostIdentifier);
+
+                // Instantiate the network controller, which will hold the host
+                // instance.
+                this.networkController = new NetworkController(hostInstance, getContext());
+                this.networkController.setDelegate(this);
+                this.networkController.setInternetRequestDelegate(this);
+
+                // Set the host instance
+                this.hostInstance = hostInstance;
+
+                Log.i(getClass().getCanonicalName(), String.format("ULX-M instance created with identifier %s", hostInstance.getStringIdentifier()));
+            }
 
             // If the Bridge was deallocated in the meanwhile, do nothing.
             if (strongSelf != null) {
-                strongSelf.getStateDelegate().onInitialization(strongSelf, hostInstance);
+                StateDelegate delegate = getStateDelegate();
+                if (delegate != null) {
+                    delegate.onInitialization(strongSelf, getHostInstance());
+                }
             }
         });
     }
@@ -463,8 +487,6 @@ public class Bridge implements
 
     @Override
     public void onOpen(Stream stream) {
-        Log.i(getClass().getCanonicalName(), "ULX bridge stream is now open");
-
         Device device = getSouthRegistry().getDeviceInstance(stream.getIdentifier());
 
         // Make sure the device was previously registered
@@ -474,7 +496,7 @@ public class Bridge implements
         InputStream inputStream = device.getTransport().getReliableChannel().getInputStream();
         OutputStream outputStream = device.getTransport().getReliableChannel().getOutputStream();
 
-        Log.i(getClass().getCanonicalName(), String.format("ULX bridge stream states (Input: %s, Output: %s)",
+        Log.i(getClass().getCanonicalName(), String.format("ULX stream states are (Input: %s, Output: %s)",
                 inputStream.getState().toString(),
                 outputStream.getState().toString()
         ));
@@ -576,6 +598,9 @@ public class Bridge implements
     @Override
     public void onAcknowledgement(NetworkController networkController, Ticket ticket) {
         MessageInfo messageInfo = getMessageInfo(ticket);
+
+        assert messageInfo != null;
+
         notifyOnMessageDelivered(messageInfo);
 
         // Once the message is acknowledged, the ticket is no longer needed

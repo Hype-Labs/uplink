@@ -2,6 +2,7 @@ package com.uplink.ulx.bridge.io.model;
 
 import com.uplink.ulx.model.Instance;
 
+import java.util.Locale;
 import java.util.Objects;
 
 /**
@@ -20,6 +21,15 @@ public class UpdatePacket extends AbstractPacket {
     private final boolean reachable;
     private final int internetHopCount;
 
+    /**
+     * Constructor. Initializes with given arguments.
+     * @param sequenceIdentifier Packet sequence identifier.
+     * @param instance Destination {@link Instance} (the one being updated).
+     * @param hopCount Number of hops to the {@link Instance}.
+     * @param reachable Whether the instance is still reachable.
+     * @param internetHopCount Number of hops to reach to the Internet, if a
+     *                         request is made through this instance.
+     */
     public UpdatePacket(
             int sequenceIdentifier,
             Instance instance,
@@ -38,19 +48,48 @@ public class UpdatePacket extends AbstractPacket {
         this.internetHopCount = internetHopCount;
     }
 
+    /**
+     * The destination {@link Instance} that the {@link UpdatePacket} refers.
+     * @return The destination {@link Instance}.
+     */
     public final Instance getInstance() {
         return this.instance;
     }
 
+    /**
+     * Returns the number of hops to reach the {@link Instance}.
+     * @return The number of hops to reach the {@link Instance}.
+     */
     public final int getHopCount() {
         return this.hopCount;
     }
 
+    /**
+     * Whether the {@link Instance} is reachable, according to the update, or
+     * is being flagged as lost.
+     * @return Whether the {@link Instance} is reachable.
+     */
     public final boolean isReachable() {
         return this.reachable;
     }
 
+    /**
+     * The number of hops that it would take to reach the Internet if an
+     * Internet request was to be made through this {@link Instance}.
+     * @return The number of hops to reach the Internet.
+     */
     public final int getInternetHopCount() {
         return this.internetHopCount;
+    }
+
+    @Override
+    public String toString() {
+        return String.format(Locale.ENGLISH,"%s(seq: %d, i: %s, hops: %s, i-hops: %d)",
+                getClass().getSimpleName(),
+                getSequenceIdentifier(),
+                getInstance().getStringIdentifier(),
+                getHopCount(),
+                getInternetHopCount()
+        );
     }
 }

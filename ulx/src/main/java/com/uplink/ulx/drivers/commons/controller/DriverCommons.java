@@ -424,11 +424,14 @@ public abstract class DriverCommons implements
         int advertiserConnectorCount = getAdvertiser().getActiveConnectors().size();
         int browserConnectorCount = getBrowser().getActiveConnectors().size();
 
+        Log.i(getClass().getCanonicalName(), String.format("ULX connection count is %d (advertiser) and %d (browser)", advertiserConnectorCount, browserConnectorCount));
+
         if (advertiserConnectorCount != 0 || browserConnectorCount != 0) {
-            Log.i(getClass().getCanonicalName(), "ULX driver is rejecting an adapter start request");
-            Log.i(getClass().getCanonicalName(), String.format("ULX connection count is %d (advertiser) and %d (browser)", advertiserConnectorCount, browserConnectorCount));
+            Log.i(getClass().getCanonicalName(), "ULX driver is rejecting an adapter restart request");
             return;
         }
+
+        Log.i(getClass().getCanonicalName(), "ULX is accepting an adapter restart request");
 
         // Restart the adapter
         requestAdapterRestart();
