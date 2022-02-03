@@ -401,6 +401,36 @@ class BleAdvertiser extends AdvertiserCommons implements
         connector.connect();
     }
 
+    @Override
+    public void onDeviceDisconnected(GattServer gattServer, BluetoothDevice bluetoothDevice, UlxError error) {
+        Log.e(getClass().getCanonicalName(), String.format("ULX peripheral device %s was disconnected", bluetoothDevice.getAddress()));
+    }
+
+    @Override
+    public void onDeviceInvalidation(GattServer gattServer, BluetoothDevice bluetoothDevice, UlxError error) {
+        Log.e(getClass().getCanonicalName(), String.format("ULX peripheral device %s was invalidated", bluetoothDevice.getAddress()));
+
+        String address = bluetoothDevice.getAddress();
+        Device device = getRegistry().getDeviceInstance(address);
+
+        if (device == null) {
+            Log.e(getClass().getCanonicalName(), "ULX device not found on the registry; not proceeding");
+            return;
+        }
+
+        Connector connector = device.getConnector();
+
+        // Unregister the association between the connector and native device
+        unregister(connector, bluetoothDevice);
+
+        // Clear the delegates
+        connector.setStateDelegate(null);
+        connector.setInvalidationDelegate(null);
+
+        // No longer active; should the connector have an event of its own?
+        removeActiveConnector(connector);
+    }
+
     /**
      * Registers the {@code Connector}'s identifier (not the actual Connector)
      * in association with the address for the given {@code BluetoothDevice}.
@@ -416,11 +446,22 @@ class BleAdvertiser extends AdvertiserCommons implements
      */
     private void register(Connector connector, BluetoothDevice bluetoothDevice) {
 
+        Log.e(getClass().getCanonicalName(), String.format("ULX registering connector %s with BluetoothDevice %s", connector.getIdentifier(), bluetoothDevice.getAddress()));
+
         String address = bluetoothDevice.getAddress();
         String identifier = connector.getIdentifier();
 
         getRegistry().setGeneric(address, bluetoothDevice);
         getRegistry().associate(address, identifier);
+    }
+
+    private void unregister(Connector connector, BluetoothDevice bluetoothDevice) {
+
+        String address = bluetoothDevice.getAddress();
+        String identifier = connector.getIdentifier();
+
+        getRegistry().dissociate(address, identifier);
+        getRegistry().unsetGeneric(address);
     }
 
     @Override

@@ -86,17 +86,12 @@ public class MainActivity extends AppCompatActivity implements StateObserver, Ne
     }
 
     private URL makeUrl() throws MalformedURLException {
-        return new URL("http://15.237.128.149/relay/AuthorizationRequest");
+        return null;
     }
 
     private JSONObject makeObject() throws JSONException {
 
         JSONObject obj = new JSONObject();
-
-        obj.put("field1", "1");
-        obj.put("field2", "2");
-        obj.put("field3", "3");
-
         return obj;
     }
 

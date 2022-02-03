@@ -471,6 +471,39 @@ public class Bridge implements
 
     @Override
     public void onDisconnection(Connector connector, UlxError error) {
+        Log.e(getClass().getCanonicalName(), "ULX connector disconnected on the bridge");
+        Log.e(getClass().getCanonicalName(), String.format("ULX connector is %s", connector.getIdentifier()));
+
+        Device device = getSouthRegistry().getDeviceInstance(connector.getIdentifier());
+
+        if (device == null) {
+            Log.e(getClass().getCanonicalName(), "ULX device was not found on the registry");
+            return;
+        }
+
+        // We've previously assumed the delegates for these
+        InputStream inputStream = device.getTransport().getReliableChannel().getInputStream();
+        OutputStream outputStream = device.getTransport().getReliableChannel().getOutputStream();
+
+        // TODO how can we close the streams with an error? We shouldn't request
+        //      the streams to close directly, since this is already known to be
+        //      a failure situation, but the bridge shouldn't communicate with
+        //      the streams at a low level either. I'm leaving them as is for
+        //      now, but this should be structurally reviewed.
+
+        // TODO For now, we're keeping the stream's delegates, but I'm not sure
+        //      whether that should hold.
+        //inputStream.setStateDelegate(null);
+        //outputStream.setStateDelegate(null);
+        //
+        //inputStream.setDelegate(null);  // Was the IoController before
+        //outputStream.setDelegate(null);
+
+        // Clear the device from the lower grade controllers
+        getNetworkController().removeDevice(device);
+
+        // Unregister the device
+        getSouthRegistry().unsetDevice(device.getIdentifier());
     }
 
     @Override
@@ -542,7 +575,7 @@ public class Bridge implements
         outputStream.setStateDelegate(this);
 
         // Assume the stream-specific delegates as well.
-        // TODO I don't like the the getter for the IoController is public, but
+        // TODO I don't like that the getter for the IoController is public, but
         //  I'm not seeing how this can be set otherwise.
         //  Edit: one way that makes sense is to move the south bridge to the
         //  IoController; that is the one, after all, that manages the streams.

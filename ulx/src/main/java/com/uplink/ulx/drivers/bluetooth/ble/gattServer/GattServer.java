@@ -74,6 +74,28 @@ public class GattServer extends BluetoothGattServerCallback {
         void onDeviceConnected(GattServer gattServer, BluetoothDevice device);
 
         /**
+         * This delegate notification is triggered by the {@link GattServer}
+         * when a device is known to have disconnected. This will often
+         * correspond to some I/O operation that fails due to the device not
+         * being reachable anymore. The {@code error} argument must always be
+         * present.
+         * @param gattServer The instance triggering the notification.
+         * @param bluetoothDevice The device that got disconnected.
+         * @param error An error indicating the cause for failure.
+         */
+        void onDeviceDisconnected(GattServer gattServer, BluetoothDevice bluetoothDevice, UlxError error);
+
+        /**
+         * This delegate notification is triggered by the {@link GattServer}
+         * when the given {@link BluetoothDevice} becomes invalidated, meaning
+         * that the connection failure cannot be recovered.
+         * @param gattServer The instance triggering the notification.
+         * @param bluetoothDevice The device that got invalidated.
+         * @param error An error indicating the cause for failure.
+         */
+        void onDeviceInvalidation(GattServer gattServer, BluetoothDevice bluetoothDevice, UlxError error);
+
+        /**
          * This method is used as an indication that the output stream has been
          * subscribed by the remote device. This is the equivalent of that
          * stream being open.
@@ -483,7 +505,19 @@ public class GattServer extends BluetoothGattServerCallback {
             if (!getBluetoothGattServer().notifyCharacteristicChanged(bluetoothDevice, characteristic, confirm)) {
                 return 0;
             }
-        } catch (Exception ex) {
+        } catch (NullPointerException ex) {
+
+            UlxError error = new UlxError(
+                    UlxErrorCode.UNKNOWN,
+                    "Could not communicate with the remote device.",
+                    "The device does not appear to be reachable.",
+                    "Try reconnecting to the remote device."
+            );
+
+            // Android raises a NullPointerException sometimes if the remote
+            // device is no longer available. This can be replicated by closing
+            // the app on the remote.
+            notifyOnInvalidation(bluetoothDevice, error);
 
             // java.lang.NullPointerException: Attempt to invoke virtual method 'int java.lang.Integer.intValue()' on a null object reference
             //        at android.os.Parcel.readException(Parcel.java:1698)
@@ -505,8 +539,10 @@ public class GattServer extends BluetoothGattServerCallback {
             //        at com.uplink.ulx.drivers.bluetooth.ble.gattServer.GattServer.updateCharacteristic(GattServer.java:467)
             //
             ex.printStackTrace();
-            Log.e(getClass().getCanonicalName(), "ULX handled an exception by " +
-                    "printing the stack trace, but operations will resume");
+            Log.e(getClass().getCanonicalName(), String.format("ULX handled" +
+                    "exception %s by printing the stack trace, but operations " +
+                    "will resume", ex.getClass().getCanonicalName())
+            );
 
             return 0;
         }
@@ -534,6 +570,13 @@ public class GattServer extends BluetoothGattServerCallback {
                 notifyOnNotificationSentFailure(bluetoothDevice, error);
             }
         });
+    }
+
+    private void notifyOnInvalidation(BluetoothDevice bluetoothDevice, UlxError error) {
+        Delegate delegate = getDelegate();
+        if (delegate != null) {
+            delegate.onDeviceInvalidation(this, bluetoothDevice, error);
+        }
     }
 
     /**

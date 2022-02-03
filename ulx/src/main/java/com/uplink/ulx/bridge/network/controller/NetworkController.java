@@ -748,6 +748,16 @@ public class NetworkController implements IoController.Delegate, RoutingTable.De
         );
     }
 
+    public void removeDevice(Device device) {
+
+        // Clearing the device from the routing table could result in several
+        // lost instances
+        getRoutingTable().unregister(device);
+
+        // TODO there might still be pending I/O with this device, which must
+        //      be cleared.
+    }
+
     /**
      * Processes an {@link UpdatePacket} being received, which corresponds to
      * a network update. The packet was received from the given {@link

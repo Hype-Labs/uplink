@@ -166,6 +166,13 @@ public class BleForeignOutputStream extends OutputStreamCommons implements GattC
 
     @Override
     public void onCharacteristicWriteFailure(GattClient gattClient, UlxError error) {
-        Log.e(getClass().getCanonicalName(), "ULX failed writing to characteristic");
+        Log.e(getClass().getCanonicalName(), String.format("ULX failed writing to characteristic with error %s", error.toString()));
+
+        // Flag as closed
+        onClose(this, error);
+
+        // TODO after this failed, the IoController queue did not recover and
+        //      remained busy instead.
     }
+
 }

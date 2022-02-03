@@ -7,11 +7,16 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 
+// TODO this API should be reviewed; this registry is practically unusable.
+
 /**
  * This is a class that is used to keep track of {@link Device} associations
  * with a generic type {@code T}. Each {@link Device} will correspond to several
  * instances of {@code T}, while each {@code T} instance should correspond to
  * several {@link Device} instances. This makes it a many-to-many association.
+ * An example of {@code T} could be {@link android.bluetooth.BluetoothDevice},
+ * the Android native representation of a Bluetooth device. This will create
+ * an association between the native device abstraction and our own.
  * @param <T> A generic type that is to be associated with {@link Device}.
  */
 public class Registry<T> {
@@ -133,6 +138,10 @@ public class Registry<T> {
         getGenericRegistry().put(identifier, generic);
     }
 
+    public void unsetGeneric(String identifier) {
+        getGenericRegistry().remove(identifier);
+    }
+
     /**
      * Sets the given {@code device} as the instance matching the given
      * {@code identifier}. This relationship will be included in the device
@@ -142,6 +151,10 @@ public class Registry<T> {
      */
     public void setDevice(String identifier, Device device) {
         getDeviceRegistry().put(identifier, device);
+    }
+
+    public void unsetDevice(String identifier) {
+        getDeviceRegistry().remove(identifier);
     }
 
     /**
@@ -167,6 +180,11 @@ public class Registry<T> {
     public void associate(String genericIdentifier, String deviceIdentifier) {
         getGenericToDeviceList(genericIdentifier).add(deviceIdentifier);
         getDeviceToGenericList(deviceIdentifier).add(genericIdentifier);
+    }
+
+    public void dissociate(String genericIdentifier, String deviceIdentifier) {
+        getGenericToDeviceList(genericIdentifier).remove(deviceIdentifier);
+        getDeviceToGenericList(deviceIdentifier).remove(genericIdentifier);
     }
 
     /**
@@ -249,7 +267,7 @@ public class Registry<T> {
     /**
      * Returns a list of {@link Device} instances that have previously been
      * associated with the given generic {@code identifier}. This corresponds to
-     * iteration the list of associations and replacing each {@link String}
+     * iterating the list of associations and replacing each {@link String}
      * identifier there with the {@link Device} instance that is mapped to it.
      * If any given such identifier is seen but no matching {@link Device}
      * exists, {@code null} will be used in its place.
