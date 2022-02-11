@@ -11,7 +11,9 @@ docs/
 /.idea/workspace.xml
 /.idea/navEditor.xml
 /.idea/assetWizardSettings.xml
+/.idea/deploymentTargetDropDown.xml
 /.idea/misc.xml
+/.idea/runConfigurations.xml
 .DS_Store
 /build
 /captures
