@@ -351,9 +351,9 @@ public class GattClient extends BluetoothGattCallback implements StateManager.De
                 Log.e(GattClient.this.getClass().getCanonicalName(), String.format("ULX is canceling connection %s", bluetoothGatt.getDevice().getAddress()));
 
                 final UlxError error = new UlxError(
-                        UlxErrorCode.UNKNOWN,
-                        "Could not connect or hold the connection to the remote device.",
-                        "The connection could not be established or was lost.",
+                        UlxErrorCode.CONNECTION_TIMEOUT,
+                        "Could not connect to the remote device.",
+                        "The connection timed out.",
                         "Please try reconnecting or restarting the Bluetooth adapter."
                 );
 
