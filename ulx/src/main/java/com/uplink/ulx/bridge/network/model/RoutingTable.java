@@ -16,6 +16,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+import androidx.annotation.Nullable;
+
 public class RoutingTable {
 
     /**
@@ -395,7 +397,7 @@ public class RoutingTable {
         for (Instance instance : destinations) {
 
             // Instances that are no longer reachable are lost
-            if (isReachable(instance)) {
+            if (!isReachable(instance)) {
 
                 UlxError error = new UlxError(
                         UlxErrorCode.UNKNOWN,
@@ -593,7 +595,7 @@ public class RoutingTable {
      * @param splitHorizon
      * @return A {@link List} of {@link Link}s to the given {@link Instance}.
      */
-    private List<Link> compileLinksTo(Instance instance, Device splitHorizon) {
+    private List<Link> compileLinksTo(Instance instance, @Nullable Device splitHorizon) {
 
         List<Link> linkList = new ArrayList<>();
 

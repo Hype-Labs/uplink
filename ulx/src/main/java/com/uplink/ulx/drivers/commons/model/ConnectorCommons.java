@@ -198,8 +198,15 @@ public abstract class ConnectorCommons implements
 
     @Override
     public void onDisconnection(Connector connector, UlxError error) {
-        Log.e(getClass().getCanonicalName(), String.format("ULX connector %s disconnected with error %s", getIdentifier(), error.toString()));
+        Log.e(getClass().getCanonicalName(), String.format("ULX connector %s disconnected with error %s", getIdentifier(), error));
         getStateManager().notifyStop(error);
+
+        if (error != null) { // Unexpected disconnection is also invalidation
+            final InvalidationDelegate invalidationDelegate = getInvalidationDelegate();
+            if (invalidationDelegate != null) {
+                invalidationDelegate.onInvalidation(this, error);
+            }
+        }
     }
 
     @Override

@@ -20,6 +20,7 @@ import com.uplink.ulx.drivers.bluetooth.ble.gattServer.MtuRegistry;
 import com.uplink.ulx.drivers.bluetooth.ble.model.domestic.BleDomesticService;
 import com.uplink.ulx.drivers.bluetooth.ble.model.foreign.BleForeignService;
 import com.uplink.ulx.drivers.commons.StateManager;
+import com.uplink.ulx.model.State;
 import com.uplink.ulx.threading.Dispatch;
 
 import java.lang.ref.WeakReference;
@@ -533,16 +534,21 @@ public class GattClient extends BluetoothGattCallback implements StateManager.De
             }
 
             getStateManager().notifyStart();
-        } else {
+        } else { // As per documentation, the other possibility is only BluetoothProfile.STATE_DISCONNECTED
 
-            final UlxError error = new UlxError(
-                    UlxErrorCode.UNKNOWN,
-                    "Could not connect or hold the connection to the remote device.",
-                    "The connection could not be established or was lost.",
-                    "Please try reconnecting or restarting the Bluetooth adapter."
-            );
+            if (getStateManager().getState() == State.STOPPING) {
+                // Graceful, expected stop
+                getStateManager().notifyStop(null);
+            } else {
+                final UlxError error = new UlxError(
+                        UlxErrorCode.UNKNOWN,
+                        "Could not connect or hold the connection to the remote device.",
+                        "The connection could not be established or was lost.",
+                        "Please try reconnecting or restarting the Bluetooth adapter."
+                );
 
-            getStateManager().notifyStop(error);
+                getStateManager().notifyStop(error);
+            }
         }
     }
 

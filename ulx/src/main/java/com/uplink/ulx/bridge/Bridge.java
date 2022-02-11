@@ -27,6 +27,8 @@ import java.util.HashMap;
 import java.util.Objects;
 import java.util.UUID;
 
+import androidx.annotation.Nullable;
+
 /**
  * This bridge is the main point of communication between the Java service and
  * the JNI implementation, when one exists. It implements some of the logic
@@ -276,6 +278,7 @@ public class Bridge implements
      * pointer exception.
      * @return The network delegate ({@code NetworkDelegate}).
      */
+    @Nullable
     private NetworkDelegate getNetworkDelegate() {
         return this.networkDelegate.get();
     }
@@ -566,6 +569,9 @@ public class Bridge implements
         // Register the device
         getSouthRegistry().setDevice(device.getIdentifier(), device);
 
+        // TODO decide if the Bridge itself is a more appropriate invalidation delegate
+        device.getConnector().setInvalidationDelegate(getNetworkController());
+
         // We're assuming the delegates for all I/O streams
         InputStream inputStream = device.getTransport().getReliableChannel().getInputStream();
         OutputStream outputStream = device.getTransport().getReliableChannel().getOutputStream();
@@ -607,7 +613,10 @@ public class Bridge implements
 
     @Override
     public void onInstanceLost(NetworkController networkController, Instance instance, UlxError error) {
-
+        NetworkDelegate networkDelegate = getNetworkDelegate();
+        if (networkDelegate != null) {
+            networkDelegate.onInstanceLost(this, instance, error);
+        }
     }
 
     @Override

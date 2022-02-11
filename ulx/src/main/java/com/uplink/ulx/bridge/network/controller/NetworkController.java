@@ -18,6 +18,7 @@ import com.uplink.ulx.bridge.io.model.UpdatePacket;
 import com.uplink.ulx.bridge.network.model.Link;
 import com.uplink.ulx.bridge.network.model.RoutingTable;
 import com.uplink.ulx.bridge.network.model.Ticket;
+import com.uplink.ulx.drivers.model.Connector;
 import com.uplink.ulx.drivers.model.Device;
 import com.uplink.ulx.drivers.model.InputStream;
 import com.uplink.ulx.drivers.model.OutputStream;
@@ -43,7 +44,9 @@ import java.util.Objects;
  * This class offers a low-level API for sending content ({@link
  * #send(byte[], Instance)}) and negotiating ({@link #negotiate(Device)}).
  */
-public class NetworkController implements IoController.Delegate, RoutingTable.Delegate {
+public class NetworkController implements Connector.InvalidationDelegate,
+                                          IoController.Delegate,
+                                          RoutingTable.Delegate {
 
     /**
      * The {@link NetworkController} delegate receives notifications from the
@@ -746,6 +749,14 @@ public class NetworkController implements IoController.Delegate, RoutingTable.De
                 1,
                 packet.getInternetHops()
         );
+    }
+
+    @Override
+    public void onInvalidation(Connector connector, UlxError error) {
+        final Device device = getRoutingTable().getDevice(connector.getIdentifier());
+
+        // If a connector gets invalidated, the device is no longer immediately reachable
+        removeDevice(device);
     }
 
     public void removeDevice(Device device) {

@@ -6,6 +6,8 @@ import com.uplink.ulx.model.State;
 import java.lang.ref.WeakReference;
 import java.util.Objects;
 
+import androidx.annotation.Nullable;
+
 /**
  * A StateManager is the entity responsible for managing the state of many
  * classes through the SDK implementation. Each stateful class (e.g. Connector,
@@ -308,7 +310,7 @@ public class StateManager {
      * @param error An error, possibly indicating a forced stoppage, as well as
      *              the cause for it.
      */
-    public void notifyStop(UlxError error) {
+    public void notifyStop(@Nullable UlxError error) {
 
         Delegate delegate = getDelegate();
 
