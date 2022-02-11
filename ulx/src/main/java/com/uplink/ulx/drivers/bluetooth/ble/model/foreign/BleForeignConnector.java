@@ -24,6 +24,7 @@ import java.util.Objects;
  */
 @TargetApi(Build.VERSION_CODES.LOLLIPOP)
 public class BleForeignConnector extends ConnectorCommons implements GattClient.ConnectorDelegate {
+    // TODO refactor Foreign and Domestic for Active/Passive
 
     private final GattClient gattClient;
 
