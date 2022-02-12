@@ -440,6 +440,8 @@ public class GattClient extends BluetoothGattCallback implements StateManager.De
 
             if (error != null) {
                 notifyOnDisconnection(error);
+            } else {
+                // TODO
             }
         });
     }
@@ -537,6 +539,7 @@ public class GattClient extends BluetoothGattCallback implements StateManager.De
         } else { // As per documentation, the other possibility is only BluetoothProfile.STATE_DISCONNECTED
 
             if (getStateManager().getState() == State.STOPPING) {
+                assert false; // Graceful disconnections are not expected at this point
                 // Graceful, expected stop
                 getStateManager().notifyStop(null);
             } else {

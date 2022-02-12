@@ -1,5 +1,6 @@
 package com.uplink.ulx.drivers.bluetooth.ble.model.domestic;
 
+import android.annotation.SuppressLint;
 import android.bluetooth.BluetoothDevice;
 import android.util.Log;
 
@@ -36,7 +37,6 @@ public class BleDomesticConnector extends ConnectorCommons {
         this.gattServer = gattServer;
         this.bluetoothDevice = bluetoothDevice;
         this.domesticService = domesticService;
-
     }
 
     public BluetoothDevice getBluetoothDevice() {
@@ -63,6 +63,7 @@ public class BleDomesticConnector extends ConnectorCommons {
                 "central is not implemented yet.");
     }
 
+    @SuppressLint("NewApi") // forEach() is actually supported with desugaring library
     @Override
     public void onInvalidation(Stream stream, UlxError error) {
         Log.e(getClass().getCanonicalName(), "ULX BLE domestic connector invalidated");
@@ -70,10 +71,7 @@ public class BleDomesticConnector extends ConnectorCommons {
         if (getState() != Connector.State.DISCONNECTED) {
             super.onDisconnection(this, error);
 
-            Connector.InvalidationDelegate invalidationDelegate = getInvalidationDelegate();
-            if (invalidationDelegate != null) {
-                invalidationDelegate.onInvalidation(this, error);
-            }
+            getInvalidationCallbacks().forEach(callback -> callback.onInvalidation(this, error));
         }
     }
 }

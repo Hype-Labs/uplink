@@ -2,6 +2,10 @@ package com.uplink.ulx.drivers.model;
 
 import com.uplink.ulx.UlxError;
 
+import java.util.List;
+
+import androidx.annotation.NonNull;
+
 /**
  * A Connector is an abstract entity that manages connections. Connectors may
  * further be divided into two subtypes: domestic and foreign. A domestic
@@ -14,9 +18,9 @@ import com.uplink.ulx.UlxError;
  * doing that themselves, as per the BLE protocol specification.
  *
  * The connectors have two types of delegates: a StateDelegate and an
- * InvalidationDelegate. The former (StateDelegate) is useful for tracking the
+ * InvalidationCallback. The former (StateDelegate) is useful for tracking the
  * connector's lifecycle events, such as the connector initiating or terminating
- * a connection. The latter (InvalidationDelegate), triggers notifications that
+ * a connection. The latter (InvalidationCallback), triggers notifications that
  * are related to the moment when the connector becomes invalid, meaning that
  * it no longer serves the purpose of managing connections, and therefore must
  * be disposed.
@@ -168,7 +172,7 @@ public interface Connector extends Stream.InvalidationDelegate {
     }
 
     /**
-     * An InvalidationDelegate is one that tracks events as to when the
+     * An InvalidationCallback is one that tracks events as to when the
      * connector becomes invalid, meaning that it is no longer capable of
      * establishing or managing connections. Such delegates are not the same
      * as the StateDelegate because the entity that manages the connector's
@@ -177,7 +181,7 @@ public interface Connector extends Stream.InvalidationDelegate {
      * handles the point in time in which connectors are no longer valid, and
      * thus proper clean up is in order.
      */
-    interface InvalidationDelegate {
+    interface InvalidationCallback {
 
         /**
          * This notification indicates that the connector has become invalid,
@@ -238,22 +242,28 @@ public interface Connector extends Stream.InvalidationDelegate {
     StateDelegate getStateDelegate();
 
     /**
-     * Setter for the InvalidationDelegate that will get notifications for the
-     * connector becoming invalid. After this method is called, if any delegate
-     * was previously set, it will be replaced, and this new instance will get
-     * all invalidation notifications going forward.
-     * @param delegate The InvalidationDelegate to set.
-     * @see Connector.InvalidationDelegate
+     * Add a InvalidationCallback that will get notifications for the
+     * connector becoming invalid.
+     * @param callback The InvalidationCallback to set.
+     * @see InvalidationCallback
      */
-    void setInvalidationDelegate(InvalidationDelegate delegate);
+    void addInvalidationCallback(InvalidationCallback callback);
 
     /**
-     * Getter for the InvalidationDelegate that is currently designated for
-     * receiving invalidation notifications.
-     * @return Teh current InvalidationDelegate.
-     * @see Connector.InvalidationDelegate
+     * Unregisters InvalidationCallback that was previously registered.
+     * If an unregistered callback is passed, nothing happens
+     * @param callback callback to unregister
      */
-    InvalidationDelegate getInvalidationDelegate();
+    void removeInvalidationCallback(InvalidationCallback callback);
+
+    /**
+     * Getter for the InvalidationCallbacks that are designated for
+     * receiving invalidation notifications.
+     * @return The current InvalidationCallbacks.
+     * @see InvalidationCallback
+     */
+    @NonNull
+    List<InvalidationCallback> getInvalidationCallbacks();
 
     /**
      * Requests the Connector to initiate a connection with the other peer. How

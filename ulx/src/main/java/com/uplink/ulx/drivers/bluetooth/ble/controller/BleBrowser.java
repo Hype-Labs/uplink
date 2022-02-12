@@ -595,7 +595,7 @@ class BleBrowser extends BrowserCommons implements
 
         // Take ownership of the streams
         connector.setStateDelegate(this);
-        connector.setInvalidationDelegate(this);
+        connector.addInvalidationCallback(this);
 
         // Keep the connector in the registry
         getKnownConnectors().put(connector.getIdentifier(), connector);

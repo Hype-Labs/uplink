@@ -31,7 +31,7 @@ public abstract class BrowserCommons implements
         Browser.StateDelegate,
         Browser.NetworkDelegate,
         StateManager.Delegate,
-        Connector.InvalidationDelegate,
+        Connector.InvalidationCallback,
         Stream.InvalidationDelegate
 {
     private final String identifier;

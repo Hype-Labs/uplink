@@ -13,7 +13,7 @@ public class BleDomesticInputStream extends InputStreamCommons {
      * initializes the stream to trigger hasDataAvailable delegate notifications
      * as soon as data arrives.
      * @param identifier An identifier used for JNI bridging and debugging.
-     * @param invalidationDelegate The stream's InvalidationDelegate.
+     * @param invalidationDelegate The stream's InvalidationCallback.
      */
     public BleDomesticInputStream(String identifier, InvalidationDelegate invalidationDelegate) {
         super(identifier, TransportType.BLUETOOTH_LOW_ENERGY, true, invalidationDelegate);

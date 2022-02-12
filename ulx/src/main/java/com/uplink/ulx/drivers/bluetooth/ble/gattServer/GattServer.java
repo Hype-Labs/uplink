@@ -9,6 +9,7 @@ import android.bluetooth.BluetoothGattServer;
 import android.bluetooth.BluetoothGattServerCallback;
 import android.bluetooth.BluetoothGattService;
 import android.bluetooth.BluetoothManager;
+import android.bluetooth.BluetoothProfile;
 import android.content.Context;
 import android.os.Build;
 import android.os.Looper;
@@ -317,6 +318,33 @@ public class GattServer extends BluetoothGattServerCallback {
             );
 
             notifyOnServiceAdditionFailed(error);
+        }
+    }
+
+    @Override
+    public void onConnectionStateChange(BluetoothDevice device, int status, int newState) {
+        Log.i(
+                getClass().getCanonicalName(),
+                String.format(
+                        "ULX device %s state changed. New state: %d",
+                        device.getAddress(),
+                        newState
+                )
+        );
+
+        if (newState == BluetoothProfile.STATE_DISCONNECTED) {
+            final Delegate delegate = getDelegate();
+            if (delegate != null) {
+                final UlxError error = new UlxError(
+                        UlxErrorCode.UNKNOWN,
+                        "Remote device has disconnected",
+                        "The connection has been lost",
+                        "Let's hope the device will connect again"
+                );
+
+                delegate.onDeviceDisconnected(this, device, error);
+                delegate.onDeviceInvalidation(this, device, error);
+            }
         }
     }
 

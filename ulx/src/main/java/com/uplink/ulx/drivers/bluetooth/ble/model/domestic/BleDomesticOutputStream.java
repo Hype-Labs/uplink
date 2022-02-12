@@ -23,7 +23,7 @@ public class BleDomesticOutputStream extends OutputStreamCommons {
      * @param gattServer The GATT server that is managing this stream.
      * @param bluetoothDevice The corresponding {@link BluetoothDevice}.
      * @param characteristic The characteristic used by the stream for output.
-     * @param invalidationDelegate The stream's InvalidationDelegate.
+     * @param invalidationDelegate The stream's InvalidationCallback.
      */
     public BleDomesticOutputStream(
             String identifier,

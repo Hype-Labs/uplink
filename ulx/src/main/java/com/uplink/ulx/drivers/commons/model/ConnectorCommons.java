@@ -1,5 +1,6 @@
 package com.uplink.ulx.drivers.commons.model;
 
+import android.annotation.SuppressLint;
 import android.util.Log;
 
 import com.uplink.ulx.UlxError;
@@ -8,7 +9,12 @@ import com.uplink.ulx.drivers.commons.StateManager;
 import com.uplink.ulx.threading.ExecutorPool;
 
 import java.lang.ref.WeakReference;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
 import java.util.concurrent.ExecutorService;
+
+import androidx.annotation.NonNull;
 
 /**
  * This class implements the common functionality that Connector implementations
@@ -31,7 +37,8 @@ public abstract class ConnectorCommons implements
     private final int transportType;
     private final StateManager stateManager;
     private WeakReference<StateDelegate> stateDelegate;
-    private WeakReference<InvalidationDelegate> invalidationDelegate;
+    private final List<InvalidationCallback> invalidationCallbacks =
+            Collections.synchronizedList(new ArrayList<>());
     private ExecutorService executorService;
 
     /**
@@ -123,14 +130,20 @@ public abstract class ConnectorCommons implements
         this.stateDelegate = new WeakReference<>(stateDelegate);
     }
 
+    @NonNull
     @Override
-    public final Connector.InvalidationDelegate getInvalidationDelegate() {
-        return this.invalidationDelegate.get();
+    public final List<InvalidationCallback> getInvalidationCallbacks() {
+        return this.invalidationCallbacks;
     }
 
     @Override
-    public final void setInvalidationDelegate(InvalidationDelegate invalidationDelegate) {
-        this.invalidationDelegate = new WeakReference<>(invalidationDelegate);
+    public final void addInvalidationCallback(InvalidationCallback invalidationCallback) {
+        invalidationCallbacks.add(invalidationCallback);
+    }
+
+    @Override
+    public void removeInvalidationCallback(InvalidationCallback callback) {
+        invalidationCallbacks.remove(callback);
     }
 
     @Override
@@ -196,16 +209,14 @@ public abstract class ConnectorCommons implements
         getStateManager().notifyStart();
     }
 
+    @SuppressLint("NewApi") // forEach() is actually supported with desugaring library
     @Override
     public void onDisconnection(Connector connector, UlxError error) {
         Log.e(getClass().getCanonicalName(), String.format("ULX connector %s disconnected with error %s", getIdentifier(), error));
         getStateManager().notifyStop(error);
 
         if (error != null) { // Unexpected disconnection is also invalidation
-            final InvalidationDelegate invalidationDelegate = getInvalidationDelegate();
-            if (invalidationDelegate != null) {
-                invalidationDelegate.onInvalidation(this, error);
-            }
+            getInvalidationCallbacks().forEach(callback -> callback.onInvalidation(this, error));
         }
     }
 

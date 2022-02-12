@@ -28,7 +28,7 @@ public abstract class AdvertiserCommons implements
         Advertiser.StateDelegate,
         Advertiser.NetworkDelegate,
         StateManager.Delegate,
-        Connector.InvalidationDelegate {
+        Connector.InvalidationCallback {
 
     private final String identifier;
     private final StateManager stateManager;

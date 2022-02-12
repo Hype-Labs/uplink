@@ -28,6 +28,7 @@ import com.uplink.ulx.drivers.bluetooth.ble.model.domestic.BleDomesticOutputStre
 import com.uplink.ulx.drivers.bluetooth.ble.model.domestic.BleDomesticService;
 import com.uplink.ulx.drivers.bluetooth.commons.BluetoothStateListener;
 import com.uplink.ulx.drivers.commons.controller.AdvertiserCommons;
+import com.uplink.ulx.drivers.commons.model.ConnectorCommons;
 import com.uplink.ulx.drivers.controller.Advertiser;
 import com.uplink.ulx.drivers.model.Channel;
 import com.uplink.ulx.drivers.model.Connector;
@@ -40,6 +41,8 @@ import com.uplink.ulx.threading.Dispatch;
 
 import java.util.List;
 import java.util.UUID;
+
+import androidx.annotation.Nullable;
 
 /**
  * The BleAdvertiser is the implementation of the Advertiser interface that
@@ -261,23 +264,28 @@ class BleAdvertiser extends AdvertiserCommons implements
 
     /**
      * Returns the {@link Device} associated with the given {@link
-     * BluetoothDevice}, if one exists. Otherwise returns {@code null}. If the
-     * device does not exists or more than one is registered, this method will
+     * BluetoothDevice}, if one exists. Otherwise returns {@code null}.
+     * If more than one device is registered, this method will
      * raise a {@link RuntimeException}, although this is a behaviour that is
      * expected to change in the future.
      * @param bluetoothDevice The {@link BluetoothDevice} in the association.
      * @return The {@link Device} in the association or {@code null}.
      */
+    @Nullable
     private Device getDevice(BluetoothDevice bluetoothDevice) {
 
-        List<Device> deviceList = getRegistry().getDevicesFromGenericIdentifier(bluetoothDevice.getAddress());
+        final String address = bluetoothDevice.getAddress();
+        List<Device> deviceList = getRegistry().getDevicesFromGenericIdentifier(address);
 
         // If the address is not registered, we skipped something
         if (deviceList == null || deviceList.isEmpty()) {
-            throw new RuntimeException("A BluetoothDevice notification was " +
-                    "issued for an open stream, but the Device identifier is " +
-                    "not associated with it; this must mean that the registration " +
-                    "was not performed or that the registry got corrupted.");
+            Log.w(getClass().getCanonicalName(),
+                  String.format(
+                          "A device for address %s was requested but is not registered",
+                          address
+                  )
+            );
+            return null;
         }
 
         if (deviceList.size() > 1) {
@@ -390,7 +398,7 @@ class BleAdvertiser extends AdvertiserCommons implements
         addActiveConnector(connector);
 
         connector.setStateDelegate(this);
-        connector.setInvalidationDelegate(this);
+        connector.addInvalidationCallback(this);
 
         // Register the connector's ID (not the actual connector) in association
         // with the given BluetoothDevice. This will enable retrieving the
@@ -404,14 +412,23 @@ class BleAdvertiser extends AdvertiserCommons implements
     @Override
     public void onDeviceDisconnected(GattServer gattServer, BluetoothDevice bluetoothDevice, UlxError error) {
         Log.e(getClass().getCanonicalName(), String.format("ULX peripheral device %s was disconnected", bluetoothDevice.getAddress()));
+
+        final Device device = getDevice(bluetoothDevice);
+
+        if (device == null) {
+            Log.w(getClass().getCanonicalName(), "ULX Device not found. Ignoring disconnection event");
+            return;
+        }
+
+        final ConnectorCommons connector = (ConnectorCommons) device.getConnector();
+        connector.onDisconnection(connector, error);
     }
 
     @Override
     public void onDeviceInvalidation(GattServer gattServer, BluetoothDevice bluetoothDevice, UlxError error) {
         Log.e(getClass().getCanonicalName(), String.format("ULX peripheral device %s was invalidated", bluetoothDevice.getAddress()));
 
-        String address = bluetoothDevice.getAddress();
-        Device device = getRegistry().getDeviceInstance(address);
+        final Device device = getDevice(bluetoothDevice);
 
         if (device == null) {
             Log.e(getClass().getCanonicalName(), "ULX device not found on the registry; not proceeding");
@@ -425,7 +442,7 @@ class BleAdvertiser extends AdvertiserCommons implements
 
         // Clear the delegates
         connector.setStateDelegate(null);
-        connector.setInvalidationDelegate(null);
+        connector.removeInvalidationCallback(this);
 
         // No longer active; should the connector have an event of its own?
         removeActiveConnector(connector);
