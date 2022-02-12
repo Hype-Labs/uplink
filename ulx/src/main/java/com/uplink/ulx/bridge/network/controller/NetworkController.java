@@ -44,8 +44,7 @@ import java.util.Objects;
  * This class offers a low-level API for sending content ({@link
  * #send(byte[], Instance)}) and negotiating ({@link #negotiate(Device)}).
  */
-public class NetworkController implements Connector.InvalidationDelegate,
-                                          IoController.Delegate,
+public class NetworkController implements IoController.Delegate,
                                           RoutingTable.Delegate {
 
     /**
@@ -749,14 +748,6 @@ public class NetworkController implements Connector.InvalidationDelegate,
                 1,
                 packet.getInternetHops()
         );
-    }
-
-    @Override
-    public void onInvalidation(Connector connector, UlxError error) {
-        final Device device = getRoutingTable().getDevice(connector.getIdentifier());
-
-        // If a connector gets invalidated, the device is no longer immediately reachable
-        removeDevice(device);
     }
 
     public void removeDevice(Device device) {

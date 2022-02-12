@@ -42,11 +42,10 @@ import androidx.annotation.Nullable;
  * is in place.
  */
 public class Bridge implements
-        NetworkController.Delegate,
-        NetworkController.InternetRequestDelegate,
-        Connector.StateDelegate,
-        Stream.StateDelegate
-{
+                    NetworkController.Delegate,
+                    NetworkController.InternetRequestDelegate,
+                    Connector.StateDelegate,
+                    Stream.StateDelegate, Connector.InvalidationCallback {
     /**
      * The Bridge Delegate gets notifications for bridge-related events, which
      * will include a wide variety of such events. At this moment, only the
@@ -569,8 +568,7 @@ public class Bridge implements
         // Register the device
         getSouthRegistry().setDevice(device.getIdentifier(), device);
 
-        // TODO decide if the Bridge itself is a more appropriate invalidation delegate
-        device.getConnector().setInvalidationDelegate(getNetworkController());
+        device.getConnector().addInvalidationCallback(this);
 
         // We're assuming the delegates for all I/O streams
         InputStream inputStream = device.getTransport().getReliableChannel().getInputStream();
@@ -591,6 +589,16 @@ public class Bridge implements
         // Open the streams
         inputStream.open();
         outputStream.open();
+    }
+
+    @Override
+    public void onInvalidation(Connector connector, UlxError error) {
+        // A connector has been invalidated - we need to remove the device from the registry
+        final Device device = getSouthRegistry().getDeviceInstance(connector.getIdentifier());
+
+        getNetworkController().removeDevice(device);
+
+        // TODO unregister device from southRegistry
     }
 
     public void send(Message message) {
