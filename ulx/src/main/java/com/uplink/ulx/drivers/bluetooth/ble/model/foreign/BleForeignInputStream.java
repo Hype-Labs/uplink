@@ -68,7 +68,7 @@ public class BleForeignInputStream extends InputStreamCommons implements GattCli
 
     @Override
     public void onOpen(GattClient gattClient) {
-        super.onOpen(this);
+        super.onOpen();
     }
 
     @Override

@@ -101,7 +101,7 @@ public class BleForeignOutputStream extends OutputStreamCommons implements GattC
 
     @Override
     public void requestAdapterToOpen() {
-        super.onOpen(this);
+        super.onOpen();
     }
 
     @Override
@@ -169,7 +169,7 @@ public class BleForeignOutputStream extends OutputStreamCommons implements GattC
         Log.e(getClass().getCanonicalName(), String.format("ULX failed writing to characteristic with error %s", error.toString()));
 
         // Flag as closed
-        onClose(this, error);
+        onClose(error);
 
         // TODO after this failed, the IoController queue did not recover and
         //      remained busy instead.

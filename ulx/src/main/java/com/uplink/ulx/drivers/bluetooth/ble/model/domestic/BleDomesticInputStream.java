@@ -45,7 +45,7 @@ public class BleDomesticInputStream extends InputStreamCommons {
      * change in future, so this method should not be called.
      */
     public void notifyAsOpen() {
-        super.onOpen(this);
+        super.onOpen();
     }
 
     /**

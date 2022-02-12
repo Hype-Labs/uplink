@@ -24,7 +24,6 @@ import java.util.Objects;
  */
 public abstract class StreamCommons implements
         Stream,
-        Stream.StateDelegate,
         StateManager.Delegate {
 
     private final String identifier;
@@ -193,25 +192,16 @@ public abstract class StreamCommons implements
         return this.reliable;
     }
 
-    @Override
-    public void onOpen(Stream stream) {
+    protected void onOpen() {
         Log.i(getClass().getCanonicalName(), String.format("ULX stream %s is now open", getIdentifier()));
         getStateManager().notifyStart();
     }
 
-    @Override
-    public void onClose(Stream stream, UlxError error) {
+    protected void onClose(UlxError error) {
         Log.i(getClass().getCanonicalName(), String.format("ULX stream %s is now closed", getIdentifier()));
         getStateManager().notifyStop(error);
     }
 
-    @Override
-    public void onFailedOpen(Stream stream, UlxError error) {
-        Log.i(getClass().getCanonicalName(), String.format("ULX stream %s failed to open", getIdentifier()));
-        getStateManager().notifyFailedStart(error);
-    }
-
-    @Override
     public void onStateChange(Stream stream) {
         getStateDelegate().onStateChange(stream);
     }

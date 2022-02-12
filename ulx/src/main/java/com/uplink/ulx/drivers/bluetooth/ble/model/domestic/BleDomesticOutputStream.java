@@ -92,7 +92,7 @@ public class BleDomesticOutputStream extends OutputStreamCommons {
      * expected to change in the future, so this method not be called.
      */
     public void notifyAsOpen() {
-        super.onOpen(this);
+        super.onOpen();
     }
 
     @Override
