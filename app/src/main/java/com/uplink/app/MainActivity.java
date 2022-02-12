@@ -17,19 +17,29 @@ import com.uplink.ulx.observers.MessageObserver;
 import com.uplink.ulx.observers.NetworkObserver;
 import com.uplink.ulx.observers.StateObserver;
 
+import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
 
 import java.net.MalformedURLException;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.Map;
 import java.util.Queue;
 import java.util.Set;
+import java.util.stream.Collectors;
+
+import androidx.activity.result.ActivityResultLauncher;
+import androidx.activity.result.contract.ActivityResultContracts;
+import androidx.appcompat.app.AppCompatActivity;
+import androidx.recyclerview.widget.RecyclerView;
 
 public class MainActivity extends AppCompatActivity implements StateObserver, NetworkObserver, MessageObserver {
+
+    private InstancesAdapter adapter;
 
     private HashMap<String, Instance> instanceMap;
     private Queue<Instance> probeQueue;
@@ -76,6 +86,9 @@ public class MainActivity extends AppCompatActivity implements StateObserver, Ne
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
 
+        adapter = new InstancesAdapter();
+        this.<RecyclerView>findViewById(R.id.rvInstances).setAdapter(adapter);
+
         // Request permissions (ACCESS_COARSE_LOCATION)
         requestPermissionLauncher.launch(Manifest.permission.ACCESS_COARSE_LOCATION);
     }
@@ -120,6 +133,7 @@ public class MainActivity extends AppCompatActivity implements StateObserver, Ne
 
         //sendMessage(instance);
         getInstanceMap().put(instance.getStringIdentifier(), instance);
+        this.runOnUiThread(() -> adapter.updateInstancesList(new ArrayList<>(getInstanceMap().keySet())));
     }
 
     @Override
@@ -127,6 +141,7 @@ public class MainActivity extends AppCompatActivity implements StateObserver, Ne
         Log.i(getClass().getCanonicalName(), String.format("ULX[APP] lost instance [%s: %s]", instance.getStringIdentifier(), error.toString()));
 
         getInstanceMap().remove(instance.getStringIdentifier());
+        this.runOnUiThread(() -> adapter.updateInstancesList(new ArrayList<>(getInstanceMap().keySet())));
     }
 
     private void sendMessage(Instance instance) {
