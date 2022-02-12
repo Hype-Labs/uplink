@@ -10,7 +10,7 @@ package com.uplink.ulx.drivers.model;
  * should keep writing data to the stream until IOResult.getByteCount() returns
  * a byte count that is less than the amount of bytes that is being written.
  * When that happens, the implementation should wait for a delegate call to
- * hasSpaceAvailable(OutputStream), which is an indication that the stream has
+ * onSpaceAvailable(OutputStream), which is an indication that the stream has
  * already flushed enough data to have more space available in its buffers to
  * continue with the operation.
  */
@@ -30,7 +30,7 @@ public interface OutputStream extends Stream {
          * pending to be written.
          * @param outputStream The stream issuing the notification.
          */
-        void hasSpaceAvailable(OutputStream outputStream);
+        void onSpaceAvailable(OutputStream outputStream);
     }
 
     /**
@@ -57,7 +57,7 @@ public interface OutputStream extends Stream {
      * that were actually written, meaning that the difference between the
      * buffer's length and that byte count yields the amount of bytes that
      * couldn't be written. When that happens, the implementation should wait
-     * for a delegate call to hasSpaceAvailable(OutputStream) before attempting
+     * for a delegate call to onSpaceAvailable(OutputStream) before attempting
      * to write in the stream again. If that difference is zero, however, then
      * the implementation should continue to write data until either all of it
      * is written or the amount of bytes written is lower than the given buffer.

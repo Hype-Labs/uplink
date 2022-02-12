@@ -161,7 +161,7 @@ public class BleForeignOutputStream extends OutputStreamCommons implements GattC
 
     @Override
     public void onCharacteristicWritten(GattClient gattClient) {
-        super.hasSpaceAvailable(this);
+        onSpaceAvailable();
     }
 
     @Override

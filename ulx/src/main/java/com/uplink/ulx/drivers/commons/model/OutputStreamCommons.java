@@ -14,7 +14,7 @@ import java.lang.ref.WeakReference;
  * implements the OutputStream interface, which in turn extends the Stream
  * interface, meaning that this constitutes a Stream in all effect.
  */
-public abstract class OutputStreamCommons extends StreamCommons implements OutputStream, OutputStream.Delegate {
+public abstract class OutputStreamCommons extends StreamCommons implements OutputStream {
 
     private WeakReference<OutputStream.Delegate> delegate;
     private Buffer buffer;
@@ -60,8 +60,7 @@ public abstract class OutputStreamCommons extends StreamCommons implements Outpu
         return this.delegate.get();
     }
 
-    @Override
-    public void hasSpaceAvailable(OutputStream outputStream) {
+    protected void onSpaceAvailable() {
 
         synchronized (getBuffer().getLock()) {
 
@@ -79,7 +78,7 @@ public abstract class OutputStreamCommons extends StreamCommons implements Outpu
     private void notifyHasSpaceAvailable() {
         OutputStream.Delegate delegate = this.getDelegate();
         if (delegate != null) {
-            delegate.hasSpaceAvailable(this);
+            delegate.onSpaceAvailable(this);
         }
     }
 

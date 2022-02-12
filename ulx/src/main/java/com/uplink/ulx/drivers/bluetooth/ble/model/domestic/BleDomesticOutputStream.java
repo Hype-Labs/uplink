@@ -117,7 +117,7 @@ public class BleDomesticOutputStream extends OutputStreamCommons {
      * peer of a characteristic update.
      */
     public void notifySuccessfulIndication() {
-        super.hasSpaceAvailable(this);
+        onSpaceAvailable();
     }
 
     /**

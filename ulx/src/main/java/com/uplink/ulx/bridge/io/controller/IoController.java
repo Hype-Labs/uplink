@@ -499,7 +499,7 @@ public class IoController implements InputStream.Delegate, OutputStream.Delegate
     }
 
     @Override
-    public void hasSpaceAvailable(OutputStream outputStream) {
+    public void onSpaceAvailable(OutputStream outputStream) {
 
         // If this happens, something's wrong
         assert getCurrentPacket() != null;
