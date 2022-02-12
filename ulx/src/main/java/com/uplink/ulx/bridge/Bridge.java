@@ -596,9 +596,13 @@ public class Bridge implements
         // A connector has been invalidated - we need to remove the device from the registry
         final Device device = getSouthRegistry().getDeviceInstance(connector.getIdentifier());
 
+        device.getConnector().removeInvalidationCallback(this);
+
+        // Clear the device from the lower grade controllers
         getNetworkController().removeDevice(device);
 
-        // TODO unregister device from southRegistry
+        // Unregister the device
+        getSouthRegistry().unsetDevice(device.getIdentifier());
     }
 
     public void send(Message message) {
