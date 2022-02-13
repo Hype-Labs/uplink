@@ -16,7 +16,7 @@ public class BleForeignInputStream extends InputStreamCommons implements GattCli
 
     /**
      * Constructor. Initializes with the given arguments. By default, this also
-     * initializes the stream to trigger hasDataAvailable delegate notifications
+     * initializes the stream to trigger onDataAvailable delegate notifications
      * as soon as data arrives.
      * @param identifier An identifier used for JNI bridging and debugging.
      * @param gattClient The {@link GattClient} used to interact with the adapter.

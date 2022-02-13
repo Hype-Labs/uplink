@@ -428,7 +428,7 @@ public class IoController implements InputStream.Delegate, OutputStream.Delegate
     }
 
     @Override
-    public void hasDataAvailable(InputStream inputStream) {
+    public void onDataAvailable(InputStream inputStream) {
         Log.i(getClass().getCanonicalName(), String.format("ULX input stream %s has data available", inputStream.getIdentifier()));
 
         // This is the buffer that will receive the data

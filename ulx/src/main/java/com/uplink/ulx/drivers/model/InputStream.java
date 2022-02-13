@@ -6,7 +6,7 @@ package com.uplink.ulx.drivers.model;
  * sequence until the IOResult returned by it yields a byte count of zero, in
  * which case the stream is known to have been fully read. When that happens,
  * callers should not attempt to read any more data from it, and instead wait
- * for a delegate call to hasDataAvailable(InputStream), which will indicate
+ * for a delegate call to onDataAvailable(InputStream), which will indicate
  * that the stream is then available to receive more read operations. An error
  * when reading from the stream does not invalidate it, but it still holds that
  * the implementation should wait for a delegate call before attempting to read
@@ -28,7 +28,7 @@ public interface InputStream extends Stream {
          * up memory in the buffer until that happens.
          * @param inputStream The InputStream issuing the notification.
          */
-        void hasDataAvailable(InputStream inputStream);
+        void onDataAvailable(InputStream inputStream);
     }
 
     /**
@@ -57,7 +57,7 @@ public interface InputStream extends Stream {
      * might already have been read to it. However, this data is not guaranteed
      * to hold its integrity, and therefore should be discarded. Since streams
      * buffer the data locally before being read, this method should be called
-     * as soon as data is known to be available (Delegate.hasDataAvailable()),
+     * as soon as data is known to be available (Delegate.onDataAvailable()),
      * preventing the stream from holding up memory. If the read operation
      * returns a byte count (IOResult.getByteCount()) that is equal to the
      * buffer's length, the stream may still hold additional data, and therefore

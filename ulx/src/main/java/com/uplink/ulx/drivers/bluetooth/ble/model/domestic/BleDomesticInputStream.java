@@ -10,7 +10,7 @@ public class BleDomesticInputStream extends InputStreamCommons {
 
     /**
      * Constructor. Initializes with the given arguments. By default, this also
-     * initializes the stream to trigger hasDataAvailable delegate notifications
+     * initializes the stream to trigger onDataAvailable delegate notifications
      * as soon as data arrives.
      * @param identifier An identifier used for JNI bridging and debugging.
      * @param invalidationDelegate The stream's InvalidationCallback.
@@ -52,7 +52,7 @@ public class BleDomesticInputStream extends InputStreamCommons {
      * This method is called to give indication to the stream that data was
      * received. The stream will propagate the call for the data to be
      * processed, resulting in an {@link
-     * InputStream.Delegate#hasDataAvailable(InputStream)} call to the delegate.
+     * InputStream.Delegate#onDataAvailable(InputStream)} call to the delegate.
      * @param data The data that was received.
      */
     public void notifyDataAvailable(byte[] data) {

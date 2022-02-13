@@ -54,7 +54,7 @@ public abstract class InputStreamCommons extends StreamCommons implements InputS
     /**
      * This method is called by child classes to give indication that new data
      * has arrived and is to be processed. The implementation will append the
-     * data to the input buffer and trigger an hasDataAvailable delegate
+     * data to the input buffer and trigger an onDataAvailable delegate
      * notification if one is needed. This should trigger the necessary
      * processes to read the data from the buffer.
      * @param data The data to append and process.
@@ -63,7 +63,7 @@ public abstract class InputStreamCommons extends StreamCommons implements InputS
 
         Log.i(getClass().getCanonicalName(), String.format("ULX input stream %s received %d bytes of data", getIdentifier(), data.length));
 
-        // The hasDataAvailable event is only triggered if data is being
+        // The onDataAvailable event is only triggered if data is being
         // appended to an empty buffer
         boolean isDataAvailableNeeded;
 
@@ -73,9 +73,9 @@ public abstract class InputStreamCommons extends StreamCommons implements InputS
             getBuffer().append(data);
         }
 
-        // Propagate the hasDataAvailable() event, if needed
+        // Propagate the onDataAvailable() event, if needed
         if (isDataAvailableNeeded) {
-            hasDataAvailable(this);
+            onDataAvailable(this);
         }
     }
 
@@ -115,10 +115,10 @@ public abstract class InputStreamCommons extends StreamCommons implements InputS
     }
 
     @Override
-    public void hasDataAvailable(InputStream inputStream) {
+    public void onDataAvailable(InputStream inputStream) {
         InputStream.Delegate delegate = getDelegate();
         if (delegate != null) {
-            delegate.hasDataAvailable(this);
+            delegate.onDataAvailable(this);
         }
     }
 }
