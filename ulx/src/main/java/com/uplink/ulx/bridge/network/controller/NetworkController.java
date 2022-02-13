@@ -18,7 +18,6 @@ import com.uplink.ulx.bridge.io.model.UpdatePacket;
 import com.uplink.ulx.bridge.network.model.Link;
 import com.uplink.ulx.bridge.network.model.RoutingTable;
 import com.uplink.ulx.bridge.network.model.Ticket;
-import com.uplink.ulx.drivers.model.Connector;
 import com.uplink.ulx.drivers.model.Device;
 import com.uplink.ulx.drivers.model.InputStream;
 import com.uplink.ulx.drivers.model.OutputStream;
@@ -37,6 +36,8 @@ import java.lang.ref.WeakReference;
 import java.net.HttpURLConnection;
 import java.net.URL;
 import java.util.Objects;
+
+import androidx.annotation.NonNull;
 
 /**
  * The {@link NetworkController} is the module that manages network-related
@@ -1085,7 +1086,21 @@ public class NetworkController implements IoController.Delegate,
     }
 
     @Override
-    public void onInstanceLost(RoutingTable routingTable, Instance instance, UlxError error) {
+    public void onInstanceLost(
+            RoutingTable routingTable,
+            @NonNull Device device,
+            Instance instance,
+            UlxError error
+    ) {
+        // HOP_COUNT_INFINITY means that the instance is unreachable
+        final UpdatePacket updatePacket = new UpdatePacket(
+                getSequenceGenerator().generate(),
+                instance,
+                RoutingTable.HOP_COUNT_INFINITY,
+                RoutingTable.HOP_COUNT_INFINITY
+        );
+        scheduleUpdatePacket(updatePacket, device);
+
         notifyOnInstanceLost(instance, error);
     }
 

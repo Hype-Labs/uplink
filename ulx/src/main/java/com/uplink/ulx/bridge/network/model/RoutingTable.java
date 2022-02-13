@@ -1,5 +1,7 @@
 package com.uplink.ulx.bridge.network.model;
 
+import android.annotation.SuppressLint;
+import android.os.Build;
 import android.util.Log;
 
 import com.uplink.ulx.UlxError;
@@ -16,7 +18,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
+import androidx.annotation.RequiresApi;
 
 public class RoutingTable {
 
@@ -63,10 +67,16 @@ public class RoutingTable {
          * is not possible. This will only occur when no {@link Link}s
          * whatsoever are known to the {@link Instance}.
          * @param routingTable The {@link RoutingTable} issuing the notification.
+         * @param device The last device through which the instance was available until now
          * @param instance The {@link Instance} that was lost.
          * @param error An error, as an attempt to explain the loss.
          */
-        void onInstanceLost(RoutingTable routingTable, Instance instance, UlxError error);
+        void onInstanceLost(
+                RoutingTable routingTable,
+                @NonNull Device device,
+                Instance instance,
+                UlxError error
+        );
 
         /**
          * This {@link Delegate} call indicates that the information for a given
@@ -364,7 +374,9 @@ public class RoutingTable {
      * given {@link Device} drops and it becomes unreachable.
      * @param device The {@link Device} to remove.
      */
-    public synchronized void unregister(Device device) {
+    @SuppressLint("NewApi") // forEach() is actually available on every API level
+                            // via desugaring library
+    public synchronized void unregister(@NonNull Device device) {
 
         Entry entry = getLinkMap().get(device);
 
@@ -377,39 +389,13 @@ public class RoutingTable {
         // use these later to assert which ones were lost
         List<Instance> destinations = entry.collectDestinations();
 
+        // For every instance which has been lost completely or a link
+        // to which has degraded, send an update. This would include
+        // the link to the device itself
+        destinations.forEach(instance -> unregister(device, instance));
+
         // Remove the map entry
         getLinkMap().remove(device);
-
-        // For the collected destinations, propagate the ones that are no longer
-        // reachable as lost. This means that eliminating the device entry also
-        // eliminated the last thing that made them reachable
-        notifyAllUnreachableAsLost(destinations);
-    }
-
-    /**
-     * Flags each given {@link Instance} as lost if no more paths exist for
-     * it. This should be called after an {@link Entry} is cleared from the
-     * table.
-     * @param destinations The destinations to lose.
-     */
-    private void notifyAllUnreachableAsLost(List<Instance> destinations) {
-
-        for (Instance instance : destinations) {
-
-            // Instances that are no longer reachable are lost
-            if (!isReachable(instance)) {
-
-                UlxError error = new UlxError(
-                        UlxErrorCode.UNKNOWN,
-                        "The instance was lost.",
-                        "It is no longer reachable on the network.",
-                        "Check if the adapters on the destination " +
-                                "device are on, or if its connected in close range."
-                );
-
-                notifyOnInstanceLost(instance, error);
-            }
-        }
     }
 
     /**
@@ -417,7 +403,7 @@ public class RoutingTable {
      * {@link Instance} as being reachable through the given {@link Device}.
      * This corresponds to a {@link Link} being created on the table.
      * @param device The next-hop {@link Device}.
-     * @param instance The {@link Instance} that is now reachable.
+     * @param instance The {@link Instance} that is (or was) reachable through the device.
      * @param hopCount The minimum known hop count.
      * @param internetHopCount The number of hops that it takes for the instance
      *                         to reach the Internet.
@@ -436,11 +422,22 @@ public class RoutingTable {
         // Values of infinity are deleted instead, since the instance is no
         // longer reachable
         if (hopCount == HOP_COUNT_INFINITY) {
+            unregister(device, instance);
+            return;
+        }
 
-            throw new RuntimeException("Link removal is not supported yet");
-
-            //unregister(device, instance);
-            //return;
+        // We should not save links with more than maximum hop count.
+        // This way we will be able to detect instance loss in circular connections
+        if (hopCount >= MAXIMUM_HOP_COUNT) {
+            Log.i(
+                    getClass().getCanonicalName(),
+                    String.format(
+                            "ULX ignoring new link for %s, because its hop count is %d (more than maximum)",
+                            instance.getStringIdentifier(),
+                            hopCount
+                    )
+            );
+            return;
         }
 
         // We're querying the best link (or any link) so that we know whether
@@ -480,8 +477,8 @@ public class RoutingTable {
      * @param device The next hop {@link Device} for the {@link Link}.
      * @param instance The {@link Instance} for the {@link Link} to remove.
      */
-    private void unregister(Device device, Instance instance) {
-        /*
+    private void unregister(@NonNull Device device, Instance instance) {
+
         Log.i(getClass().getCanonicalName(), "ULX deleting an instance from the registry");
 
         Link bestLink = getBestLink(instance, null);
@@ -514,11 +511,7 @@ public class RoutingTable {
                             "on, or bringing it closer in distance."
             );
 
-            notifyOnInstanceLost(instance, error);
-
-            // A link update is flagged as a lost instance by the link being
-            // null (e.g. no link is known to it)
-            notifyOnLinkUpdate(null);
+            notifyOnInstanceLost(device, instance, error);
 
             return;
         }
@@ -529,7 +522,7 @@ public class RoutingTable {
             Log.i(getClass().getCanonicalName(), "ULX link quality degraded, and an update is being propagated");
             notifyOnLinkUpdate(newBestLink);
         }
-         */
+
     }
 
     /**
@@ -576,15 +569,6 @@ public class RoutingTable {
 
         // The best link should be the first, if one exists
         return links.size() > 0 ? links.get(0) : null;
-    }
-
-    /**
-     * Determines whether an {@link Instance} is still reachable.
-     * @param instance The {@link Instance} to check.
-     * @return Whether the {@link Instance} is reachable.
-     */
-    private boolean isReachable(Instance instance) {
-        return !compileLinksTo(instance, null).isEmpty();
     }
 
     /**
@@ -649,14 +633,19 @@ public class RoutingTable {
      * Propagates a notification for an {@link Instance} being lost, which
      * means that the instance is not reachable anymore. This is propagated
      * through a {@link Delegate} call to {@link
-     * Delegate#onInstanceLost(RoutingTable, Instance, UlxError)}.
+     * Delegate#onInstanceLost(RoutingTable, Device, Instance, UlxError)}.
+     * @param device The last device through which the instance was available until now
      * @param instance The {@link Instance} that is no longer reachable.
      * @param error An error, describing the failure.
      */
-    private void notifyOnInstanceLost(Instance instance, UlxError error) {
+    private void notifyOnInstanceLost(
+            @NonNull Device device,
+            Instance instance,
+            UlxError error
+    ) {
         Delegate delegate = getDelegate();
         if (delegate != null) {
-            delegate.onInstanceLost(this, instance, error);
+            delegate.onInstanceLost(this, device, instance, error);
         }
     }
 
