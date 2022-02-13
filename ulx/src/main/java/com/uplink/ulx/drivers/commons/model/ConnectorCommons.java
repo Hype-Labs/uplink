@@ -37,8 +37,7 @@ public abstract class ConnectorCommons implements
     private final int transportType;
     private final StateManager stateManager;
     private WeakReference<StateDelegate> stateDelegate;
-    private final List<InvalidationCallback> invalidationCallbacks =
-            Collections.synchronizedList(new ArrayList<>());
+    private final List<InvalidationCallback> invalidationCallbacks = new ArrayList<>();
     private ExecutorService executorService;
 
     /**
@@ -133,17 +132,24 @@ public abstract class ConnectorCommons implements
     @NonNull
     @Override
     public final List<InvalidationCallback> getInvalidationCallbacks() {
-        return this.invalidationCallbacks;
+        synchronized (invalidationCallbacks) {
+            // The caller can (and, in fact, does) modify callbacks list, so we'll give them a copy
+            return new ArrayList<>(invalidationCallbacks);
+        }
     }
 
     @Override
     public final void addInvalidationCallback(InvalidationCallback invalidationCallback) {
-        invalidationCallbacks.add(invalidationCallback);
+        synchronized (invalidationCallbacks) {
+            invalidationCallbacks.add(invalidationCallback);
+        }
     }
 
     @Override
     public void removeInvalidationCallback(InvalidationCallback callback) {
-        invalidationCallbacks.remove(callback);
+        synchronized (invalidationCallbacks) {
+            invalidationCallbacks.remove(callback);
+        }
     }
 
     @Override

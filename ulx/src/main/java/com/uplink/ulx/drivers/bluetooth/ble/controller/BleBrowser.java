@@ -679,6 +679,7 @@ class BleBrowser extends BrowserCommons implements
 
     @Override
     public void onInvalidation(Connector connector, UlxError error) {
+        connector.removeInvalidationCallback(this);
         removeActiveConnector(connector);
     }
 
