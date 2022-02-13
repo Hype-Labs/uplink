@@ -383,7 +383,7 @@ public class RoutingTable {
         // For the collected destinations, propagate the ones that are no longer
         // reachable as lost. This means that eliminating the device entry also
         // eliminated the last thing that made them reachable
-        notifyAllAsLost(destinations);
+        notifyAllUnreachableAsLost(destinations);
     }
 
     /**
@@ -392,7 +392,7 @@ public class RoutingTable {
      * table.
      * @param destinations The destinations to lose.
      */
-    private void notifyAllAsLost(List<Instance> destinations) {
+    private void notifyAllUnreachableAsLost(List<Instance> destinations) {
 
         for (Instance instance : destinations) {
 
