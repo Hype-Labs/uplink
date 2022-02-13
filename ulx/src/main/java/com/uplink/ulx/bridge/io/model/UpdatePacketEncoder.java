@@ -35,7 +35,6 @@ public class UpdatePacketEncoder implements Encoder {
         outputStream.write(packet.getType().getId());
         outputStream.write(sequenceIdentifier.array());
         outputStream.write(packet.getHopCount());   // 1 byte only
-        outputStream.write(packet.isReachable() ? 1 : 0);
         outputStream.write(packet.getInternetHopCount());
         outputStream.write(packet.getInstance().getIdentifier());
 

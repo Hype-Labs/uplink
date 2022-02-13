@@ -11,14 +11,15 @@ import java.util.Objects;
  * device. This wraps meta information about reachability to a given {@link
  * Instance}, including the minimum known hop count and whether it is known to
  * be connected to the internet. {@link UpdatePacket}s also represent a type
- * of event ({@link #isReachable()}), which indicates whether the packet was
- * created because the {@link Instance} was found or lost.
+ * of event, which indicates whether the packet was created because the
+ * {@link Instance} was found or lost. ({@link #hopCount} value of
+ * {@link com.uplink.ulx.bridge.network.model.RoutingTable#HOP_COUNT_INFINITY}
+ * indicates that the instance is inaccessible.)
  */
 public class UpdatePacket extends AbstractPacket {
 
     private final Instance instance;
     private final int hopCount;
-    private final boolean reachable;
     private final int internetHopCount;
 
     /**
@@ -26,7 +27,6 @@ public class UpdatePacket extends AbstractPacket {
      * @param sequenceIdentifier Packet sequence identifier.
      * @param instance Destination {@link Instance} (the one being updated).
      * @param hopCount Number of hops to the {@link Instance}.
-     * @param reachable Whether the instance is still reachable.
      * @param internetHopCount Number of hops to reach to the Internet, if a
      *                         request is made through this instance.
      */
@@ -34,7 +34,6 @@ public class UpdatePacket extends AbstractPacket {
             int sequenceIdentifier,
             Instance instance,
             int hopCount,
-            boolean reachable,
             int internetHopCount
     ) {
         super(sequenceIdentifier, PacketType.UPDATE);
@@ -44,7 +43,6 @@ public class UpdatePacket extends AbstractPacket {
 
         this.instance = Objects.requireNonNull(instance);
         this.hopCount = hopCount;
-        this.reachable = reachable;
         this.internetHopCount = internetHopCount;
     }
 
@@ -62,15 +60,6 @@ public class UpdatePacket extends AbstractPacket {
      */
     public final int getHopCount() {
         return this.hopCount;
-    }
-
-    /**
-     * Whether the {@link Instance} is reachable, according to the update, or
-     * is being flagged as lost.
-     * @return Whether the {@link Instance} is reachable.
-     */
-    public final boolean isReachable() {
-        return this.reachable;
     }
 
     /**

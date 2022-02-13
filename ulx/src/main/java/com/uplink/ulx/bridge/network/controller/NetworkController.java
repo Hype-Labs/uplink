@@ -482,7 +482,6 @@ public class NetworkController implements IoController.Delegate,
                     getSequenceGenerator().generate(),
                     link.getDestination(),
                     hopCount,
-                    true,
                     internetHopCount
             );
 
@@ -1119,7 +1118,6 @@ public class NetworkController implements IoController.Delegate,
                 getSequenceGenerator().generate(),
                 link.getDestination(),
                 hopCount,
-                true,   // Because the link is never null
                 internetHopCount
         );
 
