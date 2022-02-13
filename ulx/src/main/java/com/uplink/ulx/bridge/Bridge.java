@@ -568,6 +568,7 @@ public class Bridge implements
         // Register the device
         getSouthRegistry().setDevice(device.getIdentifier(), device);
 
+        // Since we've registered the device, we would need to unregister it when its invalidated
         device.getConnector().addInvalidationCallback(this);
 
         // We're assuming the delegates for all I/O streams
