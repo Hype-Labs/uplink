@@ -725,7 +725,7 @@ public class NetworkController implements IoController.Delegate,
      * form of correspondence in the {@link RoutingTable}. This means that the
      * {@link Device} should already be known, which makes sense since the
      * stream is active (e.g. otherwise a packet could not be received).
-     * @param device The {@link Device} that received the packet.
+     * @param device The {@link Device} that sent the packet.
      * @param packet The {@link HandshakePacket} that was received.
      */
     private void handleHandshakePacketReceived(Device device, HandshakePacket packet) {
