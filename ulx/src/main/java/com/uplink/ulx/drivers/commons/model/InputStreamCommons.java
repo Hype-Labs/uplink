@@ -15,7 +15,7 @@ import java.lang.ref.WeakReference;
  * since the transport-specific requestAdapterToOpen and requestAdapterToClose
  * methods are still left for child classes.
  */
-public abstract class InputStreamCommons extends StreamCommons implements InputStream, InputStream.Delegate {
+public abstract class InputStreamCommons extends StreamCommons implements InputStream {
 
     private WeakReference<Delegate> delegate;
     private Buffer buffer;
@@ -75,7 +75,7 @@ public abstract class InputStreamCommons extends StreamCommons implements InputS
 
         // Propagate the onDataAvailable() event, if needed
         if (isDataAvailableNeeded) {
-            onDataAvailable(this);
+            onDataAvailable();
         }
     }
 
@@ -114,8 +114,7 @@ public abstract class InputStreamCommons extends StreamCommons implements InputS
         return new IoResult(byteCount, null);
     }
 
-    @Override
-    public void onDataAvailable(InputStream inputStream) {
+    private void onDataAvailable() {
         InputStream.Delegate delegate = getDelegate();
         if (delegate != null) {
             delegate.onDataAvailable(this);
