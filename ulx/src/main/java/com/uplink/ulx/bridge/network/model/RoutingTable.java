@@ -17,6 +17,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
@@ -426,23 +427,27 @@ public class RoutingTable {
             return;
         }
 
+        // We're querying the best link (or any link) so that we know whether
+        // the link already existed after insertion
+        Link oldBestLink = getBestLink(instance, null);
+
         // We should not save links with more than maximum hop count.
         // This way we will be able to detect instance loss in circular connections
         if (hopCount >= MAXIMUM_HOP_COUNT) {
             Log.i(
                     getClass().getCanonicalName(),
                     String.format(
-                            "ULX ignoring new link for %s, because its hop count is %d (more than maximum)",
+                            "ULX will delete link for %s, because its hop count is %d (more than maximum)",
                             instance.getStringIdentifier(),
                             hopCount
                     )
             );
+            if (oldBestLink != null) {
+                // The link has degraded beyond maximum hop count. Let's remove it
+                unregister(device, instance);
+            }
             return;
         }
-
-        // We're querying the best link (or any link) so that we know whether
-        // the link already existed after insertion
-        Link oldBestLink = getBestLink(instance, null);
 
         // Register the link
         Link newLink = getLinkMapEntry(device).add(instance, hopCount, internetHopCount);
