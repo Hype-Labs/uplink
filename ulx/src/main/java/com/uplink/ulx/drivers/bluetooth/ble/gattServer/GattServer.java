@@ -534,6 +534,13 @@ public class GattServer extends BluetoothGattServerCallback {
                 return 0;
             }
         } catch (NullPointerException ex) {
+            Log.w(getClass().getCanonicalName(),
+                  String.format(
+                          "ULX unexpected exception happened. Invalidating device %s",
+                          bluetoothDevice.getAddress()
+                  ),
+                  ex
+            );
 
             UlxError error = new UlxError(
                     UlxErrorCode.UNKNOWN,
