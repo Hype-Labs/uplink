@@ -522,6 +522,17 @@ class BleAdvertiser extends AdvertiserCommons implements
     public void onCharacteristicWriteRequest(GattServer gattServer, BluetoothDevice bluetoothDevice, byte[] data) {
         Device device = getDevice(bluetoothDevice);
 
+        if (device == null) {
+            Log.w(
+                    getClass().getCanonicalName(),
+                    String.format(
+                            "ULX received characteristic write request from an unknown device: %s. Ignoring.",
+                            bluetoothDevice.getAddress()
+                    )
+            );
+            return;
+        }
+
         // Notify the input stream of incoming data
         BleDomesticInputStream inputStream = (BleDomesticInputStream)device.getTransport().getReliableChannel().getInputStream();
         inputStream.notifyDataAvailable(data);
