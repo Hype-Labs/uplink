@@ -98,4 +98,17 @@ public interface MessageObserver {
      * @param content The server response content.
      */
     void onUlxInternetResponse(int code, String content);
+
+    /**
+     * This {@link MessageObserver} is called when an Internet request
+     * cannot be made. This must be distinguished from a server error
+     * response, in the sense that would constitute a successful request
+     * with an error response. This method, on the other hand, indicates
+     * that the request was not performed at all. This could happen if
+     * the implementation is not connected to any devices with reachable
+     * Internet, for example.
+     * @param error An error, indicating an estimation for the cause of
+     *              failure.
+     */
+    void onUlxInternetResponseFailure(UlxError error);
 }

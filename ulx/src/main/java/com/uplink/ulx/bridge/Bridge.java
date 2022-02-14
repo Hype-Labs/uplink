@@ -168,6 +168,20 @@ public class Bridge implements
          * @param content The server response content.
          */
         void onInternetResponse(Bridge bridge, int code, String content);
+
+        /**
+         * This {@link MessageDelegate} is called when an Internet request
+         * cannot be made. This must be distinguished from a server error
+         * response, in the sense that would constitute a successful request
+         * with an error response. This method, on the other hand, indicates
+         * that the request was not performed at all. This could happen if
+         * the implementation is not connected to any devices with reachable
+         * Internet, for example.
+         * @param bridge The {@link Bridge}.
+         * @param error An error, indicating an estimation for the cause of
+         *              failure.
+         */
+        void onInternetRequestFailure(Bridge bridge, UlxError error);
     }
 
     private static Bridge instance = null;
@@ -671,6 +685,16 @@ public class Bridge implements
     @Override
     public void onInternetRequestFailure(NetworkController networkController, int sequence) {
         Log.e(getClass().getCanonicalName(), "ULX internet request failure");
+
+        UlxError error = new UlxError(
+                UlxErrorCode.UNKNOWN,
+                "Could not complete a request to the Internet.",
+                "No known path to the server exists or is visible.",
+                "Try enabling WiFi, bringing the devices closer to a " +
+                        "connected network, or installing a SIM card."
+        );
+
+        getMessageDelegate().onInternetRequestFailure(this, error);
     }
 
     private void setMessageInfo(Ticket ticket, MessageInfo messageInfo) {
