@@ -40,6 +40,9 @@ import java.util.Locale;
 import java.util.Objects;
 import java.util.Queue;
 
+import androidx.annotation.NonNull;
+import androidx.annotation.Nullable;
+
 /**
  * The {@link IoController} is the entity that is responsible for converting
  * the stream's binary data into in-memory {@link Packet} objects. This module
@@ -132,8 +135,10 @@ public class IoController implements InputStream.Delegate, OutputStream.Delegate
          * declared the packet dispatch as failed.
          * @return The next-hop {@link Device} for the {@link Packet}.
          */
+        @Nullable
         public abstract Device getDevice();
 
+        @NonNull
         @Override
         public String toString() {
 

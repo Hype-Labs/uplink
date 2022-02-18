@@ -945,8 +945,12 @@ public class NetworkController implements IoController.Delegate,
             @Override
             public Device getDevice() {
                 Device device = getBestLinkNextHopDevice(destination, splitHorizon);
-                assert device != null;
-                Log.i(NetworkController.this.getClass().getCanonicalName(), String.format("ULX best link next hop is %s", device.getIdentifier()));
+                Log.i(NetworkController.this.getClass().getCanonicalName(),
+                      String.format(
+                              "ULX best link next hop is %s",
+                              device != null ? device.getIdentifier() : null
+                      )
+                );
                 return device;
             }
 
