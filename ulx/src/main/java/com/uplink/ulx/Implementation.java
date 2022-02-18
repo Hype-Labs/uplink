@@ -596,6 +596,11 @@ public class Implementation implements
         notifyOnInternetResponse(code, content);
     }
 
+    @Override
+    public void onInternetRequestFailure(Service service, UlxError error) {
+        notifyOnInternetRequestFailure(error);
+    }
+
     /**
      * Propagates a notification of a failed attempt to send a message to the
      * {@link MessageObserver} collection, by calling the corresponding event
@@ -664,6 +669,14 @@ public class Implementation implements
         ExecutorPool.getMainExecutor().execute(() -> {
             for (MessageObserver messageObserver : getMessageObservers()) {
                 messageObserver.onUlxInternetResponse(code, content);
+            }
+        });
+    }
+
+    private void notifyOnInternetRequestFailure(UlxError error) {
+        ExecutorPool.getMainExecutor().execute(() -> {
+            for (MessageObserver messageObserver : getMessageObservers()) {
+                messageObserver.onUlxInternetResponseFailure(error);
             }
         });
     }

@@ -183,6 +183,20 @@ public class Service extends android.app.Service implements
          * @param content The server response content.
          */
         void onInternetResponse(Service service, int code, String content);
+
+        /**
+         * This {@link MessageDelegate} is called when an Internet request
+         * cannot be made. This must be distinguished from a server error
+         * response, in the sense that would constitute a successful request
+         * with an error response. This method, on the other hand, indicates
+         * that the request was not performed at all. This could happen if
+         * the implementation is not connected to any devices with reachable
+         * Internet, for example.
+         * @param service The {@link Service}.
+         * @param error An error, indicating an estimation for the cause of
+         *              failure.
+         */
+        void onInternetRequestFailure(Service service, UlxError error);
     }
 
     /**
@@ -492,6 +506,14 @@ public class Service extends android.app.Service implements
         MessageDelegate messageDelegate = getMessageDelegate();
         if (messageDelegate != null) {
             messageDelegate.onInternetResponse(this, code, content);
+        }
+    }
+
+    @Override
+    public void onInternetRequestFailure(Bridge bridge, UlxError error) {
+        MessageDelegate messageDelegate = getMessageDelegate();
+        if (messageDelegate != null) {
+            messageDelegate.onInternetRequestFailure(this, error);
         }
     }
 

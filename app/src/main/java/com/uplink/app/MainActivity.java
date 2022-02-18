@@ -224,6 +224,11 @@ public class MainActivity extends AppCompatActivity implements StateObserver, Ne
         Log.i(getClass().getCanonicalName(), String.format("ULX[APP] Server response is: %s", content));
     }
 
+    @Override
+    public void onUlxInternetResponseFailure(UlxError error) {
+        Log.i(getClass().getCanonicalName(), String.format("ULX[APP] failed sending an Internet request [%s]", error.toString()));
+    }
+
     public void onSendTransactionClick(View view) {
         Log.i(getClass().getCanonicalName(), "ULX[APP] Sending transaction");
 
