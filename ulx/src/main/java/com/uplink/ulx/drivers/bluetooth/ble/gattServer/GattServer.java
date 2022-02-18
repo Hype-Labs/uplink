@@ -326,8 +326,9 @@ public class GattServer extends BluetoothGattServerCallback {
         Log.i(
                 getClass().getCanonicalName(),
                 String.format(
-                        "ULX device %s state changed. New state: %d",
+                        "ULX device %s state changed. Status: %d. New state: %d",
                         device.getAddress(),
+                        status,
                         newState
                 )
         );

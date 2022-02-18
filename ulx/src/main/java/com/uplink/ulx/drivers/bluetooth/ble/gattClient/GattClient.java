@@ -504,9 +504,11 @@ public class GattClient extends BluetoothGattCallback implements StateManager.De
     public void onConnectionStateChange(BluetoothGatt bluetoothGatt, int status, int newState) {
         Log.i(
                 getClass().getCanonicalName(),
-                String.format("ULX connection changed for native device %s with status %d",
-                              bluetoothGatt.getDevice().getAddress(),
-                              status
+                String.format(
+                        "ULX connection changed for native device %s with status %d. New state: %d",
+                        bluetoothGatt.getDevice().getAddress(),
+                        status,
+                        newState
                 )
         );
 
