@@ -28,7 +28,6 @@ import java.util.Objects;
  */
 public abstract class BrowserCommons implements
         Browser,
-        Browser.StateDelegate,
         Browser.NetworkDelegate,
         StateManager.Delegate,
         Connector.InvalidationCallback,
@@ -237,14 +236,12 @@ public abstract class BrowserCommons implements
         getStateManager().stop();
     }
 
-    @Override
-    public void onStart(Browser browser) {
+    public void onStart() {
         Log.i(getClass().getCanonicalName(), "ULX browser started");
         getStateManager().notifyStart();
     }
 
-    @Override
-    public void onStop(Browser browser, UlxError error) {
+    public void onStop(UlxError error) {
         Log.i(getClass().getCanonicalName(), "ULX browser stopped");
         getStateManager().notifyStop(error);
     }
@@ -271,8 +268,7 @@ public abstract class BrowserCommons implements
 
     }
 
-    @Override
-    public void onReady(Browser browser) {
+    public void onReady() {
         Browser.StateDelegate stateDelegate = this.getStateDelegate();
         if (stateDelegate != null) {
             stateDelegate.onReady(this);

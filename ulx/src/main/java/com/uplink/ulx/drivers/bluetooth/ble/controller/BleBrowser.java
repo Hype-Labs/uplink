@@ -366,7 +366,7 @@ class BleBrowser extends BrowserCommons implements
         startScanning();
 
         // Notify the delegate
-        onStart(this);
+        onStart();
     }
 
     private void startScanning() {
@@ -438,7 +438,7 @@ class BleBrowser extends BrowserCommons implements
         stopScanning();
 
         // Notify the delegate; we're stopping gracefully
-        onStop(this, null);
+        onStop(null);
     }
 
     private void stopScanning() {
@@ -686,7 +686,7 @@ class BleBrowser extends BrowserCommons implements
     @Override
     public void onAdapterEnabled(BluetoothStateListener bluetoothStateListener) {
         if (getState() != Browser.State.RUNNING) {
-            onReady(this);
+            onReady();
         }
     }
 
@@ -703,7 +703,7 @@ class BleBrowser extends BrowserCommons implements
                     "Turn the Bluetooth adapter on."
             );
 
-            onStop(this, error);
+            onStop(error);
         }
 
         // The adapter being turned off, means that all connections where lost
