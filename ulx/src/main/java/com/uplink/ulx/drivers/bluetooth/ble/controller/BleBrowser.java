@@ -461,6 +461,10 @@ class BleBrowser extends BrowserCommons implements
             return;
         }
 
+        // Add to the registry
+        getKnownDevices().put(bluetoothDevice.getAddress(), bluetoothDevice);
+        Log.d(getClass().getCanonicalName(), String.format("Device %s added to registry", bluetoothDevice.getAddress()));
+
         // Is the record found by the scanner publishing the expected service?
         if (!isCoreServiceScanRecord(scanRecord)) {
             //Log.i(getClass().getCanonicalName(), String.format("ULX BLE browser ignoring device %s because it doesn't publish a core service", bluetoothDevice.getAddress()));
@@ -568,16 +572,6 @@ class BleBrowser extends BrowserCommons implements
     @SuppressWarnings("MissingPermission")
     private void queueConnection(BluetoothDevice bluetoothDevice) {
         Log.i(getClass().getCanonicalName(), String.format("ULX BLE scanner is queueing connection %s", bluetoothDevice.getAddress()));
-
-        // Don't proceed if the device is already known; this would mean that
-        // some connection attempt is already in progress.
-        if (getKnownDevices().get(bluetoothDevice.getAddress()) != null) {
-            Log.i(getClass().getCanonicalName(), "ULX ignoring a queue request because the device is already known");
-            return;
-        }
-
-        // Add to the registry
-        getKnownDevices().put(bluetoothDevice.getAddress(), bluetoothDevice);
 
         // Instantiate the GATT client
         GattClient gattClient = new GattClient(
