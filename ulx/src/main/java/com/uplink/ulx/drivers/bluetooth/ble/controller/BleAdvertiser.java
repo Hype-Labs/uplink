@@ -484,6 +484,15 @@ class BleAdvertiser extends AdvertiserCommons implements
 
         Device device = getDevice(bluetoothDevice);
 
+        if (device == null) {
+            Log.e(getClass().getCanonicalName(),
+                  String.format(
+                          "Output stream has been subscribed for an unknown native device %s",
+                          bluetoothDevice.getAddress()
+                  )
+            );
+            return;
+        }
         // Notify the stream that it has been subscribed
         BleDomesticInputStream inputStream = (BleDomesticInputStream)device.getTransport().getReliableChannel().getInputStream();
         BleDomesticOutputStream outputStream = (BleDomesticOutputStream)device.getTransport().getReliableChannel().getOutputStream();
