@@ -3,6 +3,8 @@ package com.uplink.ulx.drivers.model;
 import com.uplink.ulx.TransportType;
 import com.uplink.ulx.UlxError;
 
+import androidx.annotation.NonNull;
+
 /**
  * A Stream is the main I/O abstraction unit provided by the SDK. A Stream,
  * however, does not have a concrete implementation, since streams must either
@@ -171,6 +173,7 @@ public interface Stream {
      * an hexadecimal string.
      * @return The stream's identifier.
      */
+    @NonNull
     String getIdentifier();
 
     /**

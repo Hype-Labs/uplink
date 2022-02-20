@@ -46,7 +46,8 @@ public class Bridge implements
                     NetworkController.Delegate,
                     NetworkController.InternetRequestDelegate,
                     Connector.StateDelegate,
-                    Stream.StateDelegate, Connector.InvalidationCallback {
+                    Stream.StateDelegate,
+                    Connector.InvalidationCallback {
     /**
      * The Bridge Delegate gets notifications for bridge-related events, which
      * will include a wide variety of such events. At this moment, only the
@@ -601,6 +602,10 @@ public class Bridge implements
         //  IoController; that is the one, after all, that manages the streams.
         inputStream.setDelegate(getNetworkController().getIoController());
         outputStream.setDelegate(getNetworkController().getIoController());
+
+        // Assume invalidation delegates
+        inputStream.setInvalidationDelegate(getNetworkController().getIoController());
+        outputStream.setInvalidationDelegate(getNetworkController().getIoController());
 
         // Open the streams
         inputStream.open();

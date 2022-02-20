@@ -9,6 +9,8 @@ import com.uplink.ulx.drivers.model.Stream;
 import java.lang.ref.WeakReference;
 import java.util.Objects;
 
+import androidx.annotation.NonNull;
+
 /**
  * A StreamCommons is an abstraction of a stream base class that implements
  * functionality that is common to all streams. It handles delegates, as well
@@ -26,6 +28,7 @@ public abstract class StreamCommons implements
         Stream,
         StateManager.Delegate {
 
+    @NonNull
     private final String identifier;
     private final int transportType;
     private final boolean reliable;
@@ -39,7 +42,7 @@ public abstract class StreamCommons implements
      * @param transportType The stream's transport type.
      * @param reliable A boolean flag, indicating whether the stream is reliable.
      */
-    public StreamCommons(String identifier, int transportType, boolean reliable) {
+    public StreamCommons(@NonNull String identifier, int transportType, boolean reliable) {
 
         Objects.requireNonNull(identifier);
 
@@ -148,6 +151,7 @@ public abstract class StreamCommons implements
         getStateManager().stop();
     }
 
+    @NonNull
     @Override
     public String getIdentifier() {
         return this.identifier;
@@ -201,5 +205,19 @@ public abstract class StreamCommons implements
 
     public void onStateChange(Stream stream) {
         getStateDelegate().onStateChange(stream);
+    }
+
+    @SuppressWarnings("ControlFlowStatementWithoutBraces")
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (!(o instanceof StreamCommons)) return false;
+        final StreamCommons that = (StreamCommons) o;
+        return identifier.equals(that.identifier);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(identifier);
     }
 }

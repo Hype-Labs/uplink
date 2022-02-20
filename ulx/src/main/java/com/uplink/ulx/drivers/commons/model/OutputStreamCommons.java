@@ -1,8 +1,10 @@
 package com.uplink.ulx.drivers.commons.model;
 
+import android.util.Log;
+
+import com.uplink.ulx.UlxError;
 import com.uplink.ulx.drivers.model.IoResult;
 import com.uplink.ulx.drivers.model.OutputStream;
-import com.uplink.ulx.drivers.model.Stream;
 import com.uplink.ulx.threading.Dispatch;
 
 import java.lang.ref.WeakReference;
@@ -120,8 +122,28 @@ public abstract class OutputStreamCommons extends StreamCommons implements Outpu
 
                 // Trim the buffer
                 getBuffer().trim(result.getByteCount());
+
+                final UlxError error = result.getError();
+                if (error != null) {
+                    Log.w(
+                            getClass().getCanonicalName(),
+                            String.format(
+                                    "Output stream failed to flush buffer data. Cause: %s\nInvalidating...",
+                                    error.getReason()
+                            )
+                    );
+
+                    notifyInvalidated(error);
+                }
             }
         });
+    }
+
+    private void notifyInvalidated(UlxError error) {
+        final InvalidationDelegate delegate = getInvalidationDelegate();
+        if (delegate != null) {
+            delegate.onInvalidation(this, error);
+        }
     }
 
     /**

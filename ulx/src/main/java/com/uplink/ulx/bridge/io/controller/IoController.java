@@ -24,10 +24,12 @@ import com.uplink.ulx.bridge.io.model.UpdatePacket;
 import com.uplink.ulx.bridge.io.model.UpdatePacketDecoder;
 import com.uplink.ulx.bridge.io.model.UpdatePacketEncoder;
 import com.uplink.ulx.drivers.commons.model.Buffer;
+import com.uplink.ulx.drivers.model.Channel;
 import com.uplink.ulx.drivers.model.Device;
 import com.uplink.ulx.drivers.model.InputStream;
 import com.uplink.ulx.drivers.model.IoResult;
 import com.uplink.ulx.drivers.model.OutputStream;
+import com.uplink.ulx.drivers.model.Stream;
 import com.uplink.ulx.serialization.Decoder;
 import com.uplink.ulx.serialization.Encoder;
 import com.uplink.ulx.serialization.Serializer;
@@ -58,7 +60,9 @@ import androidx.annotation.Nullable;
  * buffers will keep growing until some sort of memory overflow occurs, although
  * that is something that should be fixed in the future.
  */
-public class IoController implements InputStream.Delegate, OutputStream.Delegate {
+public class IoController implements InputStream.Delegate,
+                                     OutputStream.Delegate,
+                                     Stream.InvalidationDelegate {
 
     /**
      * A {@link IoController.Delegate} yields notifications with respect to
@@ -156,6 +160,7 @@ public class IoController implements InputStream.Delegate, OutputStream.Delegate
     private Serializer serializer;
     private Queue<IoPacket> queue;
     private IoPacket currentPacket;
+    private final Object currentPacketLock = new Object();
 
     /**
      * Constructor.
@@ -298,28 +303,30 @@ public class IoController implements InputStream.Delegate, OutputStream.Delegate
 
         IoPacket ioPacket;
 
-        // If another packet is already being processed, do not proceed, and
-        // instead let if finish
-        if (getCurrentPacket() != null) {
-            Log.i(getClass().getCanonicalName(), "ULX packet not dequeued because the queue is busy");
-            return;
+        synchronized (currentPacketLock) {
+            // If another packet is already being processed, do not proceed, and
+            // instead let if finish
+            if (getCurrentPacket() != null) {
+                Log.i(getClass().getCanonicalName(), "ULX packet not dequeued because the queue is busy");
+                return;
+            }
+
+            // Pop the next packet to dispatch
+            synchronized (getQueue()) {
+                ioPacket = getQueue().poll();
+            }
+
+            // Don't proceed if the queue is empty
+            if (ioPacket == null) {
+                Log.i(getClass().getCanonicalName(), "ULX queue not proceeding because the queue is empty");
+                return;
+            }
+
+            Log.i(getClass().getCanonicalName(), String.format("ULX current packet is %s", ioPacket.toString()));
+
+            // Flag the controller as busy, so packets do not overlap
+            setCurrentPacket(ioPacket);
         }
-
-        // Pop the next packet to dispatch
-        synchronized (getQueue()) {
-            ioPacket = getQueue().poll();
-        }
-
-        // Don't proceed if the queue is empty
-        if (ioPacket == null) {
-            Log.i(getClass().getCanonicalName(), "ULX queue not proceeding because the queue is empty");
-            return;
-        }
-
-        Log.i(getClass().getCanonicalName(), String.format("ULX current packet is %s", ioPacket.toString()));
-
-        // Flag the controller as busy, so packets do not overlap
-        setCurrentPacket(ioPacket);
 
         Device device = ioPacket.getDevice();
 
@@ -338,6 +345,9 @@ public class IoController implements InputStream.Delegate, OutputStream.Delegate
             setCurrentPacket(null);
 
             notifyOnPacketWriteFailure(null, ioPacket, error);
+
+            // Proceed with packet processing
+            attemptDequeue();
 
             return;
         }
@@ -506,16 +516,66 @@ public class IoController implements InputStream.Delegate, OutputStream.Delegate
     @Override
     public void onSpaceAvailable(OutputStream outputStream) {
 
-        // If this happens, something's wrong
-        assert getCurrentPacket() != null;
+        synchronized (currentPacketLock) {
+            // If this happens, something's wrong
+            assert getCurrentPacket() != null;
 
-        // Notify the delegate
-        notifyOnPacketWritten(outputStream, getCurrentPacket());
+            // Notify the delegate
+            notifyOnPacketWritten(outputStream, getCurrentPacket());
 
-        // Set as the now active packet
-        setCurrentPacket(null);
+            // Set as the now active packet
+            setCurrentPacket(null);
+        }
 
         // Move on to the next one
         attemptDequeue();
+    }
+
+    @Override
+    public void onInvalidation(Stream stream, UlxError error) {
+        final IoPacket currentPacket;
+
+        synchronized (currentPacketLock) {
+            currentPacket = getCurrentPacket();
+
+            final Device device = currentPacket != null ? currentPacket.getDevice() : null;
+
+            // Drop current packet if it cannot longer identify its device or
+            // if it belongs to the invalidated stream
+            if (device == null || stream.equals(device.getTransport().getReliableChannel().getOutputStream())) {
+                setCurrentPacket(null);
+            }
+        }
+
+        if (stream instanceof OutputStream) {
+            // Drop all packets using the stream
+            dropPacketsForStream((OutputStream) stream);
+        }
+
+        if (currentPacket != null) {
+            // If an output packet was being processed, proceed with the next one
+            attemptDequeue();
+        }
+    }
+
+    /**
+     * Drops all the packets that were intended to be written via the given stream
+     *
+     * @param stream The failed stream
+     */
+    private void dropPacketsForStream(OutputStream stream) {
+        synchronized (getQueue()) {
+            getQueue().removeIf(ioPacket -> {
+                final Device device = ioPacket.getDevice();
+
+                // If the packet cannot identify its device - drop the packet
+                if (device == null) {
+                    return true;
+                }
+
+                // If the packet was intended for the stream that failed - drop the packet
+                return stream.equals(device.getTransport().getReliableChannel().getOutputStream());
+            });
+        }
     }
 }
