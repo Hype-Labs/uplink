@@ -1,7 +1,6 @@
 package com.uplink.ulx.bridge.network.model;
 
 import android.annotation.SuppressLint;
-import android.os.Build;
 import android.util.Log;
 
 import com.uplink.ulx.UlxError;
@@ -17,11 +16,9 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.stream.Collectors;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
-import androidx.annotation.RequiresApi;
 
 public class RoutingTable {
 
@@ -88,10 +85,29 @@ public class RoutingTable {
          * {@link Link} is not necessarily better than the previous one; it
          * might happen that the previous best link was lost and replaced by
          * a second best alternative.
-         * @param routingTable  The {@link RoutingTable} issuing the notification.
+         * @param routingTable The {@link RoutingTable} issuing the notification.
          * @param link The {@link Link} that was updated.
          */
         void onLinkUpdate(RoutingTable routingTable, Link link);
+
+        /**
+         * This {@link Delegate} call happens after {@link #onLinkUpdate(RoutingTable, Link)} in
+         * cases where a secondBestLink degradation took place. The goal is to notify the
+         * bestLinkDevice about how we would reach the given instance and internet otherwise
+         *
+         * @param routingTable     The {@link RoutingTable} issuing the notification.
+         * @param bestLinkDevice   The receiver of the update
+         * @param destination      The destination at hand
+         * @param hopCount         Hop count needed to reach the destination
+         * @param internetHopCount Hop count needed to reach the internet
+         */
+        void onSplitHorizonLinkUpdate(
+                RoutingTable routingTable,
+                Device bestLinkDevice,
+                Instance destination,
+                int hopCount,
+                int internetHopCount
+        );
     }
 
     /**
@@ -420,19 +436,13 @@ public class RoutingTable {
                 )
         );
 
-        // Values of infinity are deleted instead, since the instance is no
-        // longer reachable
-        if (hopCount == HOP_COUNT_INFINITY) {
-            unregister(device, instance);
-            return;
-        }
-
         // We're querying the best link (or any link) so that we know whether
         // the link already existed after insertion
-        Link oldBestLink = getBestLink(instance, null);
+        final Link oldBestLink = getBestLink(instance, null);
 
         // We should not save links with more than maximum hop count.
         // This way we will be able to detect instance loss in circular connections
+        // This also includes cases when hopCount == HOP_COUNT_INFINITY (i.e. unreachable)
         if (hopCount >= MAXIMUM_HOP_COUNT) {
             Log.i(
                     getClass().getCanonicalName(),
@@ -443,7 +453,8 @@ public class RoutingTable {
                     )
             );
             if (oldBestLink != null) {
-                // The link has degraded beyond maximum hop count. Let's remove it
+                // Remove link from the registry. If the old best link used the same device,
+                // an update will be sent by the unregister() method
                 unregister(device, instance);
             }
             return;
@@ -478,7 +489,8 @@ public class RoutingTable {
      * Link} that makes the given {@link Instance} reachable through the given
      * {@link Device}. If this is the last {@link Link} in the registry to
      * make the {@link Instance} reachable, then the {@link Instance} will be
-     * given as lost.
+     * given as lost. Otherwise, if the best link has updated as a result of
+     * the change, the update will be propagated
      * @param device The next hop {@link Device} for the {@link Link}.
      * @param instance The {@link Instance} for the {@link Link} to remove.
      */
@@ -486,11 +498,11 @@ public class RoutingTable {
 
         Log.i(getClass().getCanonicalName(), "ULX deleting an instance from the registry");
 
-        Link bestLink = getBestLink(instance, null);
+        final Link oldBestLink = getBestLink(instance, null);
 
         // The absence of a "best link" means the absence of any link at all,
         // even thought that shouldn't happen at this point
-        if (bestLink == null) {
+        if (oldBestLink == null) {
             Log.e(getClass().getCanonicalName(), "ULX is trying to delete a link for an instance that is not reachable");
             return;
         }
@@ -523,11 +535,22 @@ public class RoutingTable {
 
         // If the link quality changed, then we propagate an update. Most
         // likely, this will relax the link's quality
-        if (bestLink.compareTo(newBestLink) != 0) {
+        if (oldBestLink.compareTo(newBestLink) != 0) {
             Log.i(getClass().getCanonicalName(), "ULX link quality degraded, and an update is being propagated");
             notifyOnLinkUpdate(newBestLink);
         }
 
+        // Tell the split horizon about how we would reach the instance without him
+        final Device splitHorizon = newBestLink.getNextHop();
+        final Link secondBestLink = getBestLink(instance, splitHorizon);
+        final Link bestInternetLink = getBestInternetLink(splitHorizon);
+        // TODO skip this step where the update wouldn't actually be an update for the split-horizon
+        notifySplitHorizonUpdate(
+                splitHorizon,
+                instance,
+                secondBestLink != null ? secondBestLink.getHopCount() : HOP_COUNT_INFINITY,
+                bestInternetLink != null ? bestInternetLink.getInternetHopCount() : HOP_COUNT_INFINITY
+        );
     }
 
     /**
@@ -538,19 +561,21 @@ public class RoutingTable {
      * to prevent determining paths that loop on some previous hop. If the
      * split horizon is {@code null}, the implementation should perform the
      * calculation without having the previous hop in consideration.
-     * @param splitHorizon Not used.
+     * @param splitHorizon the device to exclude from search
      * @return The best known mesh link to the Internet.
      */
-    public Link getBestInternetLink(Device splitHorizon) {
+    public Link getBestInternetLink(@Nullable Device splitHorizon) {
 
-        List<Link> links = compileInternetLinks();
+        final List<Link> links = compileInternetLinks();
 
-        // Sorting the list will yield the best links at the top
-        Collections.sort(links, (o1, o2)
-                -> Integer.signum(o1.getInternetHopCount() - o2.getInternetHopCount()));
-
-        // The best link should be the first, if one exists
-        return links.size() > 0 ? links.get(0) : null;
+        return links
+                .stream()
+                // Sorting the list will yield the best links at the top
+                .sorted((o1, o2) -> Integer.signum(o1.getInternetHopCount() - o2.getInternetHopCount()))
+                .filter(link -> splitHorizon == null || !splitHorizon.equals(link.getNextHop()))
+                // The best link should be the first, if one exists
+                .findFirst()
+                .orElse(null);
     }
 
     /**
@@ -662,6 +687,30 @@ public class RoutingTable {
         Delegate delegate = getDelegate();
         if (delegate != null) {
             delegate.onLinkUpdate(this, link);
+        }
+    }
+
+    /**
+     * Propagates a {@link Delegate} notification for the destination's reachability in absence of
+     * the split horizon
+     *
+     * @param device           the device with the best link. This is the receiver for the update
+     * @param destination      the subject instance
+     * @param hopCount         the minimum hop count to the instance if we can't reach the split
+     *                         horizon
+     * @param internetHopCount the minimum hop count to internet if we can't reach the split
+     *                         horizon
+     */
+    private void notifySplitHorizonUpdate(@NonNull Device device, Instance destination, int hopCount, int internetHopCount) {
+        final Delegate delegate = getDelegate();
+        if (delegate != null) {
+            delegate.onSplitHorizonLinkUpdate(
+                    this,
+                    device,
+                    destination,
+                    hopCount,
+                    internetHopCount
+            );
         }
     }
 

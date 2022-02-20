@@ -1122,12 +1122,6 @@ public class NetworkController implements IoController.Delegate,
         int hopCount = Math.min(link.getHopCount() + 1, RoutingTable.HOP_COUNT_INFINITY);
         int internetHopCount = Math.min(link.getInternetHopCount() + 1, RoutingTable.HOP_COUNT_INFINITY);
 
-        // Don't propagate events that reach the maximum number of hops
-        if (hopCount >= RoutingTable.MAXIMUM_HOP_COUNT) {
-            Log.i(getClass().getCanonicalName(), String.format("ULX-M is not propagating a link update, the hop count was exceeded (%d/%d) for link %s", hopCount, RoutingTable.MAXIMUM_HOP_COUNT, link == null ? "(null)" : link.toString()));
-            return;
-        }
-
         Log.i(getClass().getCanonicalName(), String.format("ULX-M is propagating link update %s", link.toString()));
 
         // This version propagates all updates, but that might turn out to be
@@ -1144,12 +1138,41 @@ public class NetworkController implements IoController.Delegate,
         scheduleUpdatePacket(updatePacket, link.getNextHop());
     }
 
+    @Override
+    public void onSplitHorizonLinkUpdate(
+            RoutingTable routingTable,
+            Device bestLinkDevice,
+            Instance destination,
+            int hopCount,
+            int internetHopCount
+    ) {
+        Log.i(
+                getClass().getCanonicalName(),
+                String.format(
+                        "Sending split-horizon update to %s regarding instance %s. Hop count: %d. Internet hop count: %d",
+                        bestLinkDevice.getIdentifier(),
+                        destination,
+                        hopCount,
+                        internetHopCount
+                )
+        );
+        
+        final UpdatePacket updatePacket = new UpdatePacket(
+                getSequenceGenerator().generate(),
+                destination,
+                hopCount,
+                internetHopCount
+        );
+
+        scheduleUpdatePacketForDevice(updatePacket, bestLinkDevice);
+    }
+
     /**
      * Propagates the given {@link UpdatePacket} to all {@link Device}s
      * connected in line of sight (LoS).
      * @param updatePacket The packet to propagate.
-     * @param splitHorizon A device to ignore, which should be the originator
-     *                     for the update.
+     * @param splitHorizon A device to ignore, which the next-hop for the updated link
+     *                     or a just-lost device
      */
     private void scheduleUpdatePacket(UpdatePacket updatePacket, Device splitHorizon) {
 
@@ -1166,24 +1189,34 @@ public class NetworkController implements IoController.Delegate,
 
             // The update packet is propagated to all devices in direct link
             // (except the split horizon)
-            getIoController().add(new NetworkPacket(updatePacket) {
-
-                @Override
-                public void handleOnWritten() {
-                    Log.e(getClass().getCanonicalName(), "ULX update packet was written");
-                }
-
-                @Override
-                public void handleOnWriteFailure(UlxError error) {
-                    Log.e(getClass().getCanonicalName(), "ULX update packet was NOT written");
-                }
-
-                @Override
-                public Device getDevice() {
-                    return device;
-                }
-            });
+            scheduleUpdatePacketForDevice(updatePacket, device);
         }
+    }
+
+    /**
+     * Send update packet to the given device
+     *
+     * @param updatePacket The packet
+     * @param device       The receiver
+     */
+    private void scheduleUpdatePacketForDevice(UpdatePacket updatePacket, Device device) {
+        getIoController().add(new NetworkPacket(updatePacket) {
+
+            @Override
+            public void handleOnWritten() {
+                Log.e(getClass().getCanonicalName(), "ULX update packet was written");
+            }
+
+            @Override
+            public void handleOnWriteFailure(UlxError error) {
+                Log.e(getClass().getCanonicalName(), "ULX update packet was NOT written");
+            }
+
+            @Override
+            public Device getDevice() {
+                return device;
+            }
+        });
     }
 
     /**
