@@ -541,7 +541,18 @@ public class Bridge implements
         Device device = getSouthRegistry().getDeviceInstance(stream.getIdentifier());
 
         // Make sure the device was previously registered
-        Objects.requireNonNull(device);
+        if (device == null) {
+            // We shouldn't have received this callback, unsubscribe
+            Log.e(
+                    getClass().getCanonicalName(),
+                    String.format(
+                            "ULX Bridge.onOpen(Stream) called for an unknown device. Stream identifier: %s",
+                            stream.getIdentifier()
+                    )
+            );
+            stream.setStateDelegate(null);
+            return;
+        }
 
         // Get the streams and check their states
         InputStream inputStream = device.getTransport().getReliableChannel().getInputStream();
