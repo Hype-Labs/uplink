@@ -117,8 +117,10 @@ public interface Browser {
          * {@link Driver}, the delegate is expected to manage an {@link
          * Advertiser} as well, which means that it will be capable of checking
          * whether there's activity occurring that shouldn't be terminated.
+         *
+         * @return whether the request was honored
          */
-        void onAdapterRestartRequest(Browser browser);
+        boolean onAdapterRestartRequest(Browser browser);
     }
 
     /**

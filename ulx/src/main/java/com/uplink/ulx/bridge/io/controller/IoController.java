@@ -520,6 +520,10 @@ public class IoController implements InputStream.Delegate,
 
     @Override
     public void onSpaceAvailable(OutputStream outputStream) {
+        Log.d(
+                getClass().getCanonicalName(),
+                String.format("ULX Space available on stream %s", outputStream.getIdentifier())
+        );
 
         synchronized (currentPacketLock) {
             // If this happens, something's wrong
@@ -538,6 +542,14 @@ public class IoController implements InputStream.Delegate,
 
     @Override
     public void onInvalidation(Stream stream, UlxError error) {
+        Log.w(
+                getClass().getCanonicalName(),
+                String.format("ULX Stream %s invalidated. Reason: %s",
+                              stream.getIdentifier(),
+                              error.getReason()
+                )
+        );
+
         final IoPacket currentPacket;
 
         synchronized (currentPacketLock) {

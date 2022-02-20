@@ -518,7 +518,7 @@ public class Bridge implements
         //outputStream.setDelegate(null);
 
         // Clear the device from the lower grade controllers
-        getNetworkController().removeDevice(device);
+        getNetworkController().removeDevice(device, error);
 
         // Unregister the device
         getSouthRegistry().unsetDevice(device.getIdentifier());
@@ -631,7 +631,7 @@ public class Bridge implements
         device.getConnector().removeInvalidationCallback(this);
 
         // Clear the device from the lower grade controllers
-        getNetworkController().removeDevice(device);
+        getNetworkController().removeDevice(device, error);
 
         // Unregister the device
         getSouthRegistry().unsetDevice(device.getIdentifier());

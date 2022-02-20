@@ -831,8 +831,9 @@ class BleBrowser extends BrowserCommons implements
         // Since we're having failed connections, we should ask the adapter to
         // restart.
         Delegate delegate = getDelegate();
-        if (delegate != null) {
-            delegate.onAdapterRestartRequest(this);
+        if (delegate == null || !delegate.onAdapterRestartRequest(this)) {
+            // If we cannot restart the adapter - let's continue scanning
+            startScanning();
         }
     }
 }

@@ -18,6 +18,7 @@ import com.uplink.ulx.bridge.io.model.UpdatePacket;
 import com.uplink.ulx.bridge.network.model.Link;
 import com.uplink.ulx.bridge.network.model.RoutingTable;
 import com.uplink.ulx.bridge.network.model.Ticket;
+import com.uplink.ulx.drivers.model.Channel;
 import com.uplink.ulx.drivers.model.Device;
 import com.uplink.ulx.drivers.model.InputStream;
 import com.uplink.ulx.drivers.model.OutputStream;
@@ -750,7 +751,7 @@ public class NetworkController implements IoController.Delegate,
         );
     }
 
-    public void removeDevice(Device device) {
+    public void removeDevice(Device device, UlxError error) {
 
         // Clearing the device from the routing table could result in several
         // lost instances

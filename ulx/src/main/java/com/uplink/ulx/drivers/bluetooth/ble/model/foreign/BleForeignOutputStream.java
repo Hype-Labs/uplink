@@ -169,8 +169,7 @@ public class BleForeignOutputStream extends OutputStreamCommons implements GattC
         // Flag as closed
         onClose(error);
 
-        // TODO after this failed, the IoController queue did not recover and
-        //      remained busy instead.
+        notifyInvalidated(error);
     }
 
 }

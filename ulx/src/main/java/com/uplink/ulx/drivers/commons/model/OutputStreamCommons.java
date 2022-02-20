@@ -139,7 +139,7 @@ public abstract class OutputStreamCommons extends StreamCommons implements Outpu
         });
     }
 
-    private void notifyInvalidated(UlxError error) {
+    protected final void notifyInvalidated(UlxError error) {
         final InvalidationDelegate delegate = getInvalidationDelegate();
         if (delegate != null) {
             delegate.onInvalidation(this, error);
