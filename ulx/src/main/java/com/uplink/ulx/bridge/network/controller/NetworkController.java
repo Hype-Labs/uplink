@@ -1092,7 +1092,7 @@ public class NetworkController implements IoController.Delegate,
     @Override
     public void onInstanceLost(
             RoutingTable routingTable,
-            @NonNull Device device,
+            @NonNull Device lastDevice,
             Instance instance,
             UlxError error
     ) {
@@ -1103,7 +1103,7 @@ public class NetworkController implements IoController.Delegate,
                 RoutingTable.HOP_COUNT_INFINITY,
                 RoutingTable.HOP_COUNT_INFINITY
         );
-        scheduleUpdatePacket(updatePacket, device);
+        scheduleUpdatePacket(updatePacket, lastDevice);
 
         notifyOnInstanceLost(instance, error);
     }
@@ -1168,22 +1168,35 @@ public class NetworkController implements IoController.Delegate,
     }
 
     /**
-     * Propagates the given {@link UpdatePacket} to all {@link Device}s
-     * connected in line of sight (LoS).
+     * Propagates the given {@link UpdatePacket} to all {@link Device}s connected in line of sight
+     * (LoS).
+     *
      * @param updatePacket The packet to propagate.
-     * @param splitHorizon A device to ignore, which the next-hop for the updated link
-     *                     or a just-lost device
+     * @param splitHorizon A device to ignore, which is the next-hop for the updated link or a
+     *                     just-lost device
      */
-    private void scheduleUpdatePacket(UpdatePacket updatePacket, Device splitHorizon) {
-
-        assert splitHorizon != null;
+    private void scheduleUpdatePacket(UpdatePacket updatePacket, @NonNull Device splitHorizon) {
 
         for (Device device : getRoutingTable().getDeviceList()) {
-            Log.i(getClass().getCanonicalName(), String.format("ULX-M scheduling update packet %s to %s with split horizon %s", updatePacket.toString(), device.getIdentifier(), splitHorizon == null ? "(null)" : splitHorizon.getIdentifier()));
+            Log.i(
+                    getClass().getCanonicalName(),
+                    String.format("ULX-M scheduling update packet %s to %s with split horizon %s",
+                                  updatePacket.toString(),
+                                  device.getIdentifier(),
+                                  splitHorizon.getIdentifier()
+                    )
+            );
 
             // Ignore the split horizon
-            if (device.getIdentifier().equals(splitHorizon.getIdentifier())) {
-                Log.i(getClass().getCanonicalName(), String.format("ULX-M not propagating update packet %s to device %s because the device is the split horizon", updatePacket.toString(), splitHorizon == null ? "(null)" : splitHorizon.getIdentifier()));
+            if (device.equals(splitHorizon)) {
+                Log.i(
+                        getClass().getCanonicalName(),
+                        String.format(
+                                "ULX-M not propagating update packet %s to device %s because the device is the split horizon",
+                                updatePacket,
+                                splitHorizon.getIdentifier()
+                        )
+                );
                 continue;
             }
 
