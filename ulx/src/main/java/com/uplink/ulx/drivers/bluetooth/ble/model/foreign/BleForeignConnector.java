@@ -66,10 +66,6 @@ public class BleForeignConnector extends ConnectorCommons implements GattClient.
     }
 
     @Override
-    public void onInvalidation(Stream stream, UlxError error) {
-    }
-
-    @Override
     public void onConnected(GattClient gattClient) {
         super.onConnected(this);
     }

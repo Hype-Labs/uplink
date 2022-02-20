@@ -62,16 +62,4 @@ public class BleDomesticConnector extends ConnectorCommons {
                 "disconnect because the protocol to request activity from the " +
                 "central is not implemented yet.");
     }
-
-    @SuppressLint("NewApi") // forEach() is actually supported with desugaring library
-    @Override
-    public void onInvalidation(Stream stream, UlxError error) {
-        Log.e(getClass().getCanonicalName(), "ULX BLE domestic connector invalidated");
-
-        if (getState() != Connector.State.DISCONNECTED) {
-            super.onDisconnection(this, error);
-
-            getInvalidationCallbacks().forEach(callback -> callback.onInvalidation(this, error));
-        }
-    }
 }

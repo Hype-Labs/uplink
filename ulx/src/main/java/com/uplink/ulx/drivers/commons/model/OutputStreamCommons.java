@@ -24,15 +24,13 @@ public abstract class OutputStreamCommons extends StreamCommons implements Outpu
      * @param identifier An identifier used for JNI bridging and debugging.
      * @param transportType The stream's transport type.
      * @param reliable A boolean flag, indicating whether the stream is reliable.
-     * @param invalidationDelegate The stream's InvalidationDelegate.
      */
     public OutputStreamCommons(
             String identifier,
             int transportType,
-            boolean reliable,
-            Stream.InvalidationDelegate invalidationDelegate
+            boolean reliable
     ) {
-        super(identifier, transportType, reliable, invalidationDelegate);
+        super(identifier, transportType, reliable);
 
         this.delegate = null;
         this.buffer = null;

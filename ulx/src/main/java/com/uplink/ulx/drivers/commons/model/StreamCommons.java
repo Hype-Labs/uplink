@@ -38,18 +38,15 @@ public abstract class StreamCommons implements
      * @param identifier An identifier used for JNI bridging and debugging.
      * @param transportType The stream's transport type.
      * @param reliable A boolean flag, indicating whether the stream is reliable.
-     * @param invalidationDelegate The stream's InvalidationDelegate.
      */
-    public StreamCommons(String identifier, int transportType, boolean reliable, Stream.InvalidationDelegate invalidationDelegate) {
+    public StreamCommons(String identifier, int transportType, boolean reliable) {
 
         Objects.requireNonNull(identifier);
-        Objects.requireNonNull(invalidationDelegate);
 
         this.identifier = identifier;
         this.stateManager = new StateManager(this);
         this.transportType = transportType;
         this.reliable = reliable;
-        this.invalidationDelegate = new WeakReference<>(invalidationDelegate);
     }
 
     /**

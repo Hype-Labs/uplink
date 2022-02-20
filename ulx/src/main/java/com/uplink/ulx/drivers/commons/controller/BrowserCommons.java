@@ -30,8 +30,7 @@ public abstract class BrowserCommons implements
         Browser,
         Browser.NetworkDelegate,
         StateManager.Delegate,
-        Connector.InvalidationCallback,
-        Stream.InvalidationDelegate
+        Connector.InvalidationCallback
 {
     private final String identifier;
     private final int transportType;
@@ -273,10 +272,5 @@ public abstract class BrowserCommons implements
         if (stateDelegate != null) {
             stateDelegate.onReady(this);
         }
-    }
-
-    @Override
-    public void onInvalidation(Stream stream, UlxError error) {
-        // TODO
     }
 }

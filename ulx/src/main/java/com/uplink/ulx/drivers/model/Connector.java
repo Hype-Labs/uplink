@@ -25,7 +25,7 @@ import androidx.annotation.NonNull;
  * it no longer serves the purpose of managing connections, and therefore must
  * be disposed.
  */
-public interface Connector extends Stream.InvalidationDelegate {
+public interface Connector {
 
     /**
      * Enumeration for the Connector's state. The state that a connector is in

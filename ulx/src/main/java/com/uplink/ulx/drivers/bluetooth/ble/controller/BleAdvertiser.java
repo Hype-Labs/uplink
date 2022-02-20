@@ -35,7 +35,6 @@ import com.uplink.ulx.drivers.model.Connector;
 import com.uplink.ulx.drivers.model.Device;
 import com.uplink.ulx.drivers.model.InputStream;
 import com.uplink.ulx.drivers.model.OutputStream;
-import com.uplink.ulx.drivers.model.Stream;
 import com.uplink.ulx.drivers.model.Transport;
 import com.uplink.ulx.threading.Dispatch;
 
@@ -56,8 +55,7 @@ import androidx.annotation.Nullable;
 class BleAdvertiser extends AdvertiserCommons implements
         GattServer.Delegate,
         BluetoothStateListener.Observer,
-        Connector.StateDelegate,
-        Stream.InvalidationDelegate
+        Connector.StateDelegate
 {
     private final BluetoothManager bluetoothManager;
     private BluetoothAdapter bluetoothAdapter;
@@ -566,10 +564,6 @@ class BleAdvertiser extends AdvertiserCommons implements
         removeActiveConnector(connector);
     }
 
-    @Override
-    public void onInvalidation(Stream stream, UlxError error) {
-    }
-
     /**
      * Requests the added service to start advertising. This will finally
      * publish the device on the network, and thus complete the start request
@@ -646,17 +640,13 @@ class BleAdvertiser extends AdvertiserCommons implements
 
         BleDomesticConnector domesticConnector = (BleDomesticConnector)connector;
 
-        InputStream inputStream = new BleDomesticInputStream(
-                connector.getIdentifier(),
-                this
-        );
+        InputStream inputStream = new BleDomesticInputStream(connector.getIdentifier());
 
         OutputStream outputStream = new BleDomesticOutputStream(
                 connector.getIdentifier(),
                 getGattServer(),
                 domesticConnector.getBluetoothDevice(),
-                getDomesticService().getReliableOutputCharacteristic(),
-                this
+                getDomesticService().getReliableOutputCharacteristic()
         );
 
         Channel reliableChannel = new BleChannel(

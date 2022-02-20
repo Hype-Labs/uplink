@@ -4,7 +4,6 @@ import android.util.Log;
 
 import com.uplink.ulx.drivers.model.IoResult;
 import com.uplink.ulx.drivers.model.InputStream;
-import com.uplink.ulx.drivers.model.Stream;
 
 import java.lang.ref.WeakReference;
 
@@ -25,15 +24,13 @@ public abstract class InputStreamCommons extends StreamCommons implements InputS
      * @param identifier An identifier used for JNI bridging and debugging.
      * @param transportType The stream's transport type.
      * @param reliable A boolean flag, indicating whether the stream is reliable.
-     * @param invalidationDelegate The stream's InvalidationDelegate.
      */
     public InputStreamCommons(
             String identifier,
             int transportType,
-            boolean reliable,
-            Stream.InvalidationDelegate invalidationDelegate
+            boolean reliable
     ) {
-        super(identifier, transportType, reliable, invalidationDelegate);
+        super(identifier, transportType, reliable);
 
         this.delegate = null;
         this.buffer = null;

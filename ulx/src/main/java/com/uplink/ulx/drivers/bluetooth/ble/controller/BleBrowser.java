@@ -761,16 +761,14 @@ class BleBrowser extends BrowserCommons implements
         BleForeignInputStream inputStream = new BleForeignInputStream(
                 identifier,
                 gattClient,
-                physicalReliableOutputCharacteristic,
-                this
+                physicalReliableOutputCharacteristic
         );
 
         // Create the output stream
         BleForeignOutputStream outputStream = new BleForeignOutputStream(
                 identifier,
                 gattClient,
-                physicalReliableInputCharacteristic,
-                this
+                physicalReliableInputCharacteristic
         );
 
         // The streams assume the corresponding GATT delegates
