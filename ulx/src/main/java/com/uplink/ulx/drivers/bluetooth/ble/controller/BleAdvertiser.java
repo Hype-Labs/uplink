@@ -287,10 +287,14 @@ class BleAdvertiser extends AdvertiserCommons implements
         }
 
         if (deviceList.size() > 1) {
-            throw new RuntimeException("An unexpected amount of devices was " +
-                    "found in association with a single BluetoothDevice address. " +
-                    "This means that the registry got corrupted, since only a " +
-                    "single entry is expected.");
+            Log.e(
+                    getClass().getCanonicalName(),
+                    "An unexpected amount of devices was " +
+                            "found in association with a single BluetoothDevice address. " +
+                            "This means that the registry got corrupted, since only a " +
+                            "single entry is expected."
+            );
+            return null;
         }
 
         // There should be only one
