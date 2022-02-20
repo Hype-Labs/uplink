@@ -12,6 +12,7 @@ import android.bluetooth.BluetoothManager;
 import android.bluetooth.BluetoothProfile;
 import android.content.Context;
 import android.os.Build;
+import android.os.DeadObjectException;
 import android.os.Looper;
 import android.util.Log;
 
@@ -534,7 +535,10 @@ public class GattServer extends BluetoothGattServerCallback {
             if (!getBluetoothGattServer().notifyCharacteristicChanged(bluetoothDevice, characteristic, confirm)) {
                 return 0;
             }
-        } catch (NullPointerException ex) {
+        } catch (Exception ex) { // In practice, NullPointerException or DeadObjectException
+            // can happen, even though DeadObjectException is not present in the method's
+            // signature. TODO investigate DeadObjectException
+
             Log.w(getClass().getCanonicalName(),
                   String.format(
                           "ULX unexpected exception happened. Invalidating device %s",
