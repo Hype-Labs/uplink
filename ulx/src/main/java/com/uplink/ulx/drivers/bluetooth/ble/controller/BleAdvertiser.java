@@ -514,6 +514,15 @@ class BleAdvertiser extends AdvertiserCommons implements
 
         Device device = getDevice(bluetoothDevice);
 
+        if (device == null) {
+            Log.e(getClass().getCanonicalName(),
+                  String.format(
+                          "Notification sent callback received for an unknown device: %s",
+                          bluetoothDevice.getAddress()
+                  )
+            );
+            return;
+        }
         // Notify the output stream that the indication was given
         BleDomesticOutputStream outputStream = (BleDomesticOutputStream)device.getTransport().getReliableChannel().getOutputStream();
         outputStream.notifySuccessfulIndication();
@@ -523,6 +532,17 @@ class BleAdvertiser extends AdvertiserCommons implements
     public void onNotificationNotSent(GattServer gattServer, BluetoothDevice bluetoothDevice, UlxError error) {
 
         Device device = getDevice(bluetoothDevice);
+
+        if (device == null) {
+            Log.e(getClass().getCanonicalName(),
+                  String.format(
+                          "Notification not sent callback received for an unknown device: %s",
+                          bluetoothDevice.getAddress()
+                  )
+            );
+            return;
+        }
+
 
         // Notify the output stream that the indication was NOT given
         BleDomesticOutputStream outputStream = (BleDomesticOutputStream)device.getTransport().getReliableChannel().getOutputStream();
