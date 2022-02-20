@@ -562,6 +562,7 @@ class BleAdvertiser extends AdvertiserCommons implements
 
     @Override
     public void onInvalidation(Connector connector, UlxError error) {
+        connector.removeInvalidationCallback(this);
         removeActiveConnector(connector);
     }
 
