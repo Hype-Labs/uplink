@@ -83,7 +83,7 @@ public abstract class InputStreamCommons extends StreamCommons implements InputS
 
     @Override
     public final InputStream.Delegate getDelegate() {
-        return this.delegate.get();
+        return delegate != null ? delegate.get() : null;
     }
 
     @Override
