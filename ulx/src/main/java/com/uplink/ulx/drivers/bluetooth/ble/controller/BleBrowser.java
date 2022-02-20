@@ -278,6 +278,7 @@ class BleBrowser extends BrowserCommons implements
      * times.
      * @return An hash map of known devices.
      */
+    // TODO synchronize access to the map
     private Map<String, BluetoothDevice> getKnownDevices() {
         if (this.knownDevices == null) {
             this.knownDevices = new HashMap<>();
@@ -802,6 +803,13 @@ class BleBrowser extends BrowserCommons implements
 
         // The connector is no longer active
         removeActiveConnector(connector);
+
+        if (connector instanceof BleForeignConnector) {
+            final String address = ((BleForeignConnector) connector).getGattClient().getBluetoothDevice().getAddress();
+
+            // Remove the device from the list, so that we can connect to it again in the future
+            getKnownDevices().remove(address);
+        }
     }
 
     @Override
