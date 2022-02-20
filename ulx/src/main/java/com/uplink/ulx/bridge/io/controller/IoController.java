@@ -303,53 +303,58 @@ public class IoController implements InputStream.Delegate,
 
         IoPacket ioPacket;
 
-        synchronized (currentPacketLock) {
-            // If another packet is already being processed, do not proceed, and
-            // instead let if finish
-            if (getCurrentPacket() != null) {
-                Log.i(getClass().getCanonicalName(), "ULX packet not dequeued because the queue is busy");
-                return;
+        Device device;
+
+        // The loop will break if current packet's device is not null
+        while (true) {
+            synchronized (currentPacketLock) {
+                // If another packet is already being processed, do not proceed, and
+                // instead let if finish
+                if (getCurrentPacket() != null) {
+                    Log.i(getClass().getCanonicalName(), "ULX packet not dequeued because the queue is busy");
+                    return;
+                }
+
+                // Pop the next packet to dispatch
+                synchronized (getQueue()) {
+                    ioPacket = getQueue().poll();
+                }
+
+                // Don't proceed if the queue is empty
+                if (ioPacket == null) {
+                    Log.i(getClass().getCanonicalName(), "ULX queue not proceeding because the queue is empty");
+                    return;
+                }
+
+                Log.i(
+                        getClass().getCanonicalName(),
+                        String.format("ULX current packet is %s", ioPacket)
+                );
+
+                // Flag the controller as busy, so packets do not overlap
+                setCurrentPacket(ioPacket);
             }
 
-            // Pop the next packet to dispatch
-            synchronized (getQueue()) {
-                ioPacket = getQueue().poll();
+            device = ioPacket.getDevice();
+
+            if (device != null) {
+                break;
+            } else {
+                Log.e(getClass().getCanonicalName(), "ULX destination not found");
+
+                UlxError error = new UlxError(
+                        UlxErrorCode.UNKNOWN,
+                        "Could not send a packet to a destination.",
+                        "The destination is not known or reachable.",
+                        "Try bringing the destination closer to the host " +
+                                "device or restarting the Bluetooth adapter."
+                );
+
+                // Clear the current packet, so the queue may proceed
+                setCurrentPacket(null);
+
+                notifyOnPacketWriteFailure(null, ioPacket, error);
             }
-
-            // Don't proceed if the queue is empty
-            if (ioPacket == null) {
-                Log.i(getClass().getCanonicalName(), "ULX queue not proceeding because the queue is empty");
-                return;
-            }
-
-            Log.i(getClass().getCanonicalName(), String.format("ULX current packet is %s", ioPacket.toString()));
-
-            // Flag the controller as busy, so packets do not overlap
-            setCurrentPacket(ioPacket);
-        }
-
-        Device device = ioPacket.getDevice();
-
-        if (device == null) {
-            Log.e(getClass().getCanonicalName(), "ULX destination not found");
-
-            UlxError error = new UlxError(
-                    UlxErrorCode.UNKNOWN,
-                    "Could not send a packet to a destination.",
-                    "The destination is not known or reachable.",
-                    "Try bringing the destination closer to the host " +
-                            "device or restarting the Bluetooth adapter."
-            );
-
-            // Clear the current packet, so the queue may proceed
-            setCurrentPacket(null);
-
-            notifyOnPacketWriteFailure(null, ioPacket, error);
-
-            // Proceed with packet processing
-            attemptDequeue();
-
-            return;
         }
 
         // Write to the stream
