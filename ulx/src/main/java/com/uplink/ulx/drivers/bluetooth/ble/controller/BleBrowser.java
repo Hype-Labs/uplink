@@ -443,6 +443,7 @@ class BleBrowser extends BrowserCommons implements
     }
 
     private void stopScanning() {
+        Log.i(getClass().getCanonicalName(), "ULX BLE scanner stopping");
         getBluetoothLeScanner().stopScan(getScanCallback());
     }
 
@@ -822,6 +823,7 @@ class BleBrowser extends BrowserCommons implements
         // Remove from the registry; when the device is seen again, the
         // connection should be retried
         getKnownDevices().remove(bluetoothDevice.getAddress());
+        Log.d(getClass().getCanonicalName(), String.format("Device %s removed from registry", bluetoothDevice.getAddress()));
         getKnownConnectors().remove(connector.getIdentifier());
         removeActiveConnector(connector);   // Shouldn't matter
 

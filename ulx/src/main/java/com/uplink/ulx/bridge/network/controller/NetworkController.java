@@ -704,6 +704,8 @@ public class NetworkController implements IoController.Delegate,
                 handleInternetResponsePacketReceived(device, (InternetResponsePacket) packet);
                 break;
         }
+
+        Log.d(getClass().getCanonicalName(), "Packet handled");
     }
 
     @Override
@@ -749,6 +751,8 @@ public class NetworkController implements IoController.Delegate,
                 1,
                 packet.getInternetHops()
         );
+
+        getRoutingTable().log();
     }
 
     public void removeDevice(Device device, UlxError error) {
@@ -759,6 +763,14 @@ public class NetworkController implements IoController.Delegate,
 
         // TODO there might still be pending I/O with this device, which must
         //      be cleared.
+        getRoutingTable().log();
+
+        // In some cases we cannot get any indication of failure from the stream itself, even if
+        // there was an operation pending. One example is that notification sent callback won't be
+        // called if the adapter has been turned off. So we'll invalidate the streams just in case
+        final Channel channel = device.getTransport().getReliableChannel();
+        getIoController().onInvalidation(channel.getInputStream(), error);
+        getIoController().onInvalidation(channel.getOutputStream(), error);
     }
 
     /**
@@ -801,6 +813,8 @@ public class NetworkController implements IoController.Delegate,
                 packet.getHopCount(),
                 packet.getInternetHopCount()
         );
+
+        getRoutingTable().log();
     }
 
     /**
@@ -1115,8 +1129,6 @@ public class NetworkController implements IoController.Delegate,
     }
 
     private void update(Link link) {
-
-        getRoutingTable().log();
 
         assert link != null;
 
