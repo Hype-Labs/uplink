@@ -566,6 +566,9 @@ public class IoController implements InputStream.Delegate,
         if (stream instanceof OutputStream) {
             // Drop all packets using the stream
             dropPacketsForStream((OutputStream) stream);
+
+            // If we don't do this, we might receive onSpaceAvailable from this stream in future
+            ((OutputStream) stream).removeCallback(this);
         }
 
         if (currentPacket != null) {

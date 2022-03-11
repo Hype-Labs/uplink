@@ -62,6 +62,19 @@ public abstract class OutputStreamCommons extends StreamCommons implements Outpu
         callbacks.add(callback);
     }
 
+    @Override
+    public void removeCallback(Callback callback) {
+        final boolean removed;
+        if (callbacks != null) {
+            removed = callbacks.remove(callback);
+        } else {
+            removed = false;
+        }
+        if (!removed) {
+            Log.w(getClass().getCanonicalName(), "Failed to find the callback to remove");
+        }
+    }
+
     private List<Callback> getCallbacks() {
         return callbacks;
     }

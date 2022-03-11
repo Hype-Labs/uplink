@@ -40,6 +40,12 @@ public interface OutputStream extends Stream {
     void addCallback(Callback callback);
 
     /**
+     * Removes callback for the stream's events.
+     * @param callback The callback that shouldn't receive updates anymore
+     */
+    void removeCallback(Callback callback);
+
+    /**
      * Writes data to the stream. The data in the given buffer parameter will be
      * copied to a local buffer managed by the stream, before being flushed and
      * actually sent out. The given buffer remains untouched. If the operation
