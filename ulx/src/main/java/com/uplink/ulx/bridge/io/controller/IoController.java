@@ -572,6 +572,8 @@ public class IoController implements InputStream.Delegate,
             // If an output packet was being processed, proceed with the next one
             attemptDequeue();
         }
+
+        stream.removeInvalidationCallback(this);
     }
 
     /**
