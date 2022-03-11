@@ -148,6 +148,7 @@ public abstract class OutputStreamCommons extends StreamCommons implements Outpu
 
     @SuppressLint("NewApi")// forEach() is actually supported
     protected final void notifyInvalidated(UlxError error) {
+        // TODO make sure StateDelegate.onClose() is also called after this method
         final List<InvalidationCallback> callbacks = getInvalidationCallbacks();
         if (callbacks != null) {
             callbacks.forEach(invalidationCallback -> invalidationCallback.onInvalidation(
