@@ -7,9 +7,13 @@ import com.uplink.ulx.drivers.commons.StateManager;
 import com.uplink.ulx.drivers.model.Stream;
 
 import java.lang.ref.WeakReference;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Objects;
+import java.util.Vector;
 
 import androidx.annotation.NonNull;
+import androidx.annotation.Nullable;
 
 /**
  * A StreamCommons is an abstraction of a stream base class that implements
@@ -34,7 +38,7 @@ public abstract class StreamCommons implements
     private final boolean reliable;
     private final StateManager stateManager;
     private WeakReference<StateDelegate> stateDelegate;
-    private WeakReference<InvalidationCallback> invalidationCallback;
+    private List<InvalidationCallback> invalidationCallbacks;
 
     /**
      * Constructor. Initializes with the given arguments.
@@ -175,17 +179,31 @@ public abstract class StreamCommons implements
         this.stateDelegate = new WeakReference<>(stateDelegate);
     }
 
-    @Override
-    public InvalidationCallback getInvalidationCallback() {
-        if (this.invalidationCallback != null) {
-            return this.invalidationCallback.get();
-        }
-        return null;
+    @Nullable
+    protected List<InvalidationCallback> getInvalidationCallbacks() {
+        return invalidationCallbacks != null ? new ArrayList<>(invalidationCallbacks) : null;
     }
 
     @Override
-    public void setInvalidationCallback(InvalidationCallback invalidationCallback) {
-        this.invalidationCallback = new WeakReference<>(invalidationCallback);
+    public void addInvalidationCallback(InvalidationCallback invalidationCallback) {
+        synchronized (this) {
+            if (invalidationCallbacks == null) {
+                invalidationCallbacks = new Vector<>();
+            }
+        }
+        invalidationCallbacks.add(invalidationCallback);
+    }
+
+    @Override
+    public void removeInvalidationCallback(InvalidationCallback invalidationCallback) {
+        if (invalidationCallbacks != null) {
+            if (!invalidationCallbacks.remove(invalidationCallback)) {
+                Log.w(
+                        getClass().getCanonicalName(),
+                        "Failed to remove invalidation callback, because it was not present"
+                );
+            }
+        }
     }
 
     @Override

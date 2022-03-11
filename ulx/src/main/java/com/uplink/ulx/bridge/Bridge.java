@@ -615,8 +615,8 @@ public class Bridge implements
         outputStream.setDelegate(getNetworkController().getIoController());
 
         // Assume invalidation delegates
-        inputStream.setInvalidationCallback(getNetworkController().getIoController());
-        outputStream.setInvalidationCallback(getNetworkController().getIoController());
+        inputStream.addInvalidationCallback(getNetworkController().getIoController());
+        outputStream.addInvalidationCallback(getNetworkController().getIoController());
 
         // Open the streams
         inputStream.open();

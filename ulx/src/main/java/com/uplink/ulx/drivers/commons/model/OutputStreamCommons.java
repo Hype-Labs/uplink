@@ -1,5 +1,6 @@
 package com.uplink.ulx.drivers.commons.model;
 
+import android.annotation.SuppressLint;
 import android.util.Log;
 
 import com.uplink.ulx.UlxError;
@@ -8,6 +9,7 @@ import com.uplink.ulx.drivers.model.OutputStream;
 import com.uplink.ulx.threading.Dispatch;
 
 import java.lang.ref.WeakReference;
+import java.util.List;
 
 /**
  * This class implements the part of functionality that is shared by all
@@ -139,10 +141,14 @@ public abstract class OutputStreamCommons extends StreamCommons implements Outpu
         });
     }
 
+    @SuppressLint("NewApi")// forEach() is actually supported
     protected final void notifyInvalidated(UlxError error) {
-        final InvalidationCallback callback = getInvalidationCallback();
-        if (callback != null) {
-            callback.onInvalidation(this, error);
+        final List<InvalidationCallback> callbacks = getInvalidationCallbacks();
+        if (callbacks != null) {
+            callbacks.forEach(invalidationCallback -> invalidationCallback.onInvalidation(
+                    this,
+                    error
+            ));
         }
     }
 

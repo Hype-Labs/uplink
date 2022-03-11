@@ -3,6 +3,8 @@ package com.uplink.ulx.drivers.model;
 import com.uplink.ulx.TransportType;
 import com.uplink.ulx.UlxError;
 
+import java.util.List;
+
 import androidx.annotation.NonNull;
 
 /**
@@ -213,25 +215,19 @@ public interface Stream {
     StateDelegate getStateDelegate();
 
     /**
-     * Sets the stream's invalidation callback (Stream.InvalidationCallback),
+     * Adds the stream's invalidation callback (Stream.InvalidationCallback),
      * which will being to receive invalidation event notifications from the
-     * stream. If another delegate has previously been set, it will be
-     * overridden, and all notifications will be triggered on the new instance.
-     * The stream must keep a weak reference to this delegate.
-     * @param invalidationCallback The delegate to set.
+     * stream.
+     * @param invalidationCallback The callback to add.
      * @see InvalidationCallback
      */
-    void setInvalidationCallback(InvalidationCallback invalidationCallback);
+    void addInvalidationCallback(InvalidationCallback invalidationCallback);
 
     /**
-     * Returns a strong reference for the InvalidationCallback that is currently
-     * getting invalidation notifications from the stream. Although a strong
-     * reference is returned, the Stream must hold a weak reference to this
-     * object.
-     * @return The stream's invalidation delegate.
-     * @see InvalidationCallback
+     * Removes the given invalidation callback from the current list of callbacks
+     * @param invalidationCallback The callback to remove
      */
-    InvalidationCallback getInvalidationCallback();
+    void removeInvalidationCallback(InvalidationCallback invalidationCallback);
 
     /**
      * Returns a boolean flag indicating whether the stream is reliable. A
