@@ -34,11 +34,10 @@ public interface OutputStream extends Stream {
     }
 
     /**
-     * Setter for the output stream's callback. If another callback has
-     * previously been set, it will be overridden.
-     * @param callback The callback to set.
+     * Adds callback for the stream's events
+     * @param callback The callback to add.
      */
-    void setCallback(Callback callback);
+    void addCallback(Callback callback);
 
     /**
      * Writes data to the stream. The data in the given buffer parameter will be

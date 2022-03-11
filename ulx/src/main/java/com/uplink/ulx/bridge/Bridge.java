@@ -515,7 +515,7 @@ public class Bridge implements
         //outputStream.setStateDelegate(null);
         //
         //inputStream.setDelegate(null);  // Was the IoController before
-        //outputStream.setCallback(null);
+        //outputStream.addCallback(null);
 
         // Clear the device from the lower grade controllers
         getNetworkController().removeDevice(device, error);
@@ -612,7 +612,7 @@ public class Bridge implements
         //  Edit: one way that makes sense is to move the south bridge to the
         //  IoController; that is the one, after all, that manages the streams.
         inputStream.setDelegate(getNetworkController().getIoController());
-        outputStream.setCallback(getNetworkController().getIoController());
+        outputStream.addCallback(getNetworkController().getIoController());
 
         // Assume invalidation delegates
         inputStream.addInvalidationCallback(getNetworkController().getIoController());

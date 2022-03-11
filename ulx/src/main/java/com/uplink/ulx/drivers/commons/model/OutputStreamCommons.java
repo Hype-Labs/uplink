@@ -8,8 +8,8 @@ import com.uplink.ulx.drivers.model.IoResult;
 import com.uplink.ulx.drivers.model.OutputStream;
 import com.uplink.ulx.threading.Dispatch;
 
-import java.lang.ref.WeakReference;
 import java.util.List;
+import java.util.Vector;
 
 /**
  * This class implements the part of functionality that is shared by all
@@ -20,7 +20,7 @@ import java.util.List;
  */
 public abstract class OutputStreamCommons extends StreamCommons implements OutputStream {
 
-    private WeakReference<Callback> callback;
+    private List<Callback> callbacks;
     private Buffer buffer;
 
     /**
@@ -36,7 +36,7 @@ public abstract class OutputStreamCommons extends StreamCommons implements Outpu
     ) {
         super(identifier, transportType, reliable);
 
-        this.callback = null;
+        this.callbacks = null;
         this.buffer = null;
     }
 
@@ -53,12 +53,17 @@ public abstract class OutputStreamCommons extends StreamCommons implements Outpu
     }
 
     @Override
-    public final void setCallback(Callback callback) {
-        this.callback = new WeakReference<>(callback);
+    public final void addCallback(Callback callback) {
+        synchronized (this) {
+            if (callbacks == null) {
+                callbacks = new Vector<>();
+            }
+        }
+        callbacks.add(callback);
     }
 
-    private Callback getCallback() {
-        return this.callback.get();
+    private List<Callback> getCallbacks() {
+        return callbacks;
     }
 
     protected void onSpaceAvailable() {
@@ -76,10 +81,11 @@ public abstract class OutputStreamCommons extends StreamCommons implements Outpu
         }
     }
 
+    @SuppressLint("NewApi") // forEach() is actually supported
     private void notifyHasSpaceAvailable() {
-        Callback callback = this.getCallback();
-        if (callback != null) {
-            callback.onSpaceAvailable(this);
+        List<Callback> callbacks = this.getCallbacks();
+        if (callbacks != null) {
+            callbacks.forEach(callback -> callback.onSpaceAvailable(this));
         }
     }
 
