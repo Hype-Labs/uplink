@@ -153,6 +153,13 @@ public abstract class OutputStreamCommons extends StreamCommons implements Outpu
                             )
                     );
 
+                    // Since we are invalidating the stream, let's also clear its buffer
+                    // This will ensure that we won't try to flush the same data anymore
+                    final int bytesLeft = data.length - result.getByteCount();
+                    if (bytesLeft > 0) {
+                        getBuffer().trim(bytesLeft);
+                    }
+
                     notifyInvalidated(error);
                 }
             }
