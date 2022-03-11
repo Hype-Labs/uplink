@@ -395,7 +395,7 @@ public class NetworkController implements IoController.Delegate,
 
         if (activeNetwork != null && activeNetwork.isConnected()) {
             try {
-                URL url = new URL("http://www.google.com/");
+                URL url = new URL("https://www.google.com/");
                 HttpURLConnection connection = (HttpURLConnection)url.openConnection();
                 connection.setRequestProperty("User-Agent", "test");
                 connection.setRequestProperty("Connection", "close");
