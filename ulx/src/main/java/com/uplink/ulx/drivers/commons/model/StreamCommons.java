@@ -34,7 +34,7 @@ public abstract class StreamCommons implements
     private final boolean reliable;
     private final StateManager stateManager;
     private WeakReference<StateDelegate> stateDelegate;
-    private WeakReference<Stream.InvalidationDelegate> invalidationDelegate;
+    private WeakReference<InvalidationCallback> invalidationCallback;
 
     /**
      * Constructor. Initializes with the given arguments.
@@ -176,16 +176,16 @@ public abstract class StreamCommons implements
     }
 
     @Override
-    public Stream.InvalidationDelegate getInvalidationDelegate() {
-        if (this.invalidationDelegate != null) {
-            return this.invalidationDelegate.get();
+    public InvalidationCallback getInvalidationCallback() {
+        if (this.invalidationCallback != null) {
+            return this.invalidationCallback.get();
         }
         return null;
     }
 
     @Override
-    public void setInvalidationDelegate(Stream.InvalidationDelegate invalidationDelegate) {
-        this.invalidationDelegate = new WeakReference<>(invalidationDelegate);
+    public void setInvalidationCallback(InvalidationCallback invalidationCallback) {
+        this.invalidationCallback = new WeakReference<>(invalidationCallback);
     }
 
     @Override

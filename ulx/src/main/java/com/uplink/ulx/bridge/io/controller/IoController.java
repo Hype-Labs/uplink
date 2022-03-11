@@ -24,7 +24,6 @@ import com.uplink.ulx.bridge.io.model.UpdatePacket;
 import com.uplink.ulx.bridge.io.model.UpdatePacketDecoder;
 import com.uplink.ulx.bridge.io.model.UpdatePacketEncoder;
 import com.uplink.ulx.drivers.commons.model.Buffer;
-import com.uplink.ulx.drivers.model.Channel;
 import com.uplink.ulx.drivers.model.Device;
 import com.uplink.ulx.drivers.model.InputStream;
 import com.uplink.ulx.drivers.model.IoResult;
@@ -62,7 +61,7 @@ import androidx.annotation.Nullable;
  */
 public class IoController implements InputStream.Delegate,
                                      OutputStream.Delegate,
-                                     Stream.InvalidationDelegate {
+                                     Stream.InvalidationCallback {
 
     /**
      * A {@link IoController.Delegate} yields notifications with respect to
