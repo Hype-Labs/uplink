@@ -17,10 +17,10 @@ package com.uplink.ulx.drivers.model;
 public interface OutputStream extends Stream {
 
     /**
-     * An OutputStream.Delegate receives notifications as to when the stream has
+     * An OutputStream.Callback receives notifications as to when the stream has
      * data space available in its buffers to receive data for writing.
      */
-    interface Delegate {
+    interface Callback {
 
         /**
          * This callback gives indication to the delegate that the stream has
@@ -34,18 +34,11 @@ public interface OutputStream extends Stream {
     }
 
     /**
-     * Setter for the output stream's delegate. If another delegate has
+     * Setter for the output stream's callback. If another callback has
      * previously been set, it will be overridden.
-     * @param delegate The delegate to set.
+     * @param callback The callback to set.
      */
-    void setDelegate(OutputStream.Delegate delegate);
-
-    /**
-     * Returns the current delegate that is getting notifications from the
-     * stream, with respect to space being available on the stream for writing.
-     * @return The InputStream's current delegate.
-     */
-    OutputStream.Delegate getDelegate();
+    void setCallback(Callback callback);
 
     /**
      * Writes data to the stream. The data in the given buffer parameter will be
@@ -64,7 +57,7 @@ public interface OutputStream extends Stream {
      * The implementation should also wait for the delegate in case of error.
      * @param data The buffer to write to the stream.
      * @return The IOResult of the operation.
-     * @see OutputStream.Delegate
+     * @see Callback
      * @see IoResult
      */
     IoResult write(byte [] data);

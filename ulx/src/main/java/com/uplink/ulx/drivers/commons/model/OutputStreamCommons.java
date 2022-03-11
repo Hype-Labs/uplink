@@ -20,7 +20,7 @@ import java.util.List;
  */
 public abstract class OutputStreamCommons extends StreamCommons implements OutputStream {
 
-    private WeakReference<OutputStream.Delegate> delegate;
+    private WeakReference<Callback> callback;
     private Buffer buffer;
 
     /**
@@ -36,7 +36,7 @@ public abstract class OutputStreamCommons extends StreamCommons implements Outpu
     ) {
         super(identifier, transportType, reliable);
 
-        this.delegate = null;
+        this.callback = null;
         this.buffer = null;
     }
 
@@ -53,13 +53,12 @@ public abstract class OutputStreamCommons extends StreamCommons implements Outpu
     }
 
     @Override
-    public final void setDelegate(OutputStream.Delegate delegate) {
-        this.delegate = new WeakReference<>(delegate);
+    public final void setCallback(Callback callback) {
+        this.callback = new WeakReference<>(callback);
     }
 
-    @Override
-    public final OutputStream.Delegate getDelegate() {
-        return this.delegate.get();
+    private Callback getCallback() {
+        return this.callback.get();
     }
 
     protected void onSpaceAvailable() {
@@ -78,9 +77,9 @@ public abstract class OutputStreamCommons extends StreamCommons implements Outpu
     }
 
     private void notifyHasSpaceAvailable() {
-        OutputStream.Delegate delegate = this.getDelegate();
-        if (delegate != null) {
-            delegate.onSpaceAvailable(this);
+        Callback callback = this.getCallback();
+        if (callback != null) {
+            callback.onSpaceAvailable(this);
         }
     }
 
@@ -157,7 +156,7 @@ public abstract class OutputStreamCommons extends StreamCommons implements Outpu
      * array. This means that the implementation will attempt to actually write
      * the data to whatever is its output medium. The result of the operation
      * should be notified on the {@link OutputStreamCommons} through the
-     * {@link OutputStream.Delegate} API interface.
+     * {@link Callback} API interface.
      * @param data The data to write.
      * @return The {@link IoResult} for the operation.
      */

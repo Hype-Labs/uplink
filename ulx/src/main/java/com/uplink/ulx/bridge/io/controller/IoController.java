@@ -60,7 +60,7 @@ import androidx.annotation.Nullable;
  * that is something that should be fixed in the future.
  */
 public class IoController implements InputStream.Delegate,
-                                     OutputStream.Delegate,
+                                     OutputStream.Callback,
                                      Stream.InvalidationCallback {
 
     /**
