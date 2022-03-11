@@ -592,7 +592,13 @@ public class GattServer extends BluetoothGattServerCallback {
 
     @Override
     public void onNotificationSent(BluetoothDevice bluetoothDevice, int status) {
-        Log.i(getClass().getCanonicalName(), String.format("ULX sent a notification to %s", bluetoothDevice.getAddress()));
+        Log.i(
+                getClass().getCanonicalName(),
+                String.format("ULX sent a notification to %s. Status: %d",
+                              bluetoothDevice.getAddress(),
+                              status
+                )
+        );
 
         Dispatch.post(() -> {
 
