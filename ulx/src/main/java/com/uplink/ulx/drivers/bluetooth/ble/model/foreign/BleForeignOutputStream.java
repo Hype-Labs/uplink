@@ -39,15 +39,13 @@ public class BleForeignOutputStream extends OutputStreamCommons implements GattC
      * @param identifier An identifier used for JNI bridging and debugging.
      * @param gattClient The {@link GattClient} interacting with this stream.
      * @param outputCharacteristic The reliable output characteristic.
-     * @param invalidationDelegate The stream's InvalidationDelegate.
      */
     public BleForeignOutputStream(
             String identifier,
             GattClient gattClient,
-            BluetoothGattCharacteristic outputCharacteristic,
-            InvalidationDelegate invalidationDelegate
+            BluetoothGattCharacteristic outputCharacteristic
     ) {
-        super(identifier, TransportType.BLUETOOTH_LOW_ENERGY, true, invalidationDelegate);
+        super(identifier, TransportType.BLUETOOTH_LOW_ENERGY, true);
 
         Objects.requireNonNull(gattClient);
         Objects.requireNonNull(outputCharacteristic);
@@ -171,8 +169,7 @@ public class BleForeignOutputStream extends OutputStreamCommons implements GattC
         // Flag as closed
         onClose(error);
 
-        // TODO after this failed, the IoController queue did not recover and
-        //      remained busy instead.
+        notifyInvalidated(error);
     }
 
 }

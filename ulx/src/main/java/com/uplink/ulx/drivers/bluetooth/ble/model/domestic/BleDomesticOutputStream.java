@@ -7,9 +7,12 @@ import android.util.Log;
 
 import com.uplink.ulx.TransportType;
 import com.uplink.ulx.UlxError;
+import com.uplink.ulx.UlxErrorCode;
 import com.uplink.ulx.drivers.bluetooth.ble.gattServer.GattServer;
 import com.uplink.ulx.drivers.commons.model.OutputStreamCommons;
 import com.uplink.ulx.drivers.model.IoResult;
+
+import java.util.Locale;
 
 public class BleDomesticOutputStream extends OutputStreamCommons {
 
@@ -23,16 +26,15 @@ public class BleDomesticOutputStream extends OutputStreamCommons {
      * @param gattServer The GATT server that is managing this stream.
      * @param bluetoothDevice The corresponding {@link BluetoothDevice}.
      * @param characteristic The characteristic used by the stream for output.
-     * @param invalidationDelegate The stream's InvalidationCallback.
      */
     public BleDomesticOutputStream(
             String identifier,
             GattServer gattServer,
             BluetoothDevice bluetoothDevice,
-            BluetoothGattCharacteristic characteristic,
-            InvalidationDelegate invalidationDelegate)
+            BluetoothGattCharacteristic characteristic
+    )
     {
-        super(identifier, TransportType.BLUETOOTH_LOW_ENERGY, true, invalidationDelegate);
+        super(identifier, TransportType.BLUETOOTH_LOW_ENERGY, true);
 
         // This will be used to interact with the adapter
         this.gattServer = gattServer;
@@ -108,7 +110,24 @@ public class BleDomesticOutputStream extends OutputStreamCommons {
                 data
         );
 
-        return new IoResult(written, null);
+        final UlxError error;
+        if (written != data.length) {
+            error = new UlxError(
+                    UlxErrorCode.UNKNOWN,
+                    String.format(
+                            Locale.US,
+                            "Flushed %d bytes of %d. Stream invalidated",
+                            written,
+                            data.length
+                    ),
+                    "Failed to update characteristic",
+                    "Reconnect to the device"
+            );
+        } else {
+            error = null;
+        }
+
+        return new IoResult(written, error);
     }
 
     /**
@@ -129,5 +148,6 @@ public class BleDomesticOutputStream extends OutputStreamCommons {
      */
     public void notifyFailedIndication(UlxError error) {
         Log.e(getClass().getCanonicalName(), String.format("ULX failed to receive indication for a characteristic update [%s]", error.toString()));
+        notifyInvalidated(error);
     }
 }

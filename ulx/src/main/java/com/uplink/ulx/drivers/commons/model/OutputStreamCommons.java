@@ -1,11 +1,15 @@
 package com.uplink.ulx.drivers.commons.model;
 
+import android.annotation.SuppressLint;
+import android.util.Log;
+
+import com.uplink.ulx.UlxError;
 import com.uplink.ulx.drivers.model.IoResult;
 import com.uplink.ulx.drivers.model.OutputStream;
-import com.uplink.ulx.drivers.model.Stream;
 import com.uplink.ulx.threading.Dispatch;
 
-import java.lang.ref.WeakReference;
+import java.util.List;
+import java.util.Vector;
 
 /**
  * This class implements the part of functionality that is shared by all
@@ -16,7 +20,7 @@ import java.lang.ref.WeakReference;
  */
 public abstract class OutputStreamCommons extends StreamCommons implements OutputStream {
 
-    private WeakReference<OutputStream.Delegate> delegate;
+    private List<Callback> callbacks;
     private Buffer buffer;
 
     /**
@@ -24,17 +28,15 @@ public abstract class OutputStreamCommons extends StreamCommons implements Outpu
      * @param identifier An identifier used for JNI bridging and debugging.
      * @param transportType The stream's transport type.
      * @param reliable A boolean flag, indicating whether the stream is reliable.
-     * @param invalidationDelegate The stream's InvalidationDelegate.
      */
     public OutputStreamCommons(
             String identifier,
             int transportType,
-            boolean reliable,
-            Stream.InvalidationDelegate invalidationDelegate
+            boolean reliable
     ) {
-        super(identifier, transportType, reliable, invalidationDelegate);
+        super(identifier, transportType, reliable);
 
-        this.delegate = null;
+        this.callbacks = null;
         this.buffer = null;
     }
 
@@ -51,13 +53,30 @@ public abstract class OutputStreamCommons extends StreamCommons implements Outpu
     }
 
     @Override
-    public final void setDelegate(OutputStream.Delegate delegate) {
-        this.delegate = new WeakReference<>(delegate);
+    public final void addCallback(Callback callback) {
+        synchronized (this) {
+            if (callbacks == null) {
+                callbacks = new Vector<>();
+            }
+        }
+        callbacks.add(callback);
     }
 
     @Override
-    public final OutputStream.Delegate getDelegate() {
-        return this.delegate.get();
+    public void removeCallback(Callback callback) {
+        final boolean removed;
+        if (callbacks != null) {
+            removed = callbacks.remove(callback);
+        } else {
+            removed = false;
+        }
+        if (!removed) {
+            Log.w(getClass().getCanonicalName(), "Failed to find the callback to remove");
+        }
+    }
+
+    private List<Callback> getCallbacks() {
+        return callbacks;
     }
 
     protected void onSpaceAvailable() {
@@ -75,10 +94,11 @@ public abstract class OutputStreamCommons extends StreamCommons implements Outpu
         }
     }
 
+    @SuppressLint("NewApi") // forEach() is actually supported
     private void notifyHasSpaceAvailable() {
-        OutputStream.Delegate delegate = this.getDelegate();
-        if (delegate != null) {
-            delegate.onSpaceAvailable(this);
+        List<Callback> callbacks = this.getCallbacks();
+        if (callbacks != null) {
+            callbacks.forEach(callback -> callback.onSpaceAvailable(this));
         }
     }
 
@@ -122,8 +142,40 @@ public abstract class OutputStreamCommons extends StreamCommons implements Outpu
 
                 // Trim the buffer
                 getBuffer().trim(result.getByteCount());
+
+                final UlxError error = result.getError();
+                if (error != null) {
+                    Log.w(
+                            getClass().getCanonicalName(),
+                            String.format(
+                                    "Output stream failed to flush buffer data. Cause: %s\nInvalidating...",
+                                    error.getReason()
+                            )
+                    );
+
+                    // Since we are invalidating the stream, let's also clear its buffer
+                    // This will ensure that we won't try to flush the same data anymore
+                    final int bytesLeft = data.length - result.getByteCount();
+                    if (bytesLeft > 0) {
+                        getBuffer().trim(bytesLeft);
+                    }
+
+                    notifyInvalidated(error);
+                }
             }
         });
+    }
+
+    @SuppressLint("NewApi")// forEach() is actually supported
+    protected final void notifyInvalidated(UlxError error) {
+        // TODO make sure StateDelegate.onClose() is also called after this method
+        final List<InvalidationCallback> callbacks = getInvalidationCallbacks();
+        if (callbacks != null) {
+            callbacks.forEach(invalidationCallback -> invalidationCallback.onInvalidation(
+                    this,
+                    error
+            ));
+        }
     }
 
     /**
@@ -131,7 +183,7 @@ public abstract class OutputStreamCommons extends StreamCommons implements Outpu
      * array. This means that the implementation will attempt to actually write
      * the data to whatever is its output medium. The result of the operation
      * should be notified on the {@link OutputStreamCommons} through the
-     * {@link OutputStream.Delegate} API interface.
+     * {@link Callback} API interface.
      * @param data The data to write.
      * @return The {@link IoResult} for the operation.
      */

@@ -46,7 +46,8 @@ public class Bridge implements
                     NetworkController.Delegate,
                     NetworkController.InternetRequestDelegate,
                     Connector.StateDelegate,
-                    Stream.StateDelegate, Connector.InvalidationCallback {
+                    Stream.StateDelegate,
+                    Connector.InvalidationCallback {
     /**
      * The Bridge Delegate gets notifications for bridge-related events, which
      * will include a wide variety of such events. At this moment, only the
@@ -514,10 +515,10 @@ public class Bridge implements
         //outputStream.setStateDelegate(null);
         //
         //inputStream.setDelegate(null);  // Was the IoController before
-        //outputStream.setDelegate(null);
+        //outputStream.addCallback(null);
 
         // Clear the device from the lower grade controllers
-        getNetworkController().removeDevice(device);
+        getNetworkController().removeDevice(device, error);
 
         // Unregister the device
         getSouthRegistry().unsetDevice(device.getIdentifier());
@@ -540,7 +541,18 @@ public class Bridge implements
         Device device = getSouthRegistry().getDeviceInstance(stream.getIdentifier());
 
         // Make sure the device was previously registered
-        Objects.requireNonNull(device);
+        if (device == null) {
+            // We shouldn't have received this callback, unsubscribe
+            Log.e(
+                    getClass().getCanonicalName(),
+                    String.format(
+                            "ULX Bridge.onOpen(Stream) called for an unknown device. Stream identifier: %s",
+                            stream.getIdentifier()
+                    )
+            );
+            stream.setStateDelegate(null);
+            return;
+        }
 
         // Get the streams and check their states
         InputStream inputStream = device.getTransport().getReliableChannel().getInputStream();
@@ -600,7 +612,11 @@ public class Bridge implements
         //  Edit: one way that makes sense is to move the south bridge to the
         //  IoController; that is the one, after all, that manages the streams.
         inputStream.setDelegate(getNetworkController().getIoController());
-        outputStream.setDelegate(getNetworkController().getIoController());
+        outputStream.addCallback(getNetworkController().getIoController());
+
+        // Assume invalidation delegates
+        inputStream.addInvalidationCallback(getNetworkController().getIoController());
+        outputStream.addInvalidationCallback(getNetworkController().getIoController());
 
         // Open the streams
         inputStream.open();
@@ -615,7 +631,7 @@ public class Bridge implements
         device.getConnector().removeInvalidationCallback(this);
 
         // Clear the device from the lower grade controllers
-        getNetworkController().removeDevice(device);
+        getNetworkController().removeDevice(device, error);
 
         // Unregister the device
         getSouthRegistry().unsetDevice(device.getIdentifier());

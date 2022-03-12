@@ -278,6 +278,7 @@ class BleBrowser extends BrowserCommons implements
      * times.
      * @return An hash map of known devices.
      */
+    // TODO synchronize access to the map
     private Map<String, BluetoothDevice> getKnownDevices() {
         if (this.knownDevices == null) {
             this.knownDevices = new HashMap<>();
@@ -366,7 +367,7 @@ class BleBrowser extends BrowserCommons implements
         startScanning();
 
         // Notify the delegate
-        onStart(this);
+        onStart();
     }
 
     private void startScanning() {
@@ -438,10 +439,11 @@ class BleBrowser extends BrowserCommons implements
         stopScanning();
 
         // Notify the delegate; we're stopping gracefully
-        onStop(this, null);
+        onStop(null);
     }
 
     private void stopScanning() {
+        Log.i(getClass().getCanonicalName(), "ULX BLE scanner stopping");
         getBluetoothLeScanner().stopScan(getScanCallback());
     }
 
@@ -460,6 +462,10 @@ class BleBrowser extends BrowserCommons implements
             //Log.i(getClass().getCanonicalName(), String.format("ULX BLE browser ignoring device %s because it's already known", bluetoothDevice.getAddress()));
             return;
         }
+
+        // Add to the registry
+        getKnownDevices().put(bluetoothDevice.getAddress(), bluetoothDevice);
+        Log.d(getClass().getCanonicalName(), String.format("Device %s added to registry", bluetoothDevice.getAddress()));
 
         // Is the record found by the scanner publishing the expected service?
         if (!isCoreServiceScanRecord(scanRecord)) {
@@ -569,16 +575,6 @@ class BleBrowser extends BrowserCommons implements
     private void queueConnection(BluetoothDevice bluetoothDevice) {
         Log.i(getClass().getCanonicalName(), String.format("ULX BLE scanner is queueing connection %s", bluetoothDevice.getAddress()));
 
-        // Don't proceed if the device is already known; this would mean that
-        // some connection attempt is already in progress.
-        if (getKnownDevices().get(bluetoothDevice.getAddress()) != null) {
-            Log.i(getClass().getCanonicalName(), "ULX ignoring a queue request because the device is already known");
-            return;
-        }
-
-        // Add to the registry
-        getKnownDevices().put(bluetoothDevice.getAddress(), bluetoothDevice);
-
         // Instantiate the GATT client
         GattClient gattClient = new GattClient(
                 bluetoothDevice,
@@ -686,7 +682,7 @@ class BleBrowser extends BrowserCommons implements
     @Override
     public void onAdapterEnabled(BluetoothStateListener bluetoothStateListener) {
         if (getState() != Browser.State.RUNNING) {
-            onReady(this);
+            onReady();
         }
     }
 
@@ -703,7 +699,7 @@ class BleBrowser extends BrowserCommons implements
                     "Turn the Bluetooth adapter on."
             );
 
-            onStop(this, error);
+            onStop(error);
         }
 
         // The adapter being turned off, means that all connections where lost
@@ -767,16 +763,14 @@ class BleBrowser extends BrowserCommons implements
         BleForeignInputStream inputStream = new BleForeignInputStream(
                 identifier,
                 gattClient,
-                physicalReliableOutputCharacteristic,
-                this
+                physicalReliableOutputCharacteristic
         );
 
         // Create the output stream
         BleForeignOutputStream outputStream = new BleForeignOutputStream(
                 identifier,
                 gattClient,
-                physicalReliableInputCharacteristic,
-                this
+                physicalReliableInputCharacteristic
         );
 
         // The streams assume the corresponding GATT delegates
@@ -810,6 +804,13 @@ class BleBrowser extends BrowserCommons implements
 
         // The connector is no longer active
         removeActiveConnector(connector);
+
+        if (connector instanceof BleForeignConnector) {
+            final String address = ((BleForeignConnector) connector).getGattClient().getBluetoothDevice().getAddress();
+
+            // Remove the device from the list, so that we can connect to it again in the future
+            getKnownDevices().remove(address);
+        }
     }
 
     @Override
@@ -822,6 +823,7 @@ class BleBrowser extends BrowserCommons implements
         // Remove from the registry; when the device is seen again, the
         // connection should be retried
         getKnownDevices().remove(bluetoothDevice.getAddress());
+        Log.d(getClass().getCanonicalName(), String.format("Device %s removed from registry", bluetoothDevice.getAddress()));
         getKnownConnectors().remove(connector.getIdentifier());
         removeActiveConnector(connector);   // Shouldn't matter
 
@@ -831,8 +833,9 @@ class BleBrowser extends BrowserCommons implements
         // Since we're having failed connections, we should ask the adapter to
         // restart.
         Delegate delegate = getDelegate();
-        if (delegate != null) {
-            delegate.onAdapterRestartRequest(this);
+        if (delegate == null || !delegate.onAdapterRestartRequest(this)) {
+            // If we cannot restart the adapter - let's continue scanning
+            startScanning();
         }
     }
 }

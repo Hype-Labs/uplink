@@ -502,7 +502,15 @@ public class GattClient extends BluetoothGattCallback implements StateManager.De
 
     @Override
     public void onConnectionStateChange(BluetoothGatt bluetoothGatt, int status, int newState) {
-        Log.i(getClass().getCanonicalName(), String.format("ULX connected to native device %s with status %d", bluetoothGatt.getDevice().getAddress(), status));
+        Log.i(
+                getClass().getCanonicalName(),
+                String.format(
+                        "ULX connection changed for native device %s with status %d. New state: %d",
+                        bluetoothGatt.getDevice().getAddress(),
+                        status,
+                        newState
+                )
+        );
 
         //  hex	    Decimal	    reason
         //  0x08	8	        connection timeout

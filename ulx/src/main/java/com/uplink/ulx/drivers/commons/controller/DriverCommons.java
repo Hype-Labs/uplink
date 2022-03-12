@@ -410,8 +410,8 @@ public abstract class DriverCommons implements
     }
 
     @Override
-    public void onAdapterRestartRequest(Browser browser) {
-        handleAdapterRestartRequest();
+    public boolean onAdapterRestartRequest(Browser browser) {
+        return handleAdapterRestartRequest();
     }
 
     @Override
@@ -419,7 +419,10 @@ public abstract class DriverCommons implements
         handleAdapterRestartRequest();
     }
 
-    private void handleAdapterRestartRequest() {
+    /**
+     * @return whether the request was honored
+     */
+    private boolean handleAdapterRestartRequest() {
 
         int advertiserConnectorCount = getAdvertiser().getActiveConnectors().size();
         int browserConnectorCount = getBrowser().getActiveConnectors().size();
@@ -428,13 +431,15 @@ public abstract class DriverCommons implements
 
         if (advertiserConnectorCount != 0 || browserConnectorCount != 0) {
             Log.i(getClass().getCanonicalName(), "ULX driver is rejecting an adapter restart request");
-            return;
+            return false;
         }
 
         Log.i(getClass().getCanonicalName(), "ULX is accepting an adapter restart request");
 
         // Restart the adapter
         requestAdapterRestart();
+
+        return true;
     }
 
     protected abstract void requestAdapterRestart();

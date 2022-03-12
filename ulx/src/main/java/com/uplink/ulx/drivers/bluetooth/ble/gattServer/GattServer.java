@@ -12,6 +12,7 @@ import android.bluetooth.BluetoothManager;
 import android.bluetooth.BluetoothProfile;
 import android.content.Context;
 import android.os.Build;
+import android.os.DeadObjectException;
 import android.os.Looper;
 import android.util.Log;
 
@@ -326,8 +327,9 @@ public class GattServer extends BluetoothGattServerCallback {
         Log.i(
                 getClass().getCanonicalName(),
                 String.format(
-                        "ULX device %s state changed. New state: %d",
+                        "ULX device %s state changed. Status: %d. New state: %d",
                         device.getAddress(),
+                        status,
                         newState
                 )
         );
@@ -533,7 +535,17 @@ public class GattServer extends BluetoothGattServerCallback {
             if (!getBluetoothGattServer().notifyCharacteristicChanged(bluetoothDevice, characteristic, confirm)) {
                 return 0;
             }
-        } catch (NullPointerException ex) {
+        } catch (Exception ex) { // In practice, NullPointerException or DeadObjectException
+            // can happen, even though DeadObjectException is not present in the method's
+            // signature. TODO investigate DeadObjectException
+
+            Log.w(getClass().getCanonicalName(),
+                  String.format(
+                          "ULX unexpected exception happened. Invalidating device %s",
+                          bluetoothDevice.getAddress()
+                  ),
+                  ex
+            );
 
             UlxError error = new UlxError(
                     UlxErrorCode.UNKNOWN,
@@ -580,7 +592,13 @@ public class GattServer extends BluetoothGattServerCallback {
 
     @Override
     public void onNotificationSent(BluetoothDevice bluetoothDevice, int status) {
-        Log.i(getClass().getCanonicalName(), String.format("ULX sent a notification to %s", bluetoothDevice.getAddress()));
+        Log.i(
+                getClass().getCanonicalName(),
+                String.format("ULX sent a notification to %s. Status: %d",
+                              bluetoothDevice.getAddress(),
+                              status
+                )
+        );
 
         Dispatch.post(() -> {
 

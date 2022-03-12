@@ -3,6 +3,10 @@ package com.uplink.ulx.drivers.model;
 import com.uplink.ulx.TransportType;
 import com.uplink.ulx.UlxError;
 
+import java.util.List;
+
+import androidx.annotation.NonNull;
+
 /**
  * A Stream is the main I/O abstraction unit provided by the SDK. A Stream,
  * however, does not have a concrete implementation, since streams must either
@@ -13,7 +17,7 @@ import com.uplink.ulx.UlxError;
  * counterpart reads input, while its OutputStream counterpart writes output.
  * Both, however, share this abstraction in common. The abstraction enables
  * state management (Stream.State and Stream.StateDelegate), invalidation
- * observability (Stream.InvalidationDelegate), and actions to open and close
+ * observability (Stream.InvalidationCallback), and actions to open and close
  * the streams, among other utilities.
  */
 public interface Stream {
@@ -142,11 +146,11 @@ public interface Stream {
     /**
      * This delegate provides indication that the Stream has become invalid,
      * and this is no longer capable of performing its duties. This delegate is
-     * called when the Connector's InvalidationDelegate is called as well.
+     * called when the Connector's InvalidationCallback is called as well.
      * When that happens, the stream should be disposed, since it can no longer
      * serve the purpose that it serves.
      */
-    interface InvalidationDelegate {
+    interface InvalidationCallback {
 
         /**
          * The Stream became invalid, meaning that it can no longer be used to
@@ -171,6 +175,7 @@ public interface Stream {
      * an hexadecimal string.
      * @return The stream's identifier.
      */
+    @NonNull
     String getIdentifier();
 
     /**
@@ -210,25 +215,19 @@ public interface Stream {
     StateDelegate getStateDelegate();
 
     /**
-     * Sets the stream's invalidation delegate (Stream.InvalidationDelegate),
+     * Adds the stream's invalidation callback (Stream.InvalidationCallback),
      * which will being to receive invalidation event notifications from the
-     * stream. If another delegate has previously been set, it will be
-     * overridden, and all notifications will be triggered on the new instance.
-     * The stream must keep a weak reference to this delegate.
-     * @param invalidationDelegate The delegate to set.
-     * @see Stream.InvalidationDelegate
+     * stream.
+     * @param invalidationCallback The callback to add.
+     * @see InvalidationCallback
      */
-    void setInvalidationDelegate(Stream.InvalidationDelegate invalidationDelegate);
+    void addInvalidationCallback(InvalidationCallback invalidationCallback);
 
     /**
-     * Returns a strong reference for the InvalidationDelegate that is currently
-     * getting invalidation notifications from the stream. Although a strong
-     * reference is returned, the Stream must hold a weak reference to this
-     * object.
-     * @return The stream's invalidation delegate.
-     * @see Stream.InvalidationDelegate
+     * Removes the given invalidation callback from the current list of callbacks
+     * @param invalidationCallback The callback to remove
      */
-    Stream.InvalidationDelegate getInvalidationDelegate();
+    void removeInvalidationCallback(InvalidationCallback invalidationCallback);
 
     /**
      * Returns a boolean flag indicating whether the stream is reliable. A

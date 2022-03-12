@@ -10,7 +10,6 @@ import com.uplink.ulx.threading.ExecutorPool;
 
 import java.lang.ref.WeakReference;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.ExecutorService;
 
@@ -26,7 +25,7 @@ import androidx.annotation.NonNull;
  * specific implementations. This means that each implementation will worry
  * about the details of its specific transport, leaving this commonalities for
  * this class, which is to be used as a base class. This class also leaves
- * the Stream's InvalidationDelegate methods for the child class to implement.
+ * the Stream's InvalidationCallback methods for the child class to implement.
  */
 public abstract class ConnectorCommons implements
         Connector,

@@ -21,15 +21,13 @@ public class BleForeignInputStream extends InputStreamCommons implements GattCli
      * @param identifier An identifier used for JNI bridging and debugging.
      * @param gattClient The {@link GattClient} used to interact with the adapter.
      * @param inputCharacteristic The reliable input characteristic.
-     * @param invalidationDelegate The stream's InvalidationDelegate.
      */
     public BleForeignInputStream(
             String identifier,
             GattClient gattClient,
-            BluetoothGattCharacteristic inputCharacteristic,
-            InvalidationDelegate invalidationDelegate
+            BluetoothGattCharacteristic inputCharacteristic
     ) {
-        super(identifier, TransportType.BLUETOOTH_LOW_ENERGY, true, invalidationDelegate);
+        super(identifier, TransportType.BLUETOOTH_LOW_ENERGY, true);
 
         Objects.requireNonNull(gattClient);
         Objects.requireNonNull(inputCharacteristic);

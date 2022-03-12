@@ -35,7 +35,6 @@ import com.uplink.ulx.drivers.model.Connector;
 import com.uplink.ulx.drivers.model.Device;
 import com.uplink.ulx.drivers.model.InputStream;
 import com.uplink.ulx.drivers.model.OutputStream;
-import com.uplink.ulx.drivers.model.Stream;
 import com.uplink.ulx.drivers.model.Transport;
 import com.uplink.ulx.threading.Dispatch;
 
@@ -56,8 +55,7 @@ import androidx.annotation.Nullable;
 class BleAdvertiser extends AdvertiserCommons implements
         GattServer.Delegate,
         BluetoothStateListener.Observer,
-        Connector.StateDelegate,
-        Stream.InvalidationDelegate
+        Connector.StateDelegate
 {
     private final BluetoothManager bluetoothManager;
     private BluetoothAdapter bluetoothAdapter;
@@ -289,10 +287,14 @@ class BleAdvertiser extends AdvertiserCommons implements
         }
 
         if (deviceList.size() > 1) {
-            throw new RuntimeException("An unexpected amount of devices was " +
-                    "found in association with a single BluetoothDevice address. " +
-                    "This means that the registry got corrupted, since only a " +
-                    "single entry is expected.");
+            Log.e(
+                    getClass().getCanonicalName(),
+                    "An unexpected amount of devices was " +
+                            "found in association with a single BluetoothDevice address. " +
+                            "This means that the registry got corrupted, since only a " +
+                            "single entry is expected."
+            );
+            return null;
         }
 
         // There should be only one
@@ -486,6 +488,15 @@ class BleAdvertiser extends AdvertiserCommons implements
 
         Device device = getDevice(bluetoothDevice);
 
+        if (device == null) {
+            Log.e(getClass().getCanonicalName(),
+                  String.format(
+                          "Output stream has been subscribed for an unknown native device %s",
+                          bluetoothDevice.getAddress()
+                  )
+            );
+            return;
+        }
         // Notify the stream that it has been subscribed
         BleDomesticInputStream inputStream = (BleDomesticInputStream)device.getTransport().getReliableChannel().getInputStream();
         BleDomesticOutputStream outputStream = (BleDomesticOutputStream)device.getTransport().getReliableChannel().getOutputStream();
@@ -503,6 +514,15 @@ class BleAdvertiser extends AdvertiserCommons implements
 
         Device device = getDevice(bluetoothDevice);
 
+        if (device == null) {
+            Log.e(getClass().getCanonicalName(),
+                  String.format(
+                          "Notification sent callback received for an unknown device: %s",
+                          bluetoothDevice.getAddress()
+                  )
+            );
+            return;
+        }
         // Notify the output stream that the indication was given
         BleDomesticOutputStream outputStream = (BleDomesticOutputStream)device.getTransport().getReliableChannel().getOutputStream();
         outputStream.notifySuccessfulIndication();
@@ -513,6 +533,17 @@ class BleAdvertiser extends AdvertiserCommons implements
 
         Device device = getDevice(bluetoothDevice);
 
+        if (device == null) {
+            Log.e(getClass().getCanonicalName(),
+                  String.format(
+                          "Notification not sent callback received for an unknown device: %s",
+                          bluetoothDevice.getAddress()
+                  )
+            );
+            return;
+        }
+
+
         // Notify the output stream that the indication was NOT given
         BleDomesticOutputStream outputStream = (BleDomesticOutputStream)device.getTransport().getReliableChannel().getOutputStream();
         outputStream.notifyFailedIndication(error);
@@ -521,6 +552,17 @@ class BleAdvertiser extends AdvertiserCommons implements
     @Override
     public void onCharacteristicWriteRequest(GattServer gattServer, BluetoothDevice bluetoothDevice, byte[] data) {
         Device device = getDevice(bluetoothDevice);
+
+        if (device == null) {
+            Log.w(
+                    getClass().getCanonicalName(),
+                    String.format(
+                            "ULX received characteristic write request from an unknown device: %s. Ignoring.",
+                            bluetoothDevice.getAddress()
+                    )
+            );
+            return;
+        }
 
         // Notify the input stream of incoming data
         BleDomesticInputStream inputStream = (BleDomesticInputStream)device.getTransport().getReliableChannel().getInputStream();
@@ -551,11 +593,8 @@ class BleAdvertiser extends AdvertiserCommons implements
 
     @Override
     public void onInvalidation(Connector connector, UlxError error) {
+        connector.removeInvalidationCallback(this);
         removeActiveConnector(connector);
-    }
-
-    @Override
-    public void onInvalidation(Stream stream, UlxError error) {
     }
 
     /**
@@ -634,17 +673,13 @@ class BleAdvertiser extends AdvertiserCommons implements
 
         BleDomesticConnector domesticConnector = (BleDomesticConnector)connector;
 
-        InputStream inputStream = new BleDomesticInputStream(
-                connector.getIdentifier(),
-                this
-        );
+        InputStream inputStream = new BleDomesticInputStream(connector.getIdentifier());
 
         OutputStream outputStream = new BleDomesticOutputStream(
                 connector.getIdentifier(),
                 getGattServer(),
                 domesticConnector.getBluetoothDevice(),
-                getDomesticService().getReliableOutputCharacteristic(),
-                this
+                getDomesticService().getReliableOutputCharacteristic()
         );
 
         Channel reliableChannel = new BleChannel(

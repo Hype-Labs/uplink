@@ -18,6 +18,7 @@ import com.uplink.ulx.bridge.io.model.UpdatePacket;
 import com.uplink.ulx.bridge.network.model.Link;
 import com.uplink.ulx.bridge.network.model.RoutingTable;
 import com.uplink.ulx.bridge.network.model.Ticket;
+import com.uplink.ulx.drivers.model.Channel;
 import com.uplink.ulx.drivers.model.Device;
 import com.uplink.ulx.drivers.model.InputStream;
 import com.uplink.ulx.drivers.model.OutputStream;
@@ -394,7 +395,7 @@ public class NetworkController implements IoController.Delegate,
 
         if (activeNetwork != null && activeNetwork.isConnected()) {
             try {
-                URL url = new URL("http://www.google.com/");
+                URL url = new URL("https://www.google.com/");
                 HttpURLConnection connection = (HttpURLConnection)url.openConnection();
                 connection.setRequestProperty("User-Agent", "test");
                 connection.setRequestProperty("Connection", "close");
@@ -703,6 +704,8 @@ public class NetworkController implements IoController.Delegate,
                 handleInternetResponsePacketReceived(device, (InternetResponsePacket) packet);
                 break;
         }
+
+        Log.d(getClass().getCanonicalName(), "Packet handled");
     }
 
     @Override
@@ -748,9 +751,11 @@ public class NetworkController implements IoController.Delegate,
                 1,
                 packet.getInternetHops()
         );
+
+        getRoutingTable().log();
     }
 
-    public void removeDevice(Device device) {
+    public void removeDevice(Device device, UlxError error) {
 
         // Clearing the device from the routing table could result in several
         // lost instances
@@ -758,6 +763,14 @@ public class NetworkController implements IoController.Delegate,
 
         // TODO there might still be pending I/O with this device, which must
         //      be cleared.
+        getRoutingTable().log();
+
+        // In some cases we cannot get any indication of failure from the stream itself, even if
+        // there was an operation pending. One example is that notification sent callback won't be
+        // called if the adapter has been turned off. So we'll invalidate the streams just in case
+        final Channel channel = device.getTransport().getReliableChannel();
+        getIoController().onInvalidation(channel.getInputStream(), error);
+        getIoController().onInvalidation(channel.getOutputStream(), error);
     }
 
     /**
@@ -800,6 +813,8 @@ public class NetworkController implements IoController.Delegate,
                 packet.getHopCount(),
                 packet.getInternetHopCount()
         );
+
+        getRoutingTable().log();
     }
 
     /**
@@ -945,8 +960,12 @@ public class NetworkController implements IoController.Delegate,
             @Override
             public Device getDevice() {
                 Device device = getBestLinkNextHopDevice(destination, splitHorizon);
-                assert device != null;
-                Log.i(NetworkController.this.getClass().getCanonicalName(), String.format("ULX best link next hop is %s", device.getIdentifier()));
+                Log.i(NetworkController.this.getClass().getCanonicalName(),
+                      String.format(
+                              "ULX best link next hop is %s",
+                              device != null ? device.getIdentifier() : null
+                      )
+                );
                 return device;
             }
 
@@ -1088,7 +1107,7 @@ public class NetworkController implements IoController.Delegate,
     @Override
     public void onInstanceLost(
             RoutingTable routingTable,
-            @NonNull Device device,
+            @NonNull Device lastDevice,
             Instance instance,
             UlxError error
     ) {
@@ -1099,7 +1118,7 @@ public class NetworkController implements IoController.Delegate,
                 RoutingTable.HOP_COUNT_INFINITY,
                 RoutingTable.HOP_COUNT_INFINITY
         );
-        scheduleUpdatePacket(updatePacket, device);
+        scheduleUpdatePacket(updatePacket, lastDevice);
 
         notifyOnInstanceLost(instance, error);
     }
@@ -1111,18 +1130,10 @@ public class NetworkController implements IoController.Delegate,
 
     private void update(Link link) {
 
-        getRoutingTable().log();
-
         assert link != null;
 
         int hopCount = Math.min(link.getHopCount() + 1, RoutingTable.HOP_COUNT_INFINITY);
         int internetHopCount = Math.min(link.getInternetHopCount() + 1, RoutingTable.HOP_COUNT_INFINITY);
-
-        // Don't propagate events that reach the maximum number of hops
-        if (hopCount >= RoutingTable.MAXIMUM_HOP_COUNT) {
-            Log.i(getClass().getCanonicalName(), String.format("ULX-M is not propagating a link update, the hop count was exceeded (%d/%d) for link %s", hopCount, RoutingTable.MAXIMUM_HOP_COUNT, link == null ? "(null)" : link.toString()));
-            return;
-        }
 
         Log.i(getClass().getCanonicalName(), String.format("ULX-M is propagating link update %s", link.toString()));
 
@@ -1140,46 +1151,98 @@ public class NetworkController implements IoController.Delegate,
         scheduleUpdatePacket(updatePacket, link.getNextHop());
     }
 
-    /**
-     * Propagates the given {@link UpdatePacket} to all {@link Device}s
-     * connected in line of sight (LoS).
-     * @param updatePacket The packet to propagate.
-     * @param splitHorizon A device to ignore, which should be the originator
-     *                     for the update.
-     */
-    private void scheduleUpdatePacket(UpdatePacket updatePacket, Device splitHorizon) {
+    @Override
+    public void onSplitHorizonLinkUpdate(
+            RoutingTable routingTable,
+            Device bestLinkDevice,
+            Instance destination,
+            int hopCount,
+            int internetHopCount
+    ) {
+        Log.i(
+                getClass().getCanonicalName(),
+                String.format(
+                        "Sending split-horizon update to %s regarding instance %s. Hop count: %d. Internet hop count: %d",
+                        bestLinkDevice.getIdentifier(),
+                        destination,
+                        hopCount,
+                        internetHopCount
+                )
+        );
+        
+        final UpdatePacket updatePacket = new UpdatePacket(
+                getSequenceGenerator().generate(),
+                destination,
+                hopCount,
+                internetHopCount
+        );
 
-        assert splitHorizon != null;
+        scheduleUpdatePacketForDevice(updatePacket, bestLinkDevice);
+    }
+
+    /**
+     * Propagates the given {@link UpdatePacket} to all {@link Device}s connected in line of sight
+     * (LoS).
+     *
+     * @param updatePacket The packet to propagate.
+     * @param splitHorizon A device to ignore, which is the next-hop for the updated link or a
+     *                     just-lost device
+     */
+    private void scheduleUpdatePacket(UpdatePacket updatePacket, @NonNull Device splitHorizon) {
 
         for (Device device : getRoutingTable().getDeviceList()) {
-            Log.i(getClass().getCanonicalName(), String.format("ULX-M scheduling update packet %s to %s with split horizon %s", updatePacket.toString(), device.getIdentifier(), splitHorizon == null ? "(null)" : splitHorizon.getIdentifier()));
+            Log.i(
+                    getClass().getCanonicalName(),
+                    String.format("ULX-M scheduling update packet %s to %s with split horizon %s",
+                                  updatePacket.toString(),
+                                  device.getIdentifier(),
+                                  splitHorizon.getIdentifier()
+                    )
+            );
 
             // Ignore the split horizon
-            if (device.getIdentifier().equals(splitHorizon.getIdentifier())) {
-                Log.i(getClass().getCanonicalName(), String.format("ULX-M not propagating update packet %s to device %s because the device is the split horizon", updatePacket.toString(), splitHorizon == null ? "(null)" : splitHorizon.getIdentifier()));
+            if (device.equals(splitHorizon)) {
+                Log.i(
+                        getClass().getCanonicalName(),
+                        String.format(
+                                "ULX-M not propagating update packet %s to device %s because the device is the split horizon",
+                                updatePacket,
+                                splitHorizon.getIdentifier()
+                        )
+                );
                 continue;
             }
 
             // The update packet is propagated to all devices in direct link
             // (except the split horizon)
-            getIoController().add(new NetworkPacket(updatePacket) {
-
-                @Override
-                public void handleOnWritten() {
-                    Log.e(getClass().getCanonicalName(), "ULX update packet was written");
-                }
-
-                @Override
-                public void handleOnWriteFailure(UlxError error) {
-                    Log.e(getClass().getCanonicalName(), "ULX update packet was NOT written");
-                }
-
-                @Override
-                public Device getDevice() {
-                    return device;
-                }
-            });
+            scheduleUpdatePacketForDevice(updatePacket, device);
         }
+    }
+
+    /**
+     * Send update packet to the given device
+     *
+     * @param updatePacket The packet
+     * @param device       The receiver
+     */
+    private void scheduleUpdatePacketForDevice(UpdatePacket updatePacket, Device device) {
+        getIoController().add(new NetworkPacket(updatePacket) {
+
+            @Override
+            public void handleOnWritten() {
+                Log.e(getClass().getCanonicalName(), "ULX update packet was written");
+            }
+
+            @Override
+            public void handleOnWriteFailure(UlxError error) {
+                Log.e(getClass().getCanonicalName(), "ULX update packet was NOT written");
+            }
+
+            @Override
+            public Device getDevice() {
+                return device;
+            }
+        });
     }
 
     /**

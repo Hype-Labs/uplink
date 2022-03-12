@@ -7,7 +7,13 @@ import com.uplink.ulx.drivers.commons.StateManager;
 import com.uplink.ulx.drivers.model.Stream;
 
 import java.lang.ref.WeakReference;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Objects;
+import java.util.Vector;
+
+import androidx.annotation.NonNull;
+import androidx.annotation.Nullable;
 
 /**
  * A StreamCommons is an abstraction of a stream base class that implements
@@ -26,30 +32,28 @@ public abstract class StreamCommons implements
         Stream,
         StateManager.Delegate {
 
+    @NonNull
     private final String identifier;
     private final int transportType;
     private final boolean reliable;
     private final StateManager stateManager;
     private WeakReference<StateDelegate> stateDelegate;
-    private WeakReference<Stream.InvalidationDelegate> invalidationDelegate;
+    private List<InvalidationCallback> invalidationCallbacks;
 
     /**
      * Constructor. Initializes with the given arguments.
      * @param identifier An identifier used for JNI bridging and debugging.
      * @param transportType The stream's transport type.
      * @param reliable A boolean flag, indicating whether the stream is reliable.
-     * @param invalidationDelegate The stream's InvalidationDelegate.
      */
-    public StreamCommons(String identifier, int transportType, boolean reliable, Stream.InvalidationDelegate invalidationDelegate) {
+    public StreamCommons(@NonNull String identifier, int transportType, boolean reliable) {
 
         Objects.requireNonNull(identifier);
-        Objects.requireNonNull(invalidationDelegate);
 
         this.identifier = identifier;
         this.stateManager = new StateManager(this);
         this.transportType = transportType;
         this.reliable = reliable;
-        this.invalidationDelegate = new WeakReference<>(invalidationDelegate);
     }
 
     /**
@@ -151,6 +155,7 @@ public abstract class StreamCommons implements
         getStateManager().stop();
     }
 
+    @NonNull
     @Override
     public String getIdentifier() {
         return this.identifier;
@@ -174,17 +179,31 @@ public abstract class StreamCommons implements
         this.stateDelegate = new WeakReference<>(stateDelegate);
     }
 
-    @Override
-    public Stream.InvalidationDelegate getInvalidationDelegate() {
-        if (this.invalidationDelegate != null) {
-            return this.invalidationDelegate.get();
-        }
-        return null;
+    @Nullable
+    protected List<InvalidationCallback> getInvalidationCallbacks() {
+        return invalidationCallbacks != null ? new ArrayList<>(invalidationCallbacks) : null;
     }
 
     @Override
-    public void setInvalidationDelegate(Stream.InvalidationDelegate invalidationDelegate) {
-        this.invalidationDelegate = new WeakReference<>(invalidationDelegate);
+    public void addInvalidationCallback(InvalidationCallback invalidationCallback) {
+        synchronized (this) {
+            if (invalidationCallbacks == null) {
+                invalidationCallbacks = new Vector<>();
+            }
+        }
+        invalidationCallbacks.add(invalidationCallback);
+    }
+
+    @Override
+    public void removeInvalidationCallback(InvalidationCallback invalidationCallback) {
+        if (invalidationCallbacks != null) {
+            if (!invalidationCallbacks.remove(invalidationCallback)) {
+                Log.w(
+                        getClass().getCanonicalName(),
+                        "Failed to remove invalidation callback, because it was not present"
+                );
+            }
+        }
     }
 
     @Override
@@ -204,5 +223,19 @@ public abstract class StreamCommons implements
 
     public void onStateChange(Stream stream) {
         getStateDelegate().onStateChange(stream);
+    }
+
+    @SuppressWarnings("ControlFlowStatementWithoutBraces")
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (!(o instanceof StreamCommons)) return false;
+        final StreamCommons that = (StreamCommons) o;
+        return identifier.equals(that.identifier);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(identifier);
     }
 }
