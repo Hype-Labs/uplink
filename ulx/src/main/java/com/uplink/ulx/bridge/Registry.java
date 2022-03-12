@@ -25,7 +25,6 @@ public class Registry<T> {
     private Map<String, Device> deviceRegistry;
 
     private Map<String, List<String>> genericToDeviceRegistry;
-    private Map<String, List<String>> deviceToGenericRegistry;
 
     /**
      * Constructor.
@@ -34,7 +33,6 @@ public class Registry<T> {
         this.deviceRegistry = null;
 
         this.genericToDeviceRegistry = null;
-        this.deviceToGenericRegistry = null;
     }
 
     /**
@@ -62,19 +60,6 @@ public class Registry<T> {
     }
 
     /**
-     * Returns the hash map that is used to map Device identifiers with their
-     * corresponding generic identifiers. This corresponds to the reverse
-     * relationship of the generic-to-device map.
-     * @return The registry that maps device identifiers with generic ones.
-     */
-    private Map<String, List<String>> getDeviceToGenericRegistry() {
-        if (this.deviceToGenericRegistry == null) {
-            this.deviceToGenericRegistry = new HashMap<>();
-        }
-        return this.deviceToGenericRegistry;
-    }
-
-    /**
      * This method checks if the given {@code identifier} is already present on
      * the generic-to-device relationship and, if not, creates a new collection
      * of items, empty and ready to use. This collection is the one that is
@@ -89,25 +74,6 @@ public class Registry<T> {
         // Create if none exists
         if (list == null) {
             getGenericToDeviceRegistry().put(identifier, list = new ArrayList<>());
-        }
-
-        return list;
-    }
-
-    /**
-     * This method checks if the given device identifier is already present in
-     * the device-to-generic registry, creating a new empty collection if one
-     * does not already exists. This collection is returned.
-     * @param identifier The identifier to check.
-     * @return The collection associated with the identifier.
-     */
-    private List<String> getDeviceToGenericList(String identifier) {
-
-        List<String> list = getDeviceToGenericRegistry().get(identifier);
-
-        // Create if none exists
-        if (list == null) {
-            getDeviceToGenericRegistry().put(identifier, list = new ArrayList<>());
         }
 
         return list;
@@ -129,16 +95,6 @@ public class Registry<T> {
     }
 
     /**
-     * Creates an association between a generic identifier and the given device
-     * ({@link Device}).
-     * @param identifier  The generic identifier for type T.
-     * @param device The device to associate.
-     */
-    public void associate(String identifier, Device device) {
-        associate(identifier, device.getIdentifier());
-    }
-
-    /**
      * Creates an association between the two given identifiers (generic and
      * device). Each of those identifiers is assigned a collection of elements
      * which will contain the other one. This way, each identifier is mapped
@@ -150,12 +106,10 @@ public class Registry<T> {
      */
     public void associate(String genericIdentifier, String deviceIdentifier) {
         getGenericToDeviceList(genericIdentifier).add(deviceIdentifier);
-        getDeviceToGenericList(deviceIdentifier).add(genericIdentifier);
     }
 
     public void dissociate(String genericIdentifier, String deviceIdentifier) {
         getGenericToDeviceList(genericIdentifier).remove(deviceIdentifier);
-        getDeviceToGenericList(deviceIdentifier).remove(genericIdentifier);
     }
 
     /**
