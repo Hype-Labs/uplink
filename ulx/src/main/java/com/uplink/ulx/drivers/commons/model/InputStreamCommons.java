@@ -1,11 +1,11 @@
 package com.uplink.ulx.drivers.commons.model;
 
-import android.util.Log;
-
-import com.uplink.ulx.drivers.model.IoResult;
 import com.uplink.ulx.drivers.model.InputStream;
+import com.uplink.ulx.drivers.model.IoResult;
 
 import java.lang.ref.WeakReference;
+
+import timber.log.Timber;
 
 /**
  * InputStreamCommons extends on the StreamCommons abstraction to include input
@@ -58,7 +58,11 @@ public abstract class InputStreamCommons extends StreamCommons implements InputS
      */
     protected final void notifyDataReceived(byte[] data) {
 
-        Log.i(getClass().getCanonicalName(), String.format("ULX input stream %s received %d bytes of data", getIdentifier(), data.length));
+        Timber.i(
+                "ULX input stream %s received %d bytes of data",
+                getIdentifier(),
+                data.length
+        );
 
         // The onDataAvailable event is only triggered if data is being
         // appended to an empty buffer

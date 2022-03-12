@@ -4,7 +4,6 @@ import android.content.Context;
 import android.content.Intent;
 import android.os.Binder;
 import android.os.IBinder;
-import android.util.Log;
 
 import com.uplink.ulx.UlxError;
 import com.uplink.ulx.bridge.Bridge;
@@ -21,6 +20,8 @@ import org.json.JSONObject;
 import java.lang.ref.WeakReference;
 import java.net.URL;
 import java.util.UUID;
+
+import timber.log.Timber;
 
 /**
  * This is an extension of an Android Service that is used to run the SDK as a
@@ -333,7 +334,7 @@ public class Service extends android.app.Service implements
 
     @Override
     public IBinder onBind(Intent intent) {
-        Log.i(getClass().getCanonicalName(), "ULX binding service");
+        Timber.i("ULX binding service");
         return this.binder;
     }
 
@@ -435,7 +436,7 @@ public class Service extends android.app.Service implements
 
     @Override
     public void onDeviceFound(Driver driver, Device device) {
-        Log.i(getClass().getCanonicalName(), String.format("ULX found device %s", device.getIdentifier()));
+        Timber.i("ULX found device %s", device.getIdentifier());
 
         // Register the device with the bridge
         Bridge.getInstance().takeover(device);
@@ -443,7 +444,7 @@ public class Service extends android.app.Service implements
 
     @Override
     public void onDeviceLost(Driver driver, Device device, UlxError error) {
-        Log.i(getClass().getCanonicalName(), String.format("ULX lost device %s", device.getIdentifier()));
+        Timber.i("ULX lost device %s", device.getIdentifier());
     }
 
     @Override

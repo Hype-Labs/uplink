@@ -2,7 +2,6 @@ package com.uplink.ulx.bridge;
 
 import android.bluetooth.BluetoothDevice;
 import android.content.Context;
-import android.util.Log;
 
 import com.uplink.ulx.UlxError;
 import com.uplink.ulx.UlxErrorCode;
@@ -29,6 +28,7 @@ import java.util.Objects;
 import java.util.UUID;
 
 import androidx.annotation.Nullable;
+import timber.log.Timber;
 
 /**
  * This bridge is the main point of communication between the Java service and
@@ -398,7 +398,10 @@ public class Bridge implements
                 // Set the host instance
                 this.hostInstance = hostInstance;
 
-                Log.i(getClass().getCanonicalName(), String.format("ULX-M instance created with identifier %s", hostInstance.getStringIdentifier()));
+                Timber.i(
+                        "ULX-M instance created with identifier %s",
+                        hostInstance.getStringIdentifier()
+                );
             }
 
             // If the Bridge was deallocated in the meanwhile, do nothing.
@@ -484,18 +487,18 @@ public class Bridge implements
 
     @Override
     public void onConnected(Connector connector) {
-        Log.i(getClass().getCanonicalName(), "ULX bridge connector connected");
+        Timber.i("ULX bridge connector connected");
     }
 
     @Override
     public void onDisconnection(Connector connector, UlxError error) {
-        Log.e(getClass().getCanonicalName(), "ULX connector disconnected on the bridge");
-        Log.e(getClass().getCanonicalName(), String.format("ULX connector is %s", connector.getIdentifier()));
+        Timber.e("ULX connector disconnected on the bridge");
+        Timber.e("ULX connector is %s", connector.getIdentifier());
 
         Device device = getSouthRegistry().getDeviceInstance(connector.getIdentifier());
 
         if (device == null) {
-            Log.e(getClass().getCanonicalName(), "ULX device was not found on the registry");
+            Timber.e("ULX device was not found on the registry");
             return;
         }
 
@@ -526,7 +529,7 @@ public class Bridge implements
 
     @Override
     public void onConnectionFailure(Connector connector, UlxError error) {
-        Log.e(getClass().getCanonicalName(), "ULX connection failed");
+        Timber.e("ULX connection failed");
 
         // Try again?
         connector.connect();
@@ -543,12 +546,9 @@ public class Bridge implements
         // Make sure the device was previously registered
         if (device == null) {
             // We shouldn't have received this callback, unsubscribe
-            Log.e(
-                    getClass().getCanonicalName(),
-                    String.format(
-                            "ULX Bridge.onOpen(Stream) called for an unknown device. Stream identifier: %s",
-                            stream.getIdentifier()
-                    )
+            Timber.e(
+                    "ULX Bridge.onOpen(Stream) called for an unknown device. Stream identifier: %s",
+                    stream.getIdentifier()
             );
             stream.setStateDelegate(null);
             return;
@@ -558,10 +558,11 @@ public class Bridge implements
         InputStream inputStream = device.getTransport().getReliableChannel().getInputStream();
         OutputStream outputStream = device.getTransport().getReliableChannel().getOutputStream();
 
-        Log.i(getClass().getCanonicalName(), String.format("ULX stream states are (Input: %s, Output: %s)",
+        Timber.i(
+                "ULX stream states are (Input: %s, Output: %s)",
                 inputStream.getState().toString(),
                 outputStream.getState().toString()
-        ));
+        );
 
         // When both streams are open, we can proceed
         if (inputStream.getState() == Stream.State.OPEN && outputStream.getState() == Stream.State.OPEN) {
@@ -575,7 +576,7 @@ public class Bridge implements
 
     @Override
     public void onFailedOpen(Stream stream, UlxError error) {
-        Log.e(getClass().getCanonicalName(), String.format("ULX bridge stream failed to open [%s]", error.toString()));
+        Timber.e("ULX bridge stream failed to open [%s]", error.toString());
     }
 
     @Override
@@ -695,13 +696,13 @@ public class Bridge implements
 
     @Override
     public void onInternetResponse(NetworkController networkController, int code, String message) {
-        Log.i(getClass().getCanonicalName(), String.format("ULX Internet response received [%d, %s]", code, message));
+        Timber.i("ULX Internet response received [%d, %s]", code, message);
         notifyOnInternetResponse(code, message);
     }
 
     @Override
     public void onInternetRequestFailure(NetworkController networkController, int sequence) {
-        Log.e(getClass().getCanonicalName(), "ULX internet request failure");
+        Timber.e("ULX internet request failure");
 
         UlxError error = new UlxError(
                 UlxErrorCode.UNKNOWN,

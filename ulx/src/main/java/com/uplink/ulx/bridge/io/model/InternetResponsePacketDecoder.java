@@ -1,7 +1,5 @@
 package com.uplink.ulx.bridge.io.model;
 
-import android.util.Log;
-
 import com.uplink.ulx.UlxError;
 import com.uplink.ulx.UlxErrorCode;
 import com.uplink.ulx.model.Instance;
@@ -12,11 +10,13 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 
+import timber.log.Timber;
+
 public class InternetResponsePacketDecoder implements Decoder {
 
     @Override
     public Decoder.Result decode(byte[] data) throws IOException {
-        Log.i(getClass().getCanonicalName(), "ULX attempting to decode InternetResponsePacket");
+        Timber.i("ULX attempting to decode InternetResponsePacket");
 
         ByteArrayInputStream inputStream = new ByteArrayInputStream(data);
 

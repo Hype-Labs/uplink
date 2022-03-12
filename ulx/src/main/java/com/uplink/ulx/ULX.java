@@ -13,6 +13,8 @@ import org.json.JSONObject;
 
 import java.net.URL;
 
+import timber.log.Timber;
+
 /**
  * This class is the main entry point for the SDK. It provides facade access to
  * the service running on the background. This class wraps the domestic instance
@@ -22,6 +24,12 @@ import java.net.URL;
  * and stopping the services.
  */
 public class ULX {
+
+    static {
+        if (BuildConfig.DEBUG) {
+            Timber.plant(new Timber.DebugTree());
+        }
+    }
 
     /**
      * Private constructor prevents instantiation.

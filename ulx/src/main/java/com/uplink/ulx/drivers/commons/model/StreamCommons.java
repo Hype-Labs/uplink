@@ -1,7 +1,5 @@
 package com.uplink.ulx.drivers.commons.model;
 
-import android.util.Log;
-
 import com.uplink.ulx.UlxError;
 import com.uplink.ulx.drivers.commons.StateManager;
 import com.uplink.ulx.drivers.model.Stream;
@@ -14,6 +12,7 @@ import java.util.Vector;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
+import timber.log.Timber;
 
 /**
  * A StreamCommons is an abstraction of a stream base class that implements
@@ -98,13 +97,16 @@ public abstract class StreamCommons implements
 
     @Override
     public void requestStart(StateManager stateManager) {
-        Log.i(getClass().getCanonicalName(), String.format("ULX stream %s is being requested to start", getIdentifier()));
+        Timber.i(
+                "ULX stream %s is being requested to start",
+                getIdentifier()
+        );
         requestAdapterToOpen();
     }
 
     @Override
     public void onStart(StateManager stateManager) {
-        Log.i(getClass().getCanonicalName(), String.format("ULX stream %s started", getIdentifier()));
+        Timber.i("ULX stream %s started", getIdentifier());
         StateDelegate stateDelegate = this.getStateDelegate();
         if (stateDelegate != null) {
             stateDelegate.onOpen(this);
@@ -113,7 +115,11 @@ public abstract class StreamCommons implements
 
     @Override
     public void onStop(StateManager stateManager, UlxError error) {
-        Log.e(getClass().getCanonicalName(), String.format("ULX stream %s stopped with error %s", getIdentifier(), error.toString()));
+        Timber.e(
+                "ULX stream %s stopped with error %s",
+                getIdentifier(),
+                error.toString()
+        );
         StateDelegate stateDelegate = this.getStateDelegate();
         if (stateDelegate != null) {
             stateDelegate.onClose(this, error);
@@ -122,13 +128,13 @@ public abstract class StreamCommons implements
 
     @Override
     public void requestStop(StateManager stateManager) {
-        Log.i(getClass().getCanonicalName(), String.format("ULX stream %s is being requested to stop", getIdentifier()));
+        Timber.i("ULX stream %s is being requested to stop", getIdentifier());
         this.close();
     }
 
     @Override
     public void onFailedStart(StateManager stateManager, UlxError error) {
-        Log.e(getClass().getCanonicalName(), String.format("ULX stream %s failed to start", getIdentifier()));
+        Timber.e("ULX stream %s failed to start", getIdentifier());
         StateDelegate stateDelegate = this.getStateDelegate();
         if (stateDelegate != null) {
             stateDelegate.onFailedOpen(this, error);
@@ -145,13 +151,13 @@ public abstract class StreamCommons implements
 
     @Override
     public void open() {
-        Log.i(getClass().getCanonicalName(), String.format("ULX stream %s is being requested to open", getIdentifier()));
+        Timber.i("ULX stream %s is being requested to open", getIdentifier());
         getStateManager().start();
     }
 
     @Override
     public void close() {
-        Log.i(getClass().getCanonicalName(), String.format("ULX stream %s is being requested close", getIdentifier()));
+        Timber.i("ULX stream %s is being requested close", getIdentifier());
         getStateManager().stop();
     }
 
@@ -198,10 +204,7 @@ public abstract class StreamCommons implements
     public void removeInvalidationCallback(InvalidationCallback invalidationCallback) {
         if (invalidationCallbacks != null) {
             if (!invalidationCallbacks.remove(invalidationCallback)) {
-                Log.w(
-                        getClass().getCanonicalName(),
-                        "Failed to remove invalidation callback, because it was not present"
-                );
+                Timber.w("Failed to remove invalidation callback, because it was not present");
             }
         }
     }
@@ -212,12 +215,12 @@ public abstract class StreamCommons implements
     }
 
     protected void onOpen() {
-        Log.i(getClass().getCanonicalName(), String.format("ULX stream %s is now open", getIdentifier()));
+        Timber.i("ULX stream %s is now open", getIdentifier());
         getStateManager().notifyStart();
     }
 
     protected void onClose(UlxError error) {
-        Log.i(getClass().getCanonicalName(), String.format("ULX stream %s is now closed", getIdentifier()));
+        Timber.i("ULX stream %s is now closed", getIdentifier());
         getStateManager().notifyStop(error);
     }
 

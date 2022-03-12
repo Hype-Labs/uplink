@@ -2,7 +2,6 @@ package com.uplink.ulx.drivers.bluetooth.ble.model.foreign;
 
 import android.bluetooth.BluetoothGattCharacteristic;
 import android.os.Looper;
-import android.util.Log;
 
 import com.uplink.ulx.TransportType;
 import com.uplink.ulx.UlxError;
@@ -14,6 +13,8 @@ import com.uplink.ulx.drivers.model.IoResult;
 import com.uplink.ulx.utils.ByteUtils;
 
 import java.util.Objects;
+
+import timber.log.Timber;
 
 /**
  * A {@link BleForeignOutputStream} implements the output logic for streams on
@@ -114,7 +115,13 @@ public class BleForeignOutputStream extends OutputStreamCommons implements GattC
 
         byte[] dataToSend = ByteUtils.trimCopyToSize(data, getMtu());
 
-        Log.i(getClass().getCanonicalName(), String.format("ULX writing %d of %d buffered bytes (%d%%) to stream %s", dataToSend.length, data.length, (int)(dataToSend.length / (float)(data.length) * 100), getIdentifier()));
+        Timber.i(
+                "ULX writing %d of %d buffered bytes (%d%%) to stream %s",
+                dataToSend.length,
+                data.length,
+                (int) (dataToSend.length / (float) (data.length) * 100),
+                getIdentifier()
+        );
 
         if (!getOutputCharacteristic().setValue(dataToSend)) {
 
@@ -164,7 +171,10 @@ public class BleForeignOutputStream extends OutputStreamCommons implements GattC
 
     @Override
     public void onCharacteristicWriteFailure(GattClient gattClient, UlxError error) {
-        Log.e(getClass().getCanonicalName(), String.format("ULX failed writing to characteristic with error %s", error.toString()));
+        Timber.e(
+                "ULX failed writing to characteristic with error %s",
+                error.toString()
+        );
 
         // Flag as closed
         onClose(error);

@@ -1,19 +1,19 @@
 package com.uplink.ulx.drivers.commons.controller;
 
 import android.content.Context;
-import android.util.Log;
 
 import com.uplink.ulx.UlxError;
 import com.uplink.ulx.drivers.commons.StateManager;
 import com.uplink.ulx.drivers.controller.Browser;
 import com.uplink.ulx.drivers.model.Connector;
 import com.uplink.ulx.drivers.model.Device;
-import com.uplink.ulx.drivers.model.Stream;
 
 import java.lang.ref.WeakReference;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
+
+import timber.log.Timber;
 
 /**
  * This is a base class for browsers that implements common functionality
@@ -225,28 +225,28 @@ public abstract class BrowserCommons implements
 
     @Override
     public void start() {
-        Log.i(getClass().getCanonicalName(), "ULX browser is starting");
+        Timber.i("ULX browser is starting");
         getStateManager().start();
     }
 
     @Override
     public void stop() {
-        Log.i(getClass().getCanonicalName(), "ULX browser is stopping");
+        Timber.i("ULX browser is stopping");
         getStateManager().stop();
     }
 
     public void onStart() {
-        Log.i(getClass().getCanonicalName(), "ULX browser started");
+        Timber.i("ULX browser started");
         getStateManager().notifyStart();
     }
 
     public void onStop(UlxError error) {
-        Log.i(getClass().getCanonicalName(), "ULX browser stopped");
+        Timber.i("ULX browser stopped");
         getStateManager().notifyStop(error);
     }
 
     public void onFailedStart(Browser browser, UlxError error) {
-        Log.i(getClass().getCanonicalName(), "ULX browser failed to start");
+        Timber.i("ULX browser failed to start");
         getStateManager().notifyFailedStart(error);
     }
 

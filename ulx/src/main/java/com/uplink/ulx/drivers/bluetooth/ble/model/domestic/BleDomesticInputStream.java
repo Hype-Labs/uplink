@@ -1,10 +1,10 @@
 package com.uplink.ulx.drivers.bluetooth.ble.model.domestic;
 
-import android.util.Log;
-
 import com.uplink.ulx.TransportType;
 import com.uplink.ulx.drivers.commons.model.InputStreamCommons;
 import com.uplink.ulx.drivers.model.InputStream;
+
+import timber.log.Timber;
 
 public class BleDomesticInputStream extends InputStreamCommons {
 
@@ -23,14 +23,14 @@ public class BleDomesticInputStream extends InputStreamCommons {
 
         // Perhaps it will be enough to wait for the peripheral to connect and
         // manage the streams; we'll see how that plays out.
-        Log.e(getClass().getCanonicalName(), "ULX domestic input stream is " +
-                "being requested to open, but that is not supported yet");
+        Timber.e("ULX domestic input stream is " +
+                         "being requested to open, but that is not supported yet");
     }
 
     @Override
     public void requestAdapterToClose() {
-        Log.e(getClass().getCanonicalName(), "ULX domestic input stream is " +
-                "being requested to close, but that is not supported yet");
+        Timber.e("ULX domestic input stream is " +
+                         "being requested to close, but that is not supported yet");
     }
 
     /**

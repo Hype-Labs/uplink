@@ -3,7 +3,6 @@ package com.uplink.ulx.drivers.bluetooth.ble.model.domestic;
 import android.bluetooth.BluetoothDevice;
 import android.bluetooth.BluetoothGattCharacteristic;
 import android.os.Looper;
-import android.util.Log;
 
 import com.uplink.ulx.TransportType;
 import com.uplink.ulx.UlxError;
@@ -13,6 +12,8 @@ import com.uplink.ulx.drivers.commons.model.OutputStreamCommons;
 import com.uplink.ulx.drivers.model.IoResult;
 
 import java.util.Locale;
+
+import timber.log.Timber;
 
 public class BleDomesticOutputStream extends OutputStreamCommons {
 
@@ -75,14 +76,14 @@ public class BleDomesticOutputStream extends OutputStreamCommons {
 
         // Perhaps it will be enough to wait for the peripheral to connect and
         // manage the streams; we'll see how that plays out.
-        Log.e(getClass().getCanonicalName(), "ULX domestic output stream is " +
-                "being requested to open, but that is not supported yet");
+        Timber.e("ULX domestic output stream is " +
+                         "being requested to open, but that is not supported yet");
     }
 
     @Override
     public void requestAdapterToClose() {
-        Log.e(getClass().getCanonicalName(), "ULX domestic output stream is " +
-                "being requested to close, but that is not supported yet");
+        Timber.e("ULX domestic output stream is " +
+                         "being requested to close, but that is not supported yet");
     }
 
     /**
@@ -147,7 +148,10 @@ public class BleDomesticOutputStream extends OutputStreamCommons {
      * @param error An error, describing a probable cause for the failure.
      */
     public void notifyFailedIndication(UlxError error) {
-        Log.e(getClass().getCanonicalName(), String.format("ULX failed to receive indication for a characteristic update [%s]", error.toString()));
+        Timber.e(
+                "ULX failed to receive indication for a characteristic update [%s]",
+                error.toString()
+        );
         notifyInvalidated(error);
     }
 }

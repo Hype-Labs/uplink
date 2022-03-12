@@ -12,7 +12,6 @@ import android.bluetooth.le.BluetoothLeAdvertiser;
 import android.content.Context;
 import android.os.Build;
 import android.os.ParcelUuid;
-import android.util.Log;
 
 import com.uplink.ulx.TransportType;
 import com.uplink.ulx.UlxError;
@@ -42,6 +41,7 @@ import java.util.List;
 import java.util.UUID;
 
 import androidx.annotation.Nullable;
+import timber.log.Timber;
 
 /**
  * The BleAdvertiser is the implementation of the Advertiser interface that
@@ -77,7 +77,7 @@ class BleAdvertiser extends AdvertiserCommons implements
 
         @Override
         public void onStartSuccess(AdvertiseSettings settingsInEffect) {
-            Log.i(getClass().getCanonicalName(), "ULX advertiser started");
+            Timber.i("ULX advertiser started");
 
             // This is propagated to the AdvertiserCommons
             onStart(BleAdvertiser.this);
@@ -85,7 +85,7 @@ class BleAdvertiser extends AdvertiserCommons implements
 
         @Override
         public void onStartFailure(int errorCode) {
-            Log.i(getClass().getCanonicalName(), "ULX advertiser failed to start");
+            Timber.i("ULX advertiser failed to start");
 
             final UlxError error = makeError(errorCode);
 
@@ -277,23 +277,18 @@ class BleAdvertiser extends AdvertiserCommons implements
 
         // If the address is not registered, we skipped something
         if (deviceList == null || deviceList.isEmpty()) {
-            Log.w(getClass().getCanonicalName(),
-                  String.format(
-                          "A device for address %s was requested but is not registered",
-                          address
-                  )
+            Timber.w(
+                    "A device for address %s was requested but is not registered",
+                    address
             );
             return null;
         }
 
         if (deviceList.size() > 1) {
-            Log.e(
-                    getClass().getCanonicalName(),
-                    "An unexpected amount of devices was " +
-                            "found in association with a single BluetoothDevice address. " +
-                            "This means that the registry got corrupted, since only a " +
-                            "single entry is expected."
-            );
+            Timber.e("An unexpected amount of devices was " +
+                             "found in association with a single BluetoothDevice address. " +
+                             "This means that the registry got corrupted, since only a " +
+                             "single entry is expected.");
             return null;
         }
 
@@ -387,7 +382,7 @@ class BleAdvertiser extends AdvertiserCommons implements
 
     @Override
     public void onDeviceConnected(GattServer gattServer, BluetoothDevice bluetoothDevice) {
-        Log.i(getClass().getCanonicalName(), String.format("ULX bluetooth device connected %s", bluetoothDevice.getAddress()));
+        Timber.i("ULX bluetooth device connected %s", bluetoothDevice.getAddress());
 
         Connector connector = new BleDomesticConnector(
                 UUID.randomUUID().toString(),
@@ -413,12 +408,15 @@ class BleAdvertiser extends AdvertiserCommons implements
 
     @Override
     public void onDeviceDisconnected(GattServer gattServer, BluetoothDevice bluetoothDevice, UlxError error) {
-        Log.e(getClass().getCanonicalName(), String.format("ULX peripheral device %s was disconnected", bluetoothDevice.getAddress()));
+        Timber.e(
+                "ULX peripheral device %s was disconnected",
+                bluetoothDevice.getAddress()
+        );
 
         final Device device = getDevice(bluetoothDevice);
 
         if (device == null) {
-            Log.w(getClass().getCanonicalName(), "ULX Device not found. Ignoring disconnection event");
+            Timber.w("ULX Device not found. Ignoring disconnection event");
             return;
         }
 
@@ -428,12 +426,15 @@ class BleAdvertiser extends AdvertiserCommons implements
 
     @Override
     public void onDeviceInvalidation(GattServer gattServer, BluetoothDevice bluetoothDevice, UlxError error) {
-        Log.e(getClass().getCanonicalName(), String.format("ULX peripheral device %s was invalidated", bluetoothDevice.getAddress()));
+        Timber.e(
+                "ULX peripheral device %s was invalidated",
+                bluetoothDevice.getAddress()
+        );
 
         final Device device = getDevice(bluetoothDevice);
 
         if (device == null) {
-            Log.e(getClass().getCanonicalName(), "ULX device not found on the registry; not proceeding");
+            Timber.e("ULX device not found on the registry; not proceeding");
             return;
         }
 
@@ -465,7 +466,11 @@ class BleAdvertiser extends AdvertiserCommons implements
      */
     private void register(Connector connector, BluetoothDevice bluetoothDevice) {
 
-        Log.e(getClass().getCanonicalName(), String.format("ULX registering connector %s with BluetoothDevice %s", connector.getIdentifier(), bluetoothDevice.getAddress()));
+        Timber.e(
+                "ULX registering connector %s with BluetoothDevice %s",
+                connector.getIdentifier(),
+                bluetoothDevice.getAddress()
+        );
 
         String address = bluetoothDevice.getAddress();
         String identifier = connector.getIdentifier();
@@ -489,11 +494,9 @@ class BleAdvertiser extends AdvertiserCommons implements
         Device device = getDevice(bluetoothDevice);
 
         if (device == null) {
-            Log.e(getClass().getCanonicalName(),
-                  String.format(
-                          "Output stream has been subscribed for an unknown native device %s",
-                          bluetoothDevice.getAddress()
-                  )
+            Timber.e(
+                    "Output stream has been subscribed for an unknown native device %s",
+                    bluetoothDevice.getAddress()
             );
             return;
         }
@@ -515,11 +518,9 @@ class BleAdvertiser extends AdvertiserCommons implements
         Device device = getDevice(bluetoothDevice);
 
         if (device == null) {
-            Log.e(getClass().getCanonicalName(),
-                  String.format(
-                          "Notification sent callback received for an unknown device: %s",
-                          bluetoothDevice.getAddress()
-                  )
+            Timber.e(
+                    "Notification sent callback received for an unknown device: %s",
+                    bluetoothDevice.getAddress()
             );
             return;
         }
@@ -534,11 +535,9 @@ class BleAdvertiser extends AdvertiserCommons implements
         Device device = getDevice(bluetoothDevice);
 
         if (device == null) {
-            Log.e(getClass().getCanonicalName(),
-                  String.format(
-                          "Notification not sent callback received for an unknown device: %s",
-                          bluetoothDevice.getAddress()
-                  )
+            Timber.e(
+                    "Notification not sent callback received for an unknown device: %s",
+                    bluetoothDevice.getAddress()
             );
             return;
         }
@@ -554,12 +553,9 @@ class BleAdvertiser extends AdvertiserCommons implements
         Device device = getDevice(bluetoothDevice);
 
         if (device == null) {
-            Log.w(
-                    getClass().getCanonicalName(),
-                    String.format(
-                            "ULX received characteristic write request from an unknown device: %s. Ignoring.",
-                            bluetoothDevice.getAddress()
-                    )
+            Timber.w(
+                    "ULX received characteristic write request from an unknown device: %s. Ignoring.",
+                    bluetoothDevice.getAddress()
             );
             return;
         }
@@ -604,7 +600,7 @@ class BleAdvertiser extends AdvertiserCommons implements
      * should be up.
      */
     private void startAdvertising() {
-        Log.i(getClass().getCanonicalName(), "ULX advertiser is starting");
+        Timber.i("ULX advertiser is starting");
 
         Dispatch.post(() -> {
             getBluetoothLeAdvertiser().startAdvertising(
@@ -708,7 +704,7 @@ class BleAdvertiser extends AdvertiserCommons implements
 
     @Override
     public void onDisconnection(Connector connector, UlxError error) {
-        Log.e(getClass().getCanonicalName(), "ULX BLE advertiser disconnection");
+        Timber.e("ULX BLE advertiser disconnection");
 
         // The connector is no longer active
         removeActiveConnector(connector);
@@ -716,8 +712,8 @@ class BleAdvertiser extends AdvertiserCommons implements
 
     @Override
     public void onConnectionFailure(Connector connector, UlxError error) {
-        Log.e(getClass().getCanonicalName(), "ULX BLE advertiser connection failure");
-        Log.e(getClass().getCanonicalName(), String.format("ULX connector state is %s", connector.getState().toString()));
+        Timber.e("ULX BLE advertiser connection failure");
+        Timber.e("ULX connector state is %s", connector.getState().toString());
 
         // Remove from the registry; when the device is seen again, the
         // connection should be retried

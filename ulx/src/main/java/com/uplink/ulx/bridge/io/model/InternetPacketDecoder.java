@@ -1,7 +1,5 @@
 package com.uplink.ulx.bridge.io.model;
 
-import android.util.Log;
-
 import com.uplink.ulx.UlxError;
 import com.uplink.ulx.UlxErrorCode;
 import com.uplink.ulx.model.Instance;
@@ -14,11 +12,13 @@ import java.net.URL;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 
+import timber.log.Timber;
+
 public class InternetPacketDecoder implements Decoder {
 
     @Override
     public Result decode(byte[] data) throws IOException {
-        Log.i(getClass().getCanonicalName(), "ULX attempting to decode InternetPacket");
+        Timber.i("ULX attempting to decode InternetPacket");
 
         ByteArrayInputStream inputStream = new ByteArrayInputStream(data);
 
@@ -161,7 +161,7 @@ public class InternetPacketDecoder implements Decoder {
                     hopCount
             );
         } catch (MalformedURLException e) {
-            Log.e(getClass().getCanonicalName(), "ULX got a malformed URL");
+            Timber.e("ULX got a malformed URL");
 
             // This will result in the data being consumed, but the result
             // object being null

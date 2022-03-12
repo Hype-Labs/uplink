@@ -12,7 +12,6 @@ import android.bluetooth.BluetoothProfile;
 import android.content.Context;
 import android.os.Build;
 import android.os.Looper;
-import android.util.Log;
 
 import com.uplink.ulx.UlxError;
 import com.uplink.ulx.UlxErrorCode;
@@ -29,6 +28,8 @@ import java.util.Objects;
 import java.util.Timer;
 import java.util.TimerTask;
 import java.util.UUID;
+
+import timber.log.Timber;
 
 /**
  * The GattClient implements most of the logic that interacts with the system
@@ -335,7 +336,11 @@ public class GattClient extends BluetoothGattCallback implements StateManager.De
     }
 
     private synchronized void setConnectionTimeout(BluetoothGatt bluetoothGatt, long timeout) {
-        Log.i(getClass().getCanonicalName(), String.format("ULX is setting connection timeout %d for %s", timeout, bluetoothGatt.getDevice().getAddress()));
+        Timber.i(
+                "ULX is setting connection timeout %d for %s",
+                timeout,
+                bluetoothGatt.getDevice().getAddress()
+        );
 
         if (this.connectionTimeout != null) {
             throw new RuntimeException("The implementation is trying to reset " +
@@ -349,7 +354,10 @@ public class GattClient extends BluetoothGattCallback implements StateManager.De
             @Override
             public void run() {
 
-                Log.e(GattClient.this.getClass().getCanonicalName(), String.format("ULX is canceling connection %s", bluetoothGatt.getDevice().getAddress()));
+                Timber.e(
+                        "ULX is canceling connection %s",
+                        bluetoothGatt.getDevice().getAddress()
+                );
 
                 final UlxError error = new UlxError(
                         UlxErrorCode.CONNECTION_TIMEOUT,
@@ -371,7 +379,10 @@ public class GattClient extends BluetoothGattCallback implements StateManager.De
      * method will have no effect.
      */
     private synchronized void cancelConnectionTimeout() {
-        Log.i(getClass().getCanonicalName(), String.format("ULX connection timeout being canceled for native device %s", getBluetoothDevice().getAddress()));
+        Timber.i(
+                "ULX connection timeout being canceled for native device %s",
+                getBluetoothDevice().getAddress()
+        );
 
         if (this.connectionTimeout != null) {
             this.connectionTimeout.cancel();
@@ -480,7 +491,10 @@ public class GattClient extends BluetoothGattCallback implements StateManager.De
             BluetoothGatt bluetoothGatt = getBluetoothGatt();
 
             if (!bluetoothGatt.connect()) {
-                Log.e(getClass().getCanonicalName(), String.format("ULX connection request for native device %s rejected", getBluetoothDevice().getAddress()));
+                Timber.e(
+                        "ULX connection request for native device %s rejected",
+                        getBluetoothDevice().getAddress()
+                );
 
                 // We should try to figure out a better error message
                 UlxError error = new UlxError(
@@ -492,7 +506,10 @@ public class GattClient extends BluetoothGattCallback implements StateManager.De
 
                 getStateManager().notifyFailedStart(error);
             } else {
-                Log.i(getClass().getCanonicalName(), String.format("ULX connection request for native device %s accepted", getBluetoothDevice().getAddress()));
+                Timber.i(
+                        "ULX connection request for native device %s accepted",
+                        getBluetoothDevice().getAddress()
+                );
 
                 // Set a timeout for 3s
                 setConnectionTimeout(bluetoothGatt, 30000);
@@ -502,14 +519,11 @@ public class GattClient extends BluetoothGattCallback implements StateManager.De
 
     @Override
     public void onConnectionStateChange(BluetoothGatt bluetoothGatt, int status, int newState) {
-        Log.i(
-                getClass().getCanonicalName(),
-                String.format(
-                        "ULX connection changed for native device %s with status %d. New state: %d",
-                        bluetoothGatt.getDevice().getAddress(),
-                        status,
-                        newState
-                )
+        Timber.i(
+                "ULX connection changed for native device %s with status %d. New state: %d",
+                bluetoothGatt.getDevice().getAddress(),
+                status,
+                newState
         );
 
         //  hex	    Decimal	    reason
@@ -527,7 +541,8 @@ public class GattClient extends BluetoothGattCallback implements StateManager.De
         // Don't proceed without a delegate; although this means that the
         // state change will simply be ignored.
         if (connectorDelegate == null) {
-            Log.i(getClass().getCanonicalName(), "ULX is ignoring a connection state change because the GATT client callback delegate was not set");
+            Timber.i(
+                    "ULX is ignoring a connection state change because the GATT client callback delegate was not set");
             return;
         }
 
@@ -570,13 +585,19 @@ public class GattClient extends BluetoothGattCallback implements StateManager.De
     private void negotiateMtu() {
         Dispatch.post(() -> {
 
-            Log.i(getClass().getCanonicalName(), String.format("ULX is requesting the MTU from the remote native device %s", getBluetoothDevice().getAddress()));
+            Timber.i(
+                    "ULX is requesting the MTU from the remote native device %s",
+                    getBluetoothDevice().getAddress()
+            );
 
             // 512 is the maximum MTU possible, and its the one we're aiming for.
             // In case of failure, we skip the MTU negotiation and go straight to
             // discovering the services, since MTU failure is not blocking.
             if (!getBluetoothGatt().requestMtu(MtuRegistry.MAXIMUM_MTU)) {
-                Log.i(getClass().getCanonicalName(), String.format("ULX MTU request for remote native device %s failed, and the services will be discovered instead", getBluetoothDevice().getAddress()));
+                Timber.i(
+                        "ULX MTU request for remote native device %s failed, and the services will be discovered instead",
+                        getBluetoothDevice().getAddress()
+                );
                 discoverServices();
             }
         });
@@ -584,7 +605,12 @@ public class GattClient extends BluetoothGattCallback implements StateManager.De
 
     @Override
     public void onMtuChanged(BluetoothGatt gatt, int mtu, int status) {
-        Log.i(getClass().getCanonicalName(), String.format("ULX negotiated MTU value %d with remote device %s and status %d", mtu, gatt.getDevice().getAddress(), status));
+        Timber.i(
+                "ULX negotiated MTU value %d with remote device %s and status %d",
+                mtu,
+                gatt.getDevice().getAddress(),
+                status
+        );
 
         // Keep the negotiated MTU in case of success. Failure means that we
         // stick with the default.
@@ -627,7 +653,10 @@ public class GattClient extends BluetoothGattCallback implements StateManager.De
     public void discoverServices() {
 
         Dispatch.post(() -> {
-            Log.i(getClass().getCanonicalName(), String.format("ULX discovering services on remote native device %s", getBluetoothDevice().getAddress()));
+            Timber.i(
+                    "ULX discovering services on remote native device %s",
+                    getBluetoothDevice().getAddress()
+            );
 
             BluetoothGatt bluetoothGatt = getBluetoothGatt();
 
@@ -649,7 +678,11 @@ public class GattClient extends BluetoothGattCallback implements StateManager.De
 
     @Override
     public void onServicesDiscovered(final BluetoothGatt gatt, int status) {
-        Log.i(getClass().getCanonicalName(), String.format("ULX services discovered for remote native device %s with status %d", gatt.getDevice().getAddress(), status));
+        Timber.i(
+                "ULX services discovered for remote native device %s with status %d",
+                gatt.getDevice().getAddress(),
+                status
+        );
 
         // Services discovered
         if (status == BluetoothGatt.GATT_SUCCESS) {
@@ -687,7 +720,10 @@ public class GattClient extends BluetoothGattCallback implements StateManager.De
      *                 extract the matching service, if one exists.
      */
     private void handleServicesDiscovered(List<BluetoothGattService> services) {
-        Log.i(getClass().getCanonicalName(), String.format("ULX validating remote services for native device %s", getBluetoothDevice().getAddress()));
+        Timber.i(
+                "ULX validating remote services for native device %s",
+                getBluetoothDevice().getAddress()
+        );
 
         BleForeignService foreignService = getForeignService(services);
 
@@ -729,14 +765,20 @@ public class GattClient extends BluetoothGattCallback implements StateManager.De
         // one to initiate). The host will also be the initiator if it does not
         // support advertising, which means that the remote peer will not see it
         if (comparison < 0 || !getBluetoothAdapter().isMultipleAdvertisementSupported()) {
-            Log.i(getClass().getCanonicalName(), String.format("ULX host device subscribing characteristics on remote native device %s", getBluetoothDevice().getAddress()));
+            Timber.i(
+                    "ULX host device subscribing characteristics on remote native device %s",
+                    getBluetoothDevice().getAddress()
+            );
             subscribeCharacteristic(foreignReliableControl);
         }
 
         // If the UUID is larger and the host supports advertising, wait
         // passively for the other device to connect.
         else if (comparison > 0) {
-            Log.i(getClass().getCanonicalName(), String.format("ULX host device NOT subscribing characteristics for remote native device %s, waiting instead", getBluetoothDevice().getAddress()));
+            Timber.i(
+                    "ULX host device NOT subscribing characteristics for remote native device %s, waiting instead",
+                    getBluetoothDevice().getAddress()
+            );
 
             // This isn't really an error, but we must respond back to a
             // connection request. Regardless, this workflow should be reviewed
@@ -796,7 +838,10 @@ public class GattClient extends BluetoothGattCallback implements StateManager.De
      */
     public void subscribeCharacteristic(BluetoothGattCharacteristic characteristic) {
         Dispatch.post(() -> {
-            Log.i(getClass().getCanonicalName(), String.format("ULX requested to subscribe remote characteristic on native device %s", getBluetoothDevice().getAddress()));
+            Timber.i(
+                    "ULX requested to subscribe remote characteristic on native device %s",
+                    getBluetoothDevice().getAddress()
+            );
 
             BluetoothGattDescriptor descriptor = getDescriptor(characteristic);
 
@@ -913,10 +958,16 @@ public class GattClient extends BluetoothGattCallback implements StateManager.De
      */
     private void handleCharacteristicSubscribed(BluetoothGattDescriptor descriptor) {
         if (getDomesticService().isReliableOutput(descriptor)) {
-            Log.i(getClass().getCanonicalName(), String.format("ULX reliable output characteristic subscribed on remote native device %s", getBluetoothDevice().getAddress()));
+            Timber.i(
+                    "ULX reliable output characteristic subscribed on remote native device %s",
+                    getBluetoothDevice().getAddress()
+            );
             notifyOnOpen();
         } else {
-            Log.i(getClass().getCanonicalName(), String.format("ULX control characteristic subscribed on remote native device %s", getBluetoothDevice().getAddress()));
+            Timber.i(
+                    "ULX control characteristic subscribed on remote native device %s",
+                    getBluetoothDevice().getAddress()
+            );
             notifyOnConnected();
         }
     }
@@ -996,7 +1047,11 @@ public class GattClient extends BluetoothGattCallback implements StateManager.De
 
     @Override
     public void onCharacteristicWrite(BluetoothGatt gatt, BluetoothGattCharacteristic characteristic, int status) {
-        Log.i(getClass().getCanonicalName(), String.format("ULX wrote to characteristic for device %s with status %d", gatt.getDevice().getAddress(), status));
+        Timber.i(
+                "ULX wrote to characteristic for device %s with status %d",
+                gatt.getDevice().getAddress(),
+                status
+        );
 
         Dispatch.post(() -> {
             if (status == BluetoothGatt.GATT_SUCCESS) {
@@ -1033,7 +1088,10 @@ public class GattClient extends BluetoothGattCallback implements StateManager.De
 
     @Override
     public void onCharacteristicChanged(BluetoothGatt gatt, BluetoothGattCharacteristic characteristic) {
-        Log.i(getClass().getCanonicalName(), String.format("ULX remote characteristic changed on device %s", gatt.getDevice().getAddress()));
+        Timber.i(
+                "ULX remote characteristic changed on device %s",
+                gatt.getDevice().getAddress()
+        );
         notifyOnCharacteristicChanged(characteristic);
     }
 

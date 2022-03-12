@@ -1,7 +1,6 @@
 package com.uplink.ulx.drivers.commons.model;
 
 import android.annotation.SuppressLint;
-import android.util.Log;
 
 import com.uplink.ulx.UlxError;
 import com.uplink.ulx.drivers.model.IoResult;
@@ -10,6 +9,8 @@ import com.uplink.ulx.threading.Dispatch;
 
 import java.util.List;
 import java.util.Vector;
+
+import timber.log.Timber;
 
 /**
  * This class implements the part of functionality that is shared by all
@@ -71,7 +72,7 @@ public abstract class OutputStreamCommons extends StreamCommons implements Outpu
             removed = false;
         }
         if (!removed) {
-            Log.w(getClass().getCanonicalName(), "Failed to find the callback to remove");
+            Timber.w("Failed to find the callback to remove");
         }
     }
 
@@ -145,12 +146,9 @@ public abstract class OutputStreamCommons extends StreamCommons implements Outpu
 
                 final UlxError error = result.getError();
                 if (error != null) {
-                    Log.w(
-                            getClass().getCanonicalName(),
-                            String.format(
-                                    "Output stream failed to flush buffer data. Cause: %s\nInvalidating...",
-                                    error.getReason()
-                            )
+                    Timber.w(
+                            "Output stream failed to flush buffer data. Cause: %s\nInvalidating...",
+                            error.getReason()
                     );
 
                     // Since we are invalidating the stream, let's also clear its buffer

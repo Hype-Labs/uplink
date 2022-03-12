@@ -1,7 +1,6 @@
 package com.uplink.ulx;
 
 import android.content.Context;
-import android.util.Log;
 
 import com.uplink.ulx.drivers.commons.StateManager;
 import com.uplink.ulx.model.Instance;
@@ -21,6 +20,8 @@ import java.net.URL;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
+
+import timber.log.Timber;
 
 /**
  * The Implementation class bridges the facade with the actual implementation
@@ -476,7 +477,7 @@ public class Implementation implements
 
     @Override
     public void onInstanceFound(Service service, Instance instance) {
-        Log.i(getClass().getCanonicalName(), String.format("ULX instance found %s", instance.getStringIdentifier()));
+        Timber.i("ULX instance found %s", instance.getStringIdentifier());
         notifyInstanceFound(instance);
     }
 
@@ -495,7 +496,7 @@ public class Implementation implements
 
     @Override
     public void onInstanceLost(Service service, Instance instance, UlxError error) {
-        Log.i(getClass().getCanonicalName(), String.format("ULX lost instance %s", instance.getStringIdentifier()));
+        Timber.i("ULX lost instance %s", instance.getStringIdentifier());
         notifyInstanceLost(instance, error);
     }
 

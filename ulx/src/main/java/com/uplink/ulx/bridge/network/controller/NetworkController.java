@@ -3,7 +3,6 @@ package com.uplink.ulx.bridge.network.controller;
 import android.content.Context;
 import android.net.ConnectivityManager;
 import android.net.NetworkInfo;
-import android.util.Log;
 
 import com.uplink.ulx.UlxError;
 import com.uplink.ulx.bridge.SequenceGenerator;
@@ -39,6 +38,7 @@ import java.net.URL;
 import java.util.Objects;
 
 import androidx.annotation.NonNull;
+import timber.log.Timber;
 
 /**
  * The {@link NetworkController} is the module that manages network-related
@@ -338,7 +338,7 @@ public class NetworkController implements IoController.Delegate,
 
             final int iHops = internetHopCount;
 
-            Log.e(getClass().getCanonicalName(), String.format("ULX handshake packet with i-hops %d", iHops));
+            Timber.e("ULX handshake packet with i-hops %d", iHops);
 
             // Switch back to the main thread
             Dispatch.post(() -> {
@@ -407,7 +407,7 @@ public class NetworkController implements IoController.Delegate,
                 return true;
 
             } catch (IOException e) {
-                Log.e(NetworkController.class.getCanonicalName(), "ULX Internet not directly available");
+                Timber.e("ULX Internet not directly available");
                 return false;
             }
         }
@@ -450,7 +450,10 @@ public class NetworkController implements IoController.Delegate,
      * @param device The destination device.
      */
     private void dumpRoutingTable(Device device) {
-        Log.i(getClass().getCanonicalName(), String.format("ULX-M is dumping the routing table to device %s", device.getIdentifier()));
+        Timber.i(
+                "ULX-M is dumping the routing table to device %s",
+                device.getIdentifier()
+        );
 
         for (Instance instance : getRoutingTable().getInstances()) {
 
@@ -459,7 +462,11 @@ public class NetworkController implements IoController.Delegate,
             Link link = getRoutingTable().getBestLink(instance, device);
 
             if (link == null) {
-                Log.i(getClass().getCanonicalName(), String.format("ULX no known path to %s with %s as split horizon", instance.getStringIdentifier(), device.getIdentifier()));
+                Timber.i(
+                        "ULX no known path to %s with %s as split horizon",
+                        instance.getStringIdentifier(),
+                        device.getIdentifier()
+                );
                 continue;
             }
 
@@ -474,11 +481,20 @@ public class NetworkController implements IoController.Delegate,
 
             // Don't propagate events that reach the maximum number of hops
             if (hopCount >= RoutingTable.MAXIMUM_HOP_COUNT) {
-                Log.i(getClass().getCanonicalName(), String.format("ULX-M is not propagating a link update, the hop count was exceeded (%d/%d) for link %s", hopCount, RoutingTable.MAXIMUM_HOP_COUNT, link == null ? "(null)" : link.toString()));
+                Timber.i(
+                        "ULX-M is not propagating a link update, the hop count was exceeded (%d/%d) for link %s",
+                        hopCount,
+                        RoutingTable.MAXIMUM_HOP_COUNT,
+                        link == null ? "(null)" : link.toString()
+                );
                 continue;
             }
 
-            Log.i(getClass().getCanonicalName(), String.format("ULX-M dumping link %s to device %s", link.toString(), device.getIdentifier()));
+            Timber.i(
+                    "ULX-M dumping link %s to device %s",
+                    link.toString(),
+                    device.getIdentifier()
+            );
 
             UpdatePacket updatePacket = new UpdatePacket(
                     getSequenceGenerator().generate(),
@@ -491,12 +507,12 @@ public class NetworkController implements IoController.Delegate,
 
                 @Override
                 public void handleOnWritten() {
-                    Log.e(getClass().getCanonicalName(), "ULX update packet was written");
+                    Timber.e("ULX update packet was written");
                 }
 
                 @Override
                 public void handleOnWriteFailure(UlxError error) {
-                    Log.e(getClass().getCanonicalName(), "ULX update packet was NOT written");
+                    Timber.e("ULX update packet was NOT written");
                 }
 
                 @Override
@@ -560,7 +576,10 @@ public class NetworkController implements IoController.Delegate,
         }
          */
 
-        Log.i(getClass().getCanonicalName(), String.format("ULX-M is done dumping the routing table to device %s", device.getIdentifier()));
+        Timber.i(
+                "ULX-M is done dumping the routing table to device %s",
+                device.getIdentifier()
+        );
     }
 
     /**
@@ -623,7 +642,7 @@ public class NetworkController implements IoController.Delegate,
      * @param packet The {@link DataPacket} that was received.
      */
     private void acknowledge(DataPacket packet) {
-        Log.i(getClass().getCanonicalName(), String.format("ULX acknowledging packet %d", packet.getSequenceIdentifier()));
+        Timber.i("ULX acknowledging packet %d", packet.getSequenceIdentifier());
 
         // The acknowledgement's destination is the packet's origin, so the
         // two are switched
@@ -673,7 +692,11 @@ public class NetworkController implements IoController.Delegate,
 
     @Override
     public void onPacketReceived(IoController controller, InputStream inputStream, Packet packet) {
-        Log.i(getClass().getCanonicalName(), String.format("ULX-M packet received from input stream %s: %s", inputStream.getIdentifier(), packet.toString()));
+        Timber.i(
+                "ULX-M packet received from input stream %s: %s",
+                inputStream.getIdentifier(),
+                packet.toString()
+        );
 
         // Compute the device, according to the InputStream given
         Device device = getRoutingTable().getDevice(inputStream.getIdentifier());
@@ -705,18 +728,22 @@ public class NetworkController implements IoController.Delegate,
                 break;
         }
 
-        Log.d(getClass().getCanonicalName(), "Packet handled");
+        Timber.d("Packet handled");
     }
 
     @Override
     public void onPacketWritten(IoController controller, OutputStream outputStream, IoController.IoPacket ioPacket) {
-        Log.i(getClass().getCanonicalName(), String.format("ULX packet %s written to %s", ioPacket.toString(), outputStream.getIdentifier()));
+        Timber.i(
+                "ULX packet %s written to %s",
+                ioPacket.toString(),
+                outputStream.getIdentifier()
+        );
         ((NetworkPacket)ioPacket).handleOnWritten();
     }
 
     @Override
     public void onPacketWriteFailure(IoController controller, OutputStream outputStream, IoController.IoPacket ioPacket, UlxError error) {
-        Log.e(getClass().getCanonicalName(), "ULX packet could not be written");
+        Timber.e("ULX packet could not be written");
         ((NetworkPacket)ioPacket).handleOnWriteFailure(error);
     }
 
@@ -740,7 +767,11 @@ public class NetworkController implements IoController.Delegate,
             return;
         }
 
-        Log.i(getClass().getCanonicalName(), String.format("ULX-M device %s is instance %s", device.getIdentifier(), packet.getOriginator().getStringIdentifier()));
+        Timber.i(
+                "ULX-M device %s is instance %s",
+                device.getIdentifier(),
+                packet.getOriginator().getStringIdentifier()
+        );
 
         // Create a link to the negotiated Instance, having the device has
         // next hop. Since this is a handshake packet, the hop count is always
@@ -788,11 +819,11 @@ public class NetworkController implements IoController.Delegate,
 
         // The device should be recognized, since we're talking with it
         if (device == null) {
-            Log.e(getClass().getCanonicalName(), "ULX received an update " +
-                    "packet from a device that it doesn't recognize. This is " +
-                    "unexpected, an shouldn't happen. Is likely that this " +
-                    "represents an event that is being improperly indicated or " +
-                    "that a corruption occurred in the registry.");
+            Timber.e("ULX received an update " +
+                             "packet from a device that it doesn't recognize. This is " +
+                             "unexpected, an shouldn't happen. Is likely that this " +
+                             "represents an event that is being improperly indicated or " +
+                             "that a corruption occurred in the registry.");
             return;
         }
 
@@ -800,8 +831,8 @@ public class NetworkController implements IoController.Delegate,
         // Doing this check here is OK, but this would better be done at the
         // originator, since that would save one additional packet.
         if (packet.getInstance().equals(getHostInstance())) {
-            Log.i(getClass().getCanonicalName(), "ULX-M update packet being " +
-                    "ignored because it refers to the host instance");
+            Timber.i("ULX-M update packet being " +
+                             "ignored because it refers to the host instance");
             return;
         }
 
@@ -830,9 +861,9 @@ public class NetworkController implements IoController.Delegate,
         // I'm logging an error because the current implementation still has
         // poor recovery policies and not a lot of error handling. Future
         // versions should review this and decide something else.
-        Log.e(getClass().getCanonicalName(), "ULX an handshake was received " +
-                "for an identifiable device, and that's unexpected. The device " +
-                "should be known, since the streams have already been open.");
+        Timber.e("ULX an handshake was received " +
+                         "for an identifiable device, and that's unexpected. The device " +
+                         "should be known, since the streams have already been open.");
     }
 
     /**
@@ -852,7 +883,7 @@ public class NetworkController implements IoController.Delegate,
         } else {
 
             if (device == null) {
-                Log.e(getClass().getCanonicalName(), "ULX could not find a device with an input device");
+                Timber.e("ULX could not find a device with an input device");
                 return;
             }
 
@@ -868,7 +899,7 @@ public class NetworkController implements IoController.Delegate,
 
             @Override
             public void onInternetResponse(NetworkController networkController, int code, String message) {
-                Log.i(getClass().getCanonicalName(), "ULX is redirecting an Internet response packet");
+                Timber.i("ULX is redirecting an Internet response packet");
 
                 InternetResponsePacket responsePacket = new InternetResponsePacket(
                         getSequenceGenerator().generate(),
@@ -886,13 +917,13 @@ public class NetworkController implements IoController.Delegate,
                     @Override
                     public void handleOnWritten() {
                         // Ok
-                        Log.i(getClass().getCanonicalName(), "ULX relayed an Internet packet");
+                        Timber.i("ULX relayed an Internet packet");
                     }
 
                     @Override
                     public void handleOnWriteFailure(UlxError error) {
                         // ??
-                        Log.e(getClass().getCanonicalName(), "ULX could not relay an Internet packet");
+                        Timber.e("ULX could not relay an Internet packet");
                     }
 
                     @Override
@@ -918,7 +949,7 @@ public class NetworkController implements IoController.Delegate,
             @Override
             public void onInternetRequestFailure(NetworkController networkController, int sequence) {
                 // TODO Should we send back a failure notification?
-                Log.e(getClass().getCanonicalName(), "ULX failed to relay an Internet packet");
+                Timber.e("ULX failed to relay an Internet packet");
             }
         });
     }
@@ -952,7 +983,11 @@ public class NetworkController implements IoController.Delegate,
     }
 
     private void forwardMeshPacket(Packet packet, Instance destination, Device splitHorizon) {
-        Log.i(getClass().getCanonicalName(), String.format("ULX is forwarding a mesh packet [%d] to %s", packet.getSequenceIdentifier(), destination.getStringIdentifier()));
+        Timber.i(
+                "ULX is forwarding a mesh packet [%d] to %s",
+                packet.getSequenceIdentifier(),
+                destination.getStringIdentifier()
+        );
 
         // Instantiate the IoPacket with the proper next-hop lookup
         IoController.IoPacket ioPacket = new NetworkPacket(packet) {
@@ -960,24 +995,22 @@ public class NetworkController implements IoController.Delegate,
             @Override
             public Device getDevice() {
                 Device device = getBestLinkNextHopDevice(destination, splitHorizon);
-                Log.i(NetworkController.this.getClass().getCanonicalName(),
-                      String.format(
-                              "ULX best link next hop is %s",
-                              device != null ? device.getIdentifier() : null
-                      )
+                Timber.i(
+                        "ULX best link next hop is %s",
+                        device != null ? device.getIdentifier() : null
                 );
                 return device;
             }
 
             @Override
             public void handleOnWritten() {
-                Log.i(NetworkController.this.getClass().getCanonicalName(), "ULX-M packet relayed successfully");
+                Timber.i("ULX-M packet relayed successfully");
                 // Do nothing; we're currently not tracking mesh relays
             }
 
             @Override
             public void handleOnWriteFailure(UlxError error) {
-                Log.e(NetworkController.this.getClass().getCanonicalName(), "ULX-M packet relay failed");
+                Timber.e("ULX-M packet relay failed");
                 // Do nothing; we're currently not tracking mesh relays
             }
         };
@@ -987,7 +1020,7 @@ public class NetworkController implements IoController.Delegate,
     }
 
     private void forwardInternetResponsePacket(InternetResponsePacket packet, Device splitHorizon) {
-        Log.i(getClass().getCanonicalName(), "ULX is forwarding an Internet response packet");
+        Timber.i("ULX is forwarding an Internet response packet");
 
         // Instantiate the IoPacket with the proper next-hop lookup
         IoController.IoPacket ioPacket = new NetworkPacket(packet) {
@@ -1001,13 +1034,13 @@ public class NetworkController implements IoController.Delegate,
 
             @Override
             public void handleOnWritten() {
-                Log.i(NetworkController.this.getClass().getCanonicalName(), "ULX Internet response packet relayed successfully");
+                Timber.i("ULX Internet response packet relayed successfully");
                 // Do nothing; we're currently not tracking mesh relays
             }
 
             @Override
             public void handleOnWriteFailure(UlxError error) {
-                Log.e(NetworkController.this.getClass().getCanonicalName(), "ULX Internet response packet relay failed");
+                Timber.e("ULX Internet response packet relay failed");
                 // Do nothing; we're currently not tracking mesh relays
             }
         };
@@ -1033,7 +1066,7 @@ public class NetworkController implements IoController.Delegate,
         } else {
 
             if (device == null) {
-                Log.e(getClass().getCanonicalName(), "ULX could not find a device with an input device");
+                Timber.e("ULX could not find a device with an input device");
                 return;
             }
 
@@ -1135,7 +1168,7 @@ public class NetworkController implements IoController.Delegate,
         int hopCount = Math.min(link.getHopCount() + 1, RoutingTable.HOP_COUNT_INFINITY);
         int internetHopCount = Math.min(link.getInternetHopCount() + 1, RoutingTable.HOP_COUNT_INFINITY);
 
-        Log.i(getClass().getCanonicalName(), String.format("ULX-M is propagating link update %s", link.toString()));
+        Timber.i("ULX-M is propagating link update %s", link.toString());
 
         // This version propagates all updates, but that might turn out to be
         // too much. Future versions may condense several updates together, so
@@ -1159,15 +1192,12 @@ public class NetworkController implements IoController.Delegate,
             int hopCount,
             int internetHopCount
     ) {
-        Log.i(
-                getClass().getCanonicalName(),
-                String.format(
-                        "Sending split-horizon update to %s regarding instance %s. Hop count: %d. Internet hop count: %d",
-                        bestLinkDevice.getIdentifier(),
-                        destination,
-                        hopCount,
-                        internetHopCount
-                )
+        Timber.i(
+                "Sending split-horizon update to %s regarding instance %s. Hop count: %d. Internet hop count: %d",
+                bestLinkDevice.getIdentifier(),
+                destination,
+                hopCount,
+                internetHopCount
         );
         
         final UpdatePacket updatePacket = new UpdatePacket(
@@ -1191,24 +1221,19 @@ public class NetworkController implements IoController.Delegate,
     private void scheduleUpdatePacket(UpdatePacket updatePacket, @NonNull Device splitHorizon) {
 
         for (Device device : getRoutingTable().getDeviceList()) {
-            Log.i(
-                    getClass().getCanonicalName(),
-                    String.format("ULX-M scheduling update packet %s to %s with split horizon %s",
-                                  updatePacket.toString(),
-                                  device.getIdentifier(),
-                                  splitHorizon.getIdentifier()
-                    )
+            Timber.i(
+                    "ULX-M scheduling update packet %s to %s with split horizon %s",
+                    updatePacket.toString(),
+                    device.getIdentifier(),
+                    splitHorizon.getIdentifier()
             );
 
             // Ignore the split horizon
             if (device.equals(splitHorizon)) {
-                Log.i(
-                        getClass().getCanonicalName(),
-                        String.format(
-                                "ULX-M not propagating update packet %s to device %s because the device is the split horizon",
-                                updatePacket,
-                                splitHorizon.getIdentifier()
-                        )
+                Timber.i(
+                        "ULX-M not propagating update packet %s to device %s because the device is the split horizon",
+                        updatePacket,
+                        splitHorizon.getIdentifier()
                 );
                 continue;
             }
@@ -1230,12 +1255,12 @@ public class NetworkController implements IoController.Delegate,
 
             @Override
             public void handleOnWritten() {
-                Log.e(getClass().getCanonicalName(), "ULX update packet was written");
+                Timber.e("ULX update packet was written");
             }
 
             @Override
             public void handleOnWriteFailure(UlxError error) {
-                Log.e(getClass().getCanonicalName(), "ULX update packet was NOT written");
+                Timber.e("ULX update packet was NOT written");
             }
 
             @Override
@@ -1300,7 +1325,7 @@ public class NetworkController implements IoController.Delegate,
 
         // Don't run networking stuff on the main thread
         ExecutorPool.getInternetExecutor().execute(() -> {
-            Log.i(getClass().getCanonicalName(), "ULX attempting a direct request to the Internet");
+            Timber.i("ULX attempting a direct request to the Internet");
 
             HttpURLConnection connection = null;
 
@@ -1339,7 +1364,7 @@ public class NetworkController implements IoController.Delegate,
                 String line;
 
                 while ((line = reader.readLine()) != null) {
-                    Log.i(getClass().getCanonicalName(), String.format("ULX read server response line: %s", line));
+                    Timber.i("ULX read server response line: %s", line);
                     stringBuilder.append(line).append("\n");
                 }
 
@@ -1375,7 +1400,7 @@ public class NetworkController implements IoController.Delegate,
      * @param test The test ID.
      */
     private void makeMeshInternetRequest(int sequence, Instance originator, URL url, String data, int test) {
-        Log.i(getClass().getCanonicalName(), "ULX attempting a mesh request to the Internet");
+        Timber.i("ULX attempting a mesh request to the Internet");
 
         InternetPacket internetPacket = new InternetPacket(
                 sequence,
@@ -1415,7 +1440,7 @@ public class NetworkController implements IoController.Delegate,
      * @param message The content body received.
      */
     private void notifyOnInternetResponse(InternetRequestDelegate internetRequestDelegate, int code, String message) {
-        Log.i(getClass().getCanonicalName(), "ULX got a response from the server");
+        Timber.i("ULX got a response from the server");
         if (internetRequestDelegate != null) {
             internetRequestDelegate.onInternetResponse(this, code, message);
         }

@@ -3,15 +3,15 @@ package com.uplink.ulx.drivers.bluetooth.ble.model.foreign;
 import android.annotation.SuppressLint;
 import android.annotation.TargetApi;
 import android.os.Build;
-import android.util.Log;
 
 import com.uplink.ulx.TransportType;
 import com.uplink.ulx.UlxError;
 import com.uplink.ulx.drivers.bluetooth.ble.gattClient.GattClient;
 import com.uplink.ulx.drivers.commons.model.ConnectorCommons;
-import com.uplink.ulx.drivers.model.Stream;
 
 import java.util.Objects;
+
+import timber.log.Timber;
 
 /**
  * A {@link BleForeignConnector} is a {@link com.uplink.ulx.drivers.model.Connector}
@@ -62,7 +62,8 @@ public class BleForeignConnector extends ConnectorCommons implements GattClient.
 
     @Override
     public void requestAdapterToDisconnect() {
-        Log.e(getClass().getCanonicalName(), "ULX connector is being requested to disconnect, but that's not supported yet");
+        Timber.e(
+                "ULX connector is being requested to disconnect, but that's not supported yet");
     }
 
     @Override

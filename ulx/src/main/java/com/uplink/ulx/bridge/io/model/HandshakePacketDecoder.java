@@ -1,25 +1,21 @@
 package com.uplink.ulx.bridge.io.model;
 
-import android.util.Log;
-
 import com.uplink.ulx.UlxError;
 import com.uplink.ulx.UlxErrorCode;
-import com.uplink.ulx.bridge.network.model.Link;
-import com.uplink.ulx.drivers.model.Device;
 import com.uplink.ulx.model.Instance;
 import com.uplink.ulx.serialization.Decoder;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.nio.ByteBuffer;
-import java.util.ArrayList;
-import java.util.List;
+
+import timber.log.Timber;
 
 public class HandshakePacketDecoder implements Decoder {
 
     @Override
     public Decoder.Result decode(byte[] data) throws IOException {
-        Log.i(getClass().getCanonicalName(), "ULX attempting to decode HandshakePacket");
+        Timber.i("ULX attempting to decode HandshakePacket");
 
         ByteArrayInputStream inputStream = new ByteArrayInputStream(data);
 

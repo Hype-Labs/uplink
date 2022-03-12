@@ -1,20 +1,21 @@
 package com.uplink.ulx.drivers.commons.controller;
 
 import android.content.Context;
-import android.util.Log;
 
 import com.uplink.ulx.UlxError;
 import com.uplink.ulx.drivers.commons.StateManager;
 import com.uplink.ulx.drivers.controller.Advertiser;
 import com.uplink.ulx.drivers.controller.Browser;
 import com.uplink.ulx.drivers.controller.Driver;
-import com.uplink.ulx.drivers.model.Device;
 import com.uplink.ulx.drivers.controller.TransportDriver;
+import com.uplink.ulx.drivers.model.Device;
 import com.uplink.ulx.threading.ExecutorPool;
 
 import java.lang.ref.WeakReference;
 import java.util.Objects;
 import java.util.concurrent.ExecutorService;
+
+import timber.log.Timber;
 
 /**
  * This class implements the parts of the logic that are shared by all Driver
@@ -427,14 +428,18 @@ public abstract class DriverCommons implements
         int advertiserConnectorCount = getAdvertiser().getActiveConnectors().size();
         int browserConnectorCount = getBrowser().getActiveConnectors().size();
 
-        Log.i(getClass().getCanonicalName(), String.format("ULX connection count is %d (advertiser) and %d (browser)", advertiserConnectorCount, browserConnectorCount));
+        Timber.i(
+                "ULX connection count is %d (advertiser) and %d (browser)",
+                advertiserConnectorCount,
+                browserConnectorCount
+        );
 
         if (advertiserConnectorCount != 0 || browserConnectorCount != 0) {
-            Log.i(getClass().getCanonicalName(), "ULX driver is rejecting an adapter restart request");
+            Timber.i("ULX driver is rejecting an adapter restart request");
             return false;
         }
 
-        Log.i(getClass().getCanonicalName(), "ULX is accepting an adapter restart request");
+        Timber.i("ULX is accepting an adapter restart request");
 
         // Restart the adapter
         requestAdapterRestart();

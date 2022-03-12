@@ -1,7 +1,6 @@
 package com.uplink.ulx.bridge.network.model;
 
 import android.annotation.SuppressLint;
-import android.util.Log;
 
 import com.uplink.ulx.UlxError;
 import com.uplink.ulx.UlxErrorCode;
@@ -19,6 +18,7 @@ import java.util.Set;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
+import timber.log.Timber;
 
 public class RoutingTable {
 
@@ -425,14 +425,12 @@ public class RoutingTable {
      *                         to reach the Internet.
      */
     public synchronized void registerOrUpdate(Device device, Instance instance, int hopCount, int internetHopCount) {
-        Log.i(getClass().getCanonicalName(),
-                String.format(
-                        "ULX-M registering an update: %s %s %d %d",
-                        device.getIdentifier(),
-                        instance.getStringIdentifier(),
-                        hopCount,
-                        internetHopCount
-                )
+        Timber.i(
+                "ULX-M registering an update: %s %s %d %d",
+                device.getIdentifier(),
+                instance.getStringIdentifier(),
+                hopCount,
+                internetHopCount
         );
 
 
@@ -440,13 +438,10 @@ public class RoutingTable {
         // This way we will be able to detect instance loss in circular connections
         // This also includes cases when hopCount == HOP_COUNT_INFINITY (i.e. unreachable)
         if (hopCount >= MAXIMUM_HOP_COUNT) {
-            Log.i(
-                    getClass().getCanonicalName(),
-                    String.format(
-                            "ULX will delete link for %s, because its hop count is %d (more than maximum)",
-                            instance.getStringIdentifier(),
-                            hopCount
-                    )
+            Timber.i(
+                    "ULX will delete link for %s, because its hop count is %d (more than maximum)",
+                    instance.getStringIdentifier(),
+                    hopCount
             );
 
             // Find an existing entry for the given device
@@ -473,7 +468,10 @@ public class RoutingTable {
         // in two events (found and update). If it's not new, then it's an
         // update if its better than the previous one.
         if (oldBestLink == null) {
-            Log.i(getClass().getCanonicalName(), String.format("ULX-M %s instance is new and will be propagated as found", instance.getStringIdentifier()));
+            Timber.i(
+                    "ULX-M %s instance is new and will be propagated as found",
+                    instance.getStringIdentifier()
+            );
             notifyOnInstanceFound(instance);
             notifyOnLinkUpdate(newLink);
         } else {
@@ -485,10 +483,14 @@ public class RoutingTable {
             assert newBestLink != null;
 
             if (newBestLink.compareTo(oldBestLink) != 0) {
-                Log.i(getClass().getCanonicalName(), "ULX link quality changed, and an update will be propagated");
+                Timber.i("ULX link quality changed, and an update will be propagated");
                 notifyOnLinkUpdate(newLink);
             } else {
-                Log.e(getClass().getCanonicalName(), String.format("ULX link not being relaxed: %s %s", oldBestLink.toString(), newBestLink.toString()));
+                Timber.e(
+                        "ULX link not being relaxed: %s %s",
+                        oldBestLink.toString(),
+                        newBestLink.toString()
+                );
             }
         }
     }
@@ -510,7 +512,7 @@ public class RoutingTable {
      */
     private void unregisterAndNotify(@NonNull Link link) {
 
-        Log.i(getClass().getCanonicalName(), "ULX deleting an instance from the registry");
+        Timber.i("ULX deleting an instance from the registry");
 
         final Device device = link.getNextHop();
         final Instance instance = link.getDestination();
@@ -522,10 +524,7 @@ public class RoutingTable {
         if (entry != null) {
             // If the device is still registered, so must be the link
             if (!entry.remove(instance)) {
-                Log.e(
-                        getClass().getCanonicalName(),
-                        "ULX is trying to delete a link for an instance that is not reachable"
-                );
+                Timber.e("ULX is trying to delete a link for an instance that is not reachable");
                 return;
             }
         }
@@ -535,7 +534,10 @@ public class RoutingTable {
 
         // No new "best link" means no link at all, so the instance is lost
         if (newBestLink == null) {
-            Log.i(getClass().getCanonicalName(), String.format("ULX instance %s is lost, since no other links exist", instance.getStringIdentifier()));
+            Timber.i(
+                    "ULX instance %s is lost, since no other links exist",
+                    instance.getStringIdentifier()
+            );
 
             UlxError error = new UlxError(
                     UlxErrorCode.UNKNOWN,
@@ -556,7 +558,7 @@ public class RoutingTable {
         // If the link quality changed, then we propagate an update. Most
         // likely, this will relax the link's quality
         if (oldBestLink.compareTo(newBestLink) != 0) {
-            Log.i(getClass().getCanonicalName(), "ULX link quality degraded, and an update is being propagated");
+            Timber.i("ULX link quality degraded, and an update is being propagated");
             notifyOnLinkUpdate(newBestLink);
         }
 
@@ -790,13 +792,13 @@ public class RoutingTable {
     }
 
     public void log() {
-        Log.e(getClass().getCanonicalName(), "ULX-M logging the routing table");
+        Timber.e("ULX-M logging the routing table");
         for (HashMap.Entry<Device, Entry> entry : getLinkMap().entrySet()) {
 
             Entry deviceEntry = entry.getValue();
 
             for (Link link : deviceEntry.getLinks()) {
-                Log.e(getClass().getCanonicalName(), String.format("ULX-M RTR %s", link.toString()));
+                Timber.e("ULX-M RTR %s", link.toString());
             }
         }
     }

@@ -12,9 +12,7 @@ import android.bluetooth.BluetoothManager;
 import android.bluetooth.BluetoothProfile;
 import android.content.Context;
 import android.os.Build;
-import android.os.DeadObjectException;
 import android.os.Looper;
-import android.util.Log;
 
 import com.uplink.ulx.UlxError;
 import com.uplink.ulx.UlxErrorCode;
@@ -25,6 +23,8 @@ import com.uplink.ulx.threading.Dispatch;
 import java.lang.ref.WeakReference;
 import java.util.HashMap;
 import java.util.Objects;
+
+import timber.log.Timber;
 
 /**
  * This class is an implementation of a GATT server mediator, which manages the
@@ -324,14 +324,11 @@ public class GattServer extends BluetoothGattServerCallback {
 
     @Override
     public void onConnectionStateChange(BluetoothDevice device, int status, int newState) {
-        Log.i(
-                getClass().getCanonicalName(),
-                String.format(
-                        "ULX device %s state changed. Status: %d. New state: %d",
-                        device.getAddress(),
-                        status,
-                        newState
-                )
+        Timber.i(
+                "ULX device %s state changed. Status: %d. New state: %d",
+                device.getAddress(),
+                status,
+                newState
         );
 
         if (newState == BluetoothProfile.STATE_DISCONNECTED) {
@@ -384,13 +381,20 @@ public class GattServer extends BluetoothGattServerCallback {
             int offset,
             byte[] value
     ) {
-        Log.i(getClass().getCanonicalName(), String.format("ULX descriptor got a write request with %d bytes from %s", value.length, device.getAddress()));
+        Timber.i(
+                "ULX descriptor got a write request with %d bytes from %s",
+                value.length,
+                device.getAddress()
+        );
 
         Dispatch.post(() -> {
 
             // Respond to the requester
             if (responseNeeded) {
-                Log.i(getClass().getCanonicalName(), String.format("ULX responding to a descriptor write request for device %s", device.getAddress()));
+                Timber.i(
+                        "ULX responding to a descriptor write request for device %s",
+                        device.getAddress()
+                );
 
                 if (!getBluetoothGattServer().sendResponse(
                         device,
@@ -399,7 +403,7 @@ public class GattServer extends BluetoothGattServerCallback {
                         offset,
                         value
                 )) {
-                    Log.e(getClass().getCanonicalName(), "ULX failed to respond to a descriptor write request");
+                    Timber.e("ULX failed to respond to a descriptor write request");
                     return;
                 }
             }
@@ -447,7 +451,11 @@ public class GattServer extends BluetoothGattServerCallback {
     public void onMtuChanged(BluetoothDevice bluetoothDevice, int mtu) {
         super.onMtuChanged(bluetoothDevice, mtu);
 
-        Log.i(getClass().getCanonicalName(), String.format("ULX MTU has changed to %d for device %s", mtu, bluetoothDevice.getAddress()));
+        Timber.i(
+                "ULX MTU has changed to %d for device %s",
+                mtu,
+                bluetoothDevice.getAddress()
+        );
 
         // Keep it
         getMtuRegistry().set(bluetoothDevice, mtu);
@@ -465,10 +473,17 @@ public class GattServer extends BluetoothGattServerCallback {
 
         Dispatch.post(() -> {
 
-            Log.i(getClass().getCanonicalName(), String.format("ULX characteristic changed with %d bytes of data from device %s", value.length, device.getAddress()));
+            Timber.i(
+                    "ULX characteristic changed with %d bytes of data from device %s",
+                    value.length,
+                    device.getAddress()
+            );
 
             if (responseNeeded) {
-                Log.i(getClass().getCanonicalName(), String.format("ULX sending characteristic write request response to device %s", device.getAddress()));
+                Timber.i(
+                        "ULX sending characteristic write request response to device %s",
+                        device.getAddress()
+                );
 
                 if (!getBluetoothGattServer().sendResponse(
                         device,
@@ -477,7 +492,7 @@ public class GattServer extends BluetoothGattServerCallback {
                         offset,
                         value
                 )) {
-                    Log.e(getClass().getCanonicalName(), "ULX failed to send characteristic write request response");
+                    Timber.e("ULX failed to send characteristic write request response");
                     return;
                 }
             }
@@ -539,12 +554,10 @@ public class GattServer extends BluetoothGattServerCallback {
             // can happen, even though DeadObjectException is not present in the method's
             // signature. TODO investigate DeadObjectException
 
-            Log.w(getClass().getCanonicalName(),
-                  String.format(
-                          "ULX unexpected exception happened. Invalidating device %s",
-                          bluetoothDevice.getAddress()
-                  ),
-                  ex
+            Timber.w(
+                    ex,
+                    "ULX unexpected exception happened. Invalidating device %s",
+                    bluetoothDevice.getAddress()
             );
 
             UlxError error = new UlxError(
@@ -578,11 +591,7 @@ public class GattServer extends BluetoothGattServerCallback {
             //        at android.bluetooth.BluetoothGattServer.notifyCharacteristicChanged(BluetoothGattServer.java:590)
             //        at com.uplink.ulx.drivers.bluetooth.ble.gattServer.GattServer.updateCharacteristic(GattServer.java:467)
             //
-            ex.printStackTrace();
-            Log.e(getClass().getCanonicalName(), String.format("ULX handled" +
-                    "exception %s by printing the stack trace, but operations " +
-                    "will resume", ex.getClass().getCanonicalName())
-            );
+            Timber.e(ex, "ULX handled exception by printing the stack trace, but operations will resume");
 
             return 0;
         }
@@ -592,12 +601,10 @@ public class GattServer extends BluetoothGattServerCallback {
 
     @Override
     public void onNotificationSent(BluetoothDevice bluetoothDevice, int status) {
-        Log.i(
-                getClass().getCanonicalName(),
-                String.format("ULX sent a notification to %s. Status: %d",
-                              bluetoothDevice.getAddress(),
-                              status
-                )
+        Timber.i(
+                "ULX sent a notification to %s. Status: %d",
+                bluetoothDevice.getAddress(),
+                status
         );
 
         Dispatch.post(() -> {

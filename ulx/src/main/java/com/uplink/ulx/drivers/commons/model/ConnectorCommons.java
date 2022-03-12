@@ -1,11 +1,10 @@
 package com.uplink.ulx.drivers.commons.model;
 
 import android.annotation.SuppressLint;
-import android.util.Log;
 
 import com.uplink.ulx.UlxError;
-import com.uplink.ulx.drivers.model.Connector;
 import com.uplink.ulx.drivers.commons.StateManager;
+import com.uplink.ulx.drivers.model.Connector;
 import com.uplink.ulx.threading.ExecutorPool;
 
 import java.lang.ref.WeakReference;
@@ -14,6 +13,7 @@ import java.util.List;
 import java.util.concurrent.ExecutorService;
 
 import androidx.annotation.NonNull;
+import timber.log.Timber;
 
 /**
  * This class implements the common functionality that Connector implementations
@@ -153,19 +153,25 @@ public abstract class ConnectorCommons implements
 
     @Override
     public void connect() {
-        Log.i(getClass().getCanonicalName(), String.format("ULX connector %s being requested to connect", getIdentifier()));
+        Timber.i(
+                "ULX connector %s being requested to connect",
+                getIdentifier()
+        );
         getStateManager().start();
     }
 
     @Override
     public void disconnect() {
-        Log.i(getClass().getCanonicalName(), String.format("ULX connector %s being requested to disconnect", getIdentifier()));
+        Timber.i(
+                "ULX connector %s being requested to disconnect",
+                getIdentifier()
+        );
         getStateManager().stop();
     }
 
     @Override
     public void requestStart(StateManager stateManager) {
-        Log.i(getClass().getCanonicalName(), String.format("ULX connector %s being requested to start", getIdentifier()));
+        Timber.i("ULX connector %s being requested to start", getIdentifier());
         requestAdapterToConnect();
     }
 
@@ -187,13 +193,13 @@ public abstract class ConnectorCommons implements
 
     @Override
     public void requestStop(StateManager stateManager) {
-        Log.i(getClass().getCanonicalName(), String.format("ULX connector %s being requested to stop", getIdentifier()));
+        Timber.i("ULX connector %s being requested to stop", getIdentifier());
         this.requestAdapterToDisconnect();
     }
 
     @Override
     public void onFailedStart(StateManager stateManager, UlxError error) {
-        Log.e(getClass().getCanonicalName(), String.format("ULX connector %s failed to connect", getIdentifier()));
+        Timber.e("ULX connector %s failed to connect", getIdentifier());
         StateDelegate stateDelegate = this.getStateDelegate();
         if (stateDelegate != null) {
             stateDelegate.onConnectionFailure(this, error);
@@ -210,14 +216,18 @@ public abstract class ConnectorCommons implements
 
     @Override
     public void onConnected(Connector connector) {
-        Log.i(getClass().getCanonicalName(), String.format("ULX connector %s connected", getIdentifier()));
+        Timber.i("ULX connector %s connected", getIdentifier());
         getStateManager().notifyStart();
     }
 
     @SuppressLint("NewApi") // forEach() is actually supported with desugaring library
     @Override
     public void onDisconnection(Connector connector, UlxError error) {
-        Log.e(getClass().getCanonicalName(), String.format("ULX connector %s disconnected with error %s", getIdentifier(), error));
+        Timber.e(
+                "ULX connector %s disconnected with error %s",
+                getIdentifier(),
+                error
+        );
         getStateManager().notifyStop(error);
 
         if (error != null) { // Unexpected disconnection is also invalidation
@@ -227,7 +237,11 @@ public abstract class ConnectorCommons implements
 
     @Override
     public void onConnectionFailure(Connector connector, UlxError error) {
-        Log.e(getClass().getCanonicalName(), String.format("ULX connector %s failed to connect with error: %s", getIdentifier(), error.toString()));
+        Timber.e(
+                "ULX connector %s failed to connect with error: %s",
+                getIdentifier(),
+                error.toString()
+        );
         getStateManager().notifyFailedStart(error);
     }
 

@@ -1,7 +1,5 @@
 package com.uplink.ulx.bridge.io.controller;
 
-import android.util.Log;
-
 import com.uplink.ulx.UlxError;
 import com.uplink.ulx.UlxErrorCode;
 import com.uplink.ulx.bridge.io.model.AcknowledgementPacket;
@@ -43,6 +41,7 @@ import java.util.Queue;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
+import timber.log.Timber;
 
 /**
  * The {@link IoController} is the entity that is responsible for converting
@@ -277,7 +276,7 @@ public class IoController implements InputStream.Delegate,
      * @param ioPacket The {@link IoPacket} to queue.
      */
     public void add(IoPacket ioPacket) {
-        Log.i(getClass().getCanonicalName(), String.format("ULX queueing packet %s", ioPacket));
+        Timber.i("ULX queueing packet %s", ioPacket);
 
         // Queue the packet
         synchronized (getQueue()) {
@@ -298,7 +297,7 @@ public class IoController implements InputStream.Delegate,
      * nothing, and simply returns.
      */
     private void attemptDequeue() {
-        Log.i(getClass().getCanonicalName(), "ULX dequeueing packet");
+        Timber.i("ULX dequeueing packet");
 
         IoPacket ioPacket;
 
@@ -310,7 +309,7 @@ public class IoController implements InputStream.Delegate,
                 // If another packet is already being processed, do not proceed, and
                 // instead let if finish
                 if (getCurrentPacket() != null) {
-                    Log.i(getClass().getCanonicalName(), "ULX packet not dequeued because the queue is busy");
+                    Timber.i("ULX packet not dequeued because the queue is busy");
                     return;
                 }
 
@@ -321,14 +320,11 @@ public class IoController implements InputStream.Delegate,
 
                 // Don't proceed if the queue is empty
                 if (ioPacket == null) {
-                    Log.i(getClass().getCanonicalName(), "ULX queue not proceeding because the queue is empty");
+                    Timber.i("ULX queue not proceeding because the queue is empty");
                     return;
                 }
 
-                Log.i(
-                        getClass().getCanonicalName(),
-                        String.format("ULX current packet is %s", ioPacket)
-                );
+                Timber.i("ULX current packet is %s", ioPacket);
 
                 // Flag the controller as busy, so packets do not overlap
                 setCurrentPacket(ioPacket);
@@ -339,7 +335,7 @@ public class IoController implements InputStream.Delegate,
             if (device != null) {
                 break;
             } else {
-                Log.e(getClass().getCanonicalName(), "ULX destination not found");
+                Timber.e("ULX destination not found");
 
                 UlxError error = new UlxError(
                         UlxErrorCode.UNKNOWN,
@@ -387,9 +383,12 @@ public class IoController implements InputStream.Delegate,
         // that the proper encoder was not registered or it's the wrong packet
         // type
         if (result == null) {
-            throw new RuntimeException(String.format("Failed to encode a packet " +
-                    "of type %s. An encoder for the packet type was not " +
-                    "registered or the type is not recognized.", ioPacket.getPacket().getClass().getCanonicalName()));
+            throw new RuntimeException(String.format(
+                    "Failed to encode a packet " +
+                            "of type %s. An encoder for the packet type was not " +
+                            "registered or the type is not recognized.",
+                    ioPacket.getPacket().getClass().getCanonicalName()
+            ));
         }
 
         // An error from the encoder is not considered a programming error
@@ -399,8 +398,14 @@ public class IoController implements InputStream.Delegate,
         }
 
         // Write the result
-        Log.i(getClass().getCanonicalName(), String.format("ULX-M writing packet %s", ioPacket.toString()));
-        outputStream.write(result.getData());
+        Timber.i("ULX-M writing packet %s", ioPacket.toString());
+        final IoResult ioResult = outputStream.write(result.getData());
+        Timber.d(
+                "Buffered %d bytes from %d. Error: %s",
+                ioResult.getByteCount(),
+                result.getData().length,
+                ioResult.getError()
+        );
     }
 
     /**
@@ -448,7 +453,10 @@ public class IoController implements InputStream.Delegate,
 
     @Override
     public void onDataAvailable(InputStream inputStream) {
-        Log.i(getClass().getCanonicalName(), String.format("ULX input stream %s has data available", inputStream.getIdentifier()));
+        Timber.i(
+                "ULX input stream %s has data available",
+                inputStream.getIdentifier()
+        );
 
         // This is the buffer that will receive the data
         Buffer buffer = getBufferForStream(inputStream);
@@ -476,7 +484,10 @@ public class IoController implements InputStream.Delegate,
             // The stream is depleted for the moment; either decoding succeeds
             // or we need to wait for more data.
             try {
-                Log.i(getClass().getCanonicalName(), String.format("ULX attempting to decode packet from input stream %s", inputStream.getIdentifier()));
+                Timber.i(
+                        "ULX attempting to decode packet from input stream %s",
+                        inputStream.getIdentifier()
+                );
                 result = getSerializer().decode(buffer);
             } catch (IOException e) {
 
@@ -487,15 +498,15 @@ public class IoController implements InputStream.Delegate,
 
             // None of the decoders recognized the packet
             if (result == null) {
-                Log.i(getClass().getCanonicalName(), "ULX packet could not be decoded because its type is not recognized.");
-                Log.i(getClass().getCanonicalName(), String.format("ULX buffer size is %d", buffer.getOccupiedByteCount()));
+                Timber.i("ULX packet could not be decoded because its type is not recognized.");
+                Timber.i("ULX buffer size is %d", buffer.getOccupiedByteCount());
                 return;
             }
 
             // The packet's type is recognized, but there's not enough data yet
             // for decoding the packet in full
             if (result.getObject() == null) {
-                Log.i(getClass().getCanonicalName(), "ULX packet could not be decoded; waiting for more data.");
+                Timber.i("ULX packet could not be decoded; waiting for more data.");
                 return;
             }
 
@@ -519,10 +530,7 @@ public class IoController implements InputStream.Delegate,
 
     @Override
     public void onSpaceAvailable(OutputStream outputStream) {
-        Log.d(
-                getClass().getCanonicalName(),
-                String.format("ULX Space available on stream %s", outputStream.getIdentifier())
-        );
+        Timber.d("ULX Space available on stream %s", outputStream.getIdentifier());
 
         synchronized (currentPacketLock) {
             // If this happens, something's wrong
@@ -541,12 +549,10 @@ public class IoController implements InputStream.Delegate,
 
     @Override
     public void onInvalidation(Stream stream, UlxError error) {
-        Log.w(
-                getClass().getCanonicalName(),
-                String.format("ULX Stream %s invalidated. Reason: %s",
-                              stream.getIdentifier(),
-                              error.getReason()
-                )
+        Timber.w(
+                "ULX Stream %s invalidated. Reason: %s",
+                stream.getIdentifier(),
+                error.getReason()
         );
 
         final IoPacket currentPacket;

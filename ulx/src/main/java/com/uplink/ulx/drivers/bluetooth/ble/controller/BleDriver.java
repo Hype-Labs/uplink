@@ -2,7 +2,6 @@ package com.uplink.ulx.drivers.bluetooth.ble.controller;
 
 import android.bluetooth.BluetoothManager;
 import android.content.Context;
-import android.util.Log;
 
 import com.uplink.ulx.TransportType;
 import com.uplink.ulx.drivers.bluetooth.ble.model.domestic.BleDomesticService;
@@ -11,6 +10,8 @@ import com.uplink.ulx.drivers.commons.controller.DriverCommons;
 import com.uplink.ulx.drivers.controller.Advertiser;
 import com.uplink.ulx.drivers.controller.Browser;
 import com.uplink.ulx.drivers.controller.Driver;
+
+import timber.log.Timber;
 
 /**
  * This is the implementation of the Driver interface for the specific transport
@@ -102,7 +103,7 @@ public class BleDriver extends DriverCommons implements Driver {
 
     @Override
     protected void requestAdapterRestart() {
-        Log.i(getClass().getCanonicalName(), "ULX BLE driver is restarting the adapter");
+        Timber.i("ULX BLE driver is restarting the adapter");
 
         // TODO I've seen some cases in which the adapter restart request is
         //      performed but another device attempts to connect in the

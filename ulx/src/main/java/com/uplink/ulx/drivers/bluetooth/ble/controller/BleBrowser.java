@@ -16,7 +16,6 @@ import android.bluetooth.le.ScanSettings;
 import android.content.Context;
 import android.os.Build;
 import android.os.ParcelUuid;
-import android.util.Log;
 
 import com.uplink.ulx.TransportType;
 import com.uplink.ulx.UlxError;
@@ -48,6 +47,8 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.UUID;
 
+import timber.log.Timber;
+
 @TargetApi(Build.VERSION_CODES.LOLLIPOP)
 class BleBrowser extends BrowserCommons implements
         Connector.StateDelegate,
@@ -74,10 +75,14 @@ class BleBrowser extends BrowserCommons implements
 
         @Override
         public void onScanResult(int callbackType, final ScanResult scanResult) {
+            if (getKnownDevices().get(scanResult.getDevice().getAddress()) != null) {
+                //Log.i(getClass().getCanonicalName(), String.format("ULX BLE browser ignoring device %s because it's already known", scanResult.getDevice().getAddress()));
+                return;
+            }
 
             // The host may find itself in a scan, and that must be ignored
             if (isHostDevice(scanResult)) {
-                Log.i(BleBrowser.this.getClass().getCanonicalName(), "ULX ignoring host device");
+                Timber.i("ULX ignoring host device");
                 return;
             }
 
@@ -349,7 +354,7 @@ class BleBrowser extends BrowserCommons implements
     @SuppressLint("MissingPermission")
     @Override
     public void requestAdapterToStart() {
-        Log.i(getClass().getCanonicalName(), "ULX BLE browser is requesting the adapter to start");
+        Timber.i("ULX BLE browser is requesting the adapter to start");
 
         // Are the necessary permissions in place?
         if (!BluetoothPermissionChecker.isLocationPermissionGranted(getContext())) {
@@ -371,7 +376,7 @@ class BleBrowser extends BrowserCommons implements
     }
 
     private void startScanning() {
-        Log.i(getClass().getCanonicalName(), "ULX BLE scanner starting");
+        Timber.i("ULX BLE scanner starting");
 
         Dispatch.post(() -> {
 
@@ -428,7 +433,7 @@ class BleBrowser extends BrowserCommons implements
     @SuppressLint("MissingPermission")
     @Override
     public void requestAdapterToStop() {
-        Log.i(getClass().getCanonicalName(), "ULX BLE browser requesting the adapter to stop");
+        Timber.i("ULX BLE browser requesting the adapter to stop");
 
         // Is the adapter enabled?
         if (getBluetoothAdapter().isEnabled()) {
@@ -443,7 +448,7 @@ class BleBrowser extends BrowserCommons implements
     }
 
     private void stopScanning() {
-        Log.i(getClass().getCanonicalName(), "ULX BLE scanner stopping");
+        Timber.i("ULX BLE scanner stopping");
         getBluetoothLeScanner().stopScan(getScanCallback());
     }
 
@@ -465,7 +470,7 @@ class BleBrowser extends BrowserCommons implements
 
         // Add to the registry
         getKnownDevices().put(bluetoothDevice.getAddress(), bluetoothDevice);
-        Log.d(getClass().getCanonicalName(), String.format("Device %s added to registry", bluetoothDevice.getAddress()));
+        Timber.d("Device %s added to registry", bluetoothDevice.getAddress());
 
         // Is the record found by the scanner publishing the expected service?
         if (!isCoreServiceScanRecord(scanRecord)) {
@@ -475,7 +480,14 @@ class BleBrowser extends BrowserCommons implements
 
         // Is the host supposed to initiate, or is the foreign bluetoothDevice?
         if (!isConnectableScanRecord(scanRecord)) {
-            //Log.i(getClass().getCanonicalName(), String.format("ULX BLE browser ignoring device %s because the remote is the initiator", bluetoothDevice.getAddress()));
+            Timber.i(
+                    "ULX BLE browser ignoring device %s because the remote is the initiator",
+                    bluetoothDevice.getAddress()
+            );
+            Timber.i(
+                    "ULX BLE browser ignoring device %s because the remote is the initiator",
+                    bluetoothDevice.getAddress()
+            );
             return;
         }
 
@@ -549,7 +561,10 @@ class BleBrowser extends BrowserCommons implements
      * @return Whether the domestic control value is lexicographically lower.
      */
     private boolean compareControlValue(byte [] domesticControlValue, byte [] foreignControlValue) {
-
+        Timber.d("ULX domestic control value: " + StringUtils.byteArrayToHexString(
+                domesticControlValue));
+        Timber.d("ULX foreign control value: " + StringUtils.byteArrayToHexString(
+                foreignControlValue));
         int comparison = StringUtils.compare(
                 domesticControlValue,
                 foreignControlValue,
@@ -573,7 +588,10 @@ class BleBrowser extends BrowserCommons implements
      */
     @SuppressWarnings("MissingPermission")
     private void queueConnection(BluetoothDevice bluetoothDevice) {
-        Log.i(getClass().getCanonicalName(), String.format("ULX BLE scanner is queueing connection %s", bluetoothDevice.getAddress()));
+        Timber.i(
+                "ULX BLE scanner is queueing connection %s",
+                bluetoothDevice.getAddress()
+        );
 
         // Instantiate the GATT client
         GattClient gattClient = new GattClient(
@@ -598,7 +616,11 @@ class BleBrowser extends BrowserCommons implements
 
         // Queue the connector
         getConnectorQueue().add(connector);
-        Log.i(getClass().getCanonicalName(), String.format("ULX BLE scanner queued connector %s for native device %s", connector.getIdentifier(), bluetoothDevice.getAddress()));
+        Timber.i(
+                "ULX BLE scanner queued connector %s for native device %s",
+                connector.getIdentifier(),
+                bluetoothDevice.getAddress()
+        );
 
         // Attempt to connect
         attemptConnection();
@@ -639,11 +661,11 @@ class BleBrowser extends BrowserCommons implements
      * pending on the queue, this method does nothing.
      */
     private void attemptConnection() {
-        Log.i(getClass().getCanonicalName(), "ULX is removing the next connector from the queue");
+        Timber.i("ULX is removing the next connector from the queue");
 
         // Don't proceed if busy
         if (getCurrentConnector() != null) {
-            Log.i(getClass().getCanonicalName(), "ULX connector queue not proceeding because it's busy");
+            Timber.i("ULX connector queue not proceeding because it's busy");
             return;
         }
 
@@ -651,7 +673,7 @@ class BleBrowser extends BrowserCommons implements
 
         // Don't proceed if there's no connector
         if (connector == null) {
-            Log.i(getClass().getCanonicalName(), "ULX attempted to dequeue a connector, but the queue was empty");
+            Timber.i("ULX attempted to dequeue a connector, but the queue was empty");
 
             // Resume scanning, no connection is in progress
             startScanning();
@@ -665,7 +687,10 @@ class BleBrowser extends BrowserCommons implements
         stopScanning();
 
         // Request the connector at the top of the queue to connect
-        Log.i(getClass().getCanonicalName(), String.format("ULX connector queue proceeding with connector %s", connector.getIdentifier()));
+        Timber.i(
+                "ULX connector queue proceeding with connector %s",
+                connector.getIdentifier()
+        );
         connector.connect();
     }
 
@@ -688,7 +713,7 @@ class BleBrowser extends BrowserCommons implements
 
     @Override
     public void onAdapterDisabled(BluetoothStateListener bluetoothStateListener) {
-        Log.i(getClass().getCanonicalName(), "ULX BLE adapter disabled");
+        Timber.i("ULX BLE adapter disabled");
 
         if (getState() == Browser.State.RUNNING || getState() == Browser.State.STARTING) {
 
@@ -706,7 +731,7 @@ class BleBrowser extends BrowserCommons implements
         notifyAllDevicesAsDisconnected();
 
         // Enable
-        Log.i(getClass().getCanonicalName(), "ULX is enabling the BLE adapter");
+        Timber.i("ULX is enabling the BLE adapter");
         getBluetoothAdapter().enable();
     }
 
@@ -716,7 +741,10 @@ class BleBrowser extends BrowserCommons implements
 
     @Override
     public void onConnected(Connector connector) {
-        Log.i(getClass().getCanonicalName(), String.format("ULX BLE browser connector %s connected", connector.getIdentifier()));
+        Timber.i(
+                "ULX BLE browser connector %s connected",
+                connector.getIdentifier()
+        );
 
         Dispatch.post(() -> {
 
@@ -800,7 +828,10 @@ class BleBrowser extends BrowserCommons implements
 
     @Override
     public void onDisconnection(Connector connector, UlxError error) {
-        Log.e(getClass().getCanonicalName(), String.format("ULX BLE browser disconnection for connector %s", connector.getIdentifier()));
+        Timber.e(
+                "ULX BLE browser disconnection for connector %s",
+                connector.getIdentifier()
+        );
 
         // The connector is no longer active
         removeActiveConnector(connector);
@@ -815,7 +846,11 @@ class BleBrowser extends BrowserCommons implements
 
     @Override
     public void onConnectionFailure(Connector connector, UlxError error) {
-        Log.e(getClass().getCanonicalName(), String.format("ULX BLE browser connection failure for connector %s with state %s", connector.getIdentifier(), connector.getState().toString()));
+        Timber.e(
+                "ULX BLE browser connection failure for connector %s with state %s",
+                connector.getIdentifier(),
+                connector.getState().toString()
+        );
 
         BleForeignConnector bleForeignConnector = (BleForeignConnector)connector;
         BluetoothDevice bluetoothDevice = bleForeignConnector.getGattClient().getBluetoothDevice();
@@ -823,7 +858,7 @@ class BleBrowser extends BrowserCommons implements
         // Remove from the registry; when the device is seen again, the
         // connection should be retried
         getKnownDevices().remove(bluetoothDevice.getAddress());
-        Log.d(getClass().getCanonicalName(), String.format("Device %s removed from registry", bluetoothDevice.getAddress()));
+        Timber.d("Device %s removed from registry", bluetoothDevice.getAddress());
         getKnownConnectors().remove(connector.getIdentifier());
         removeActiveConnector(connector);   // Shouldn't matter
 
