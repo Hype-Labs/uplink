@@ -5,6 +5,7 @@ import android.content.Context;
 import android.util.Log;
 
 import com.uplink.ulx.UlxError;
+import com.uplink.ulx.UlxErrorCode;
 import com.uplink.ulx.bridge.network.controller.NetworkController;
 import com.uplink.ulx.bridge.network.model.Ticket;
 import com.uplink.ulx.drivers.model.Connector;
