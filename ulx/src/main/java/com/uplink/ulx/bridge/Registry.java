@@ -22,7 +22,6 @@ import java.util.Map;
  */
 public class Registry<T> {
 
-    private Map<String, T> genericRegistry;
     private Map<String, Device> deviceRegistry;
 
     private Map<String, List<String>> genericToDeviceRegistry;
@@ -32,7 +31,6 @@ public class Registry<T> {
      * Constructor.
      */
     public Registry() {
-        this.genericRegistry = null;
         this.deviceRegistry = null;
 
         this.genericToDeviceRegistry = null;
@@ -40,24 +38,11 @@ public class Registry<T> {
     }
 
     /**
-     * Returns the hash map that is used to map String identifiers to whatever
-     * is considered the generic type T. Each identifier maps to a single
-     * instance of T.
-     * @return The generic registry hash map.
-     */
-    protected final Map<String, T> getGenericRegistry() {
-        if (this.genericRegistry == null) {
-            this.genericRegistry = new HashMap<>();
-        }
-        return this.genericRegistry;
-    }
-
-    /**
      * Returns the hash map that is used to keep track of the Device abstract
      * entity. The map keeps tracks of devices using their String identifiers.
      * @return The abstract registry hash map.
      */
-    protected final Map<String, Device> getDeviceRegistry() {
+    private Map<String, Device> getDeviceRegistry() {
         if (this.deviceRegistry == null) {
             this.deviceRegistry = new HashMap<>();
         }
@@ -69,7 +54,7 @@ public class Registry<T> {
      * of Device identifiers.
      * @return The registry that maps generic identifiers to Device instances.
      */
-    protected final Map<String, List<String>> getGenericToDeviceRegistry() {
+    private Map<String, List<String>> getGenericToDeviceRegistry() {
         if (this.genericToDeviceRegistry == null) {
             this.genericToDeviceRegistry = new HashMap<>();
         }
@@ -82,7 +67,7 @@ public class Registry<T> {
      * relationship of the generic-to-device map.
      * @return The registry that maps device identifiers with generic ones.
      */
-    protected final Map<String, List<String>> getDeviceToGenericRegistry() {
+    private Map<String, List<String>> getDeviceToGenericRegistry() {
         if (this.deviceToGenericRegistry == null) {
             this.deviceToGenericRegistry = new HashMap<>();
         }
@@ -126,21 +111,6 @@ public class Registry<T> {
         }
 
         return list;
-    }
-
-    /**
-     * Sets the given {@code generic} as the instance matching the given
-     * {@code identifier}. This relationship will be included in the generic
-     * registry.
-     * @param identifier The identifier.
-     * @param generic The generic instance.
-     */
-    public void setGeneric(String identifier, T generic) {
-        getGenericRegistry().put(identifier, generic);
-    }
-
-    public void unsetGeneric(String identifier) {
-        getGenericRegistry().remove(identifier);
     }
 
     /**

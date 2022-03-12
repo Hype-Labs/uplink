@@ -475,7 +475,6 @@ class BleAdvertiser extends AdvertiserCommons implements
         String address = bluetoothDevice.getAddress();
         String identifier = connector.getIdentifier();
 
-        getRegistry().setGeneric(address, bluetoothDevice);
         getRegistry().associate(address, identifier);
     }
 
@@ -485,7 +484,6 @@ class BleAdvertiser extends AdvertiserCommons implements
         String identifier = connector.getIdentifier();
 
         getRegistry().dissociate(address, identifier);
-        getRegistry().unsetGeneric(address);
     }
 
     @Override
