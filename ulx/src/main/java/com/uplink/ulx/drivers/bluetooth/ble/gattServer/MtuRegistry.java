@@ -25,6 +25,8 @@ public class MtuRegistry {
      */
     public static final int DEFAULT_MTU = 20;
 
+    public static final long MTU_REQUEST_TIMEOUT_MS = 20000;
+
     private HashMap<String, Integer> registry;
 
     /**

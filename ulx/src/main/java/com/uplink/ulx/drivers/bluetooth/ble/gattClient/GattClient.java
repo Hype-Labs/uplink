@@ -11,6 +11,7 @@ import android.bluetooth.BluetoothManager;
 import android.bluetooth.BluetoothProfile;
 import android.content.Context;
 import android.os.Build;
+import android.os.Handler;
 import android.os.Looper;
 
 import com.uplink.ulx.UlxError;
@@ -29,6 +30,7 @@ import java.util.Timer;
 import java.util.TimerTask;
 import java.util.UUID;
 
+import androidx.annotation.GuardedBy;
 import timber.log.Timber;
 
 /**
@@ -154,7 +156,14 @@ public class GattClient extends BluetoothGattCallback implements StateManager.De
     private final BluetoothManager bluetoothManager;
     private BluetoothAdapter bluetoothAdapter;
     private BluetoothGatt bluetoothGatt;
+
+    private final Handler handler = new Handler(Looper.getMainLooper());
+
     private int mtu;
+    @GuardedBy("mtuLock")
+    private boolean isMtuRequestPending;
+    private final Object mtuLock = new Object();
+    private final Runnable mtuRequestTimeoutRunnable = this::onMtuRequestTimeout;
 
     private Timer connectionTimeout;
 
@@ -590,17 +599,55 @@ public class GattClient extends BluetoothGattCallback implements StateManager.De
                     getBluetoothDevice().getAddress()
             );
 
-            // 512 is the maximum MTU possible, and its the one we're aiming for.
-            // In case of failure, we skip the MTU negotiation and go straight to
-            // discovering the services, since MTU failure is not blocking.
-            if (!getBluetoothGatt().requestMtu(MtuRegistry.MAXIMUM_MTU)) {
-                Timber.i(
-                        "ULX MTU request for remote native device %s failed, and the services will be discovered instead",
-                        getBluetoothDevice().getAddress()
-                );
-                discoverServices();
+            synchronized (mtuLock) {
+                if (isMtuRequestPending) {
+                    // Should not happen
+                    Timber.w("Attempt to start MTU negotiation while another one is in progress");
+                    return;
+                }
+
+                isMtuRequestPending = true;
+
+                // 512 is the maximum MTU possible, and its the one we're aiming for.
+                // In case of failure, we skip the MTU negotiation and go straight to
+                // discovering the services, since MTU failure is not blocking.
+                if (!getBluetoothGatt().requestMtu(MtuRegistry.MAXIMUM_MTU)) {
+                    Timber.i(
+                            "ULX MTU request for remote native device %s failed, and the services will be discovered instead",
+                            getBluetoothDevice().getAddress()
+                    );
+                    onMtuNegotiationAttemptFinished();
+                } else {
+                    setMtuRequestTimeout();
+                }
             }
         });
+    }
+
+    private void setMtuRequestTimeout() {
+        handler.postDelayed(mtuRequestTimeoutRunnable, MtuRegistry.MTU_REQUEST_TIMEOUT_MS);
+    }
+
+    private void cancelMtuRequestTimeout() {
+        handler.removeCallbacks(mtuRequestTimeoutRunnable);
+    }
+
+    private void onMtuRequestTimeout() {
+        Timber.i("MTU request timed out. Proceeding with connection");
+        onMtuNegotiationAttemptFinished();
+    }
+
+    /**
+     * Called when MTU negotiation attempt finished - either successfully or not.
+     * This will proceed with connection process, but only if an MTU request is currently pending
+     */
+    private void onMtuNegotiationAttemptFinished() {
+        synchronized (mtuLock) {
+            if (isMtuRequestPending) {
+                isMtuRequestPending = false;
+                discoverServices();
+            }
+        }
     }
 
     @Override
@@ -612,6 +659,8 @@ public class GattClient extends BluetoothGattCallback implements StateManager.De
                 status
         );
 
+        cancelMtuRequestTimeout();
+
         // Keep the negotiated MTU in case of success. Failure means that we
         // stick with the default.
         if (status == BluetoothGatt.GATT_SUCCESS) {
@@ -622,9 +671,7 @@ public class GattClient extends BluetoothGattCallback implements StateManager.De
             notifyOnMtuNegotiation();
         }
 
-        // We proceed with the service discovery regardless of the success of
-        // the MTU negotiation; if that fails, we'll just use the default.
-        discoverServices();
+        onMtuNegotiationAttemptFinished();
     }
 
     /**
