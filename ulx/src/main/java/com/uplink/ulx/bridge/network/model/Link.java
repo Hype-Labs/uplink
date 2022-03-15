@@ -6,6 +6,8 @@ import com.uplink.ulx.model.Instance;
 import java.util.Locale;
 import java.util.Objects;
 
+import androidx.annotation.NonNull;
+
 /**
  * A {@link Link} represents a link on the network thant makes a given {@link
  * Instance} reachable. It holds the {@link Device} that works as a next hop,
@@ -18,6 +20,7 @@ import java.util.Objects;
  */
 public class Link implements Comparable<Link> {
 
+    @NonNull
     private final Device nextHop;
     private final Instance destination;
     private int hopCount;
@@ -32,7 +35,7 @@ public class Link implements Comparable<Link> {
      * @param internetHopCount The number of hops that it takes for this link
      *                         to reach the Internet.
      */
-    public Link(Device nextHop, Instance destination, int hopCount, int internetHopCount)  {
+    public Link(@NonNull Device nextHop, Instance destination, int hopCount, int internetHopCount)  {
 
         Objects.requireNonNull(nextHop);
         Objects.requireNonNull(destination);
@@ -49,6 +52,7 @@ public class Link implements Comparable<Link> {
      * This is the immediate-next device that makes the link reachable.
      * @return The next hop {@link Device}.
      */
+    @NonNull
     public final Device getNextHop() {
         return this.nextHop;
     }

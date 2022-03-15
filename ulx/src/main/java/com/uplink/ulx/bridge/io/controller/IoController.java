@@ -34,6 +34,7 @@ import com.uplink.ulx.serialization.Serializer;
 import java.io.IOException;
 import java.lang.ref.WeakReference;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.Locale;
 import java.util.Objects;
@@ -592,17 +593,20 @@ public class IoController implements InputStream.Delegate,
      */
     private void dropPacketsForStream(OutputStream stream) {
         synchronized (getQueue()) {
-            getQueue().removeIf(ioPacket -> {
+            final Iterator<IoPacket> iterator = getQueue().iterator();
+            while (iterator.hasNext()) {
+                final IoPacket ioPacket = iterator.next();
                 final Device device = ioPacket.getDevice();
 
-                // If the packet cannot identify its device - drop the packet
-                if (device == null) {
-                    return true;
+                // If the packet cannot identify its device
+                if (device == null
+                        // or was intended for the stream that failed...
+                        || stream.equals(device.getTransport().getReliableChannel().getOutputStream())
+                ) {
+                    // ... - drop the packet
+                    iterator.remove();
                 }
-
-                // If the packet was intended for the stream that failed - drop the packet
-                return stream.equals(device.getTransport().getReliableChannel().getOutputStream());
-            });
+            }
         }
     }
 }

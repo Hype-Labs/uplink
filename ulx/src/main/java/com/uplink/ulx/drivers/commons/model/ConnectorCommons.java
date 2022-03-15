@@ -1,7 +1,5 @@
 package com.uplink.ulx.drivers.commons.model;
 
-import android.annotation.SuppressLint;
-
 import com.uplink.ulx.UlxError;
 import com.uplink.ulx.drivers.commons.StateManager;
 import com.uplink.ulx.drivers.model.Connector;
@@ -220,7 +218,6 @@ public abstract class ConnectorCommons implements
         getStateManager().notifyStart();
     }
 
-    @SuppressLint("NewApi") // forEach() is actually supported with desugaring library
     @Override
     public void onDisconnection(Connector connector, UlxError error) {
         Timber.e(
@@ -231,7 +228,9 @@ public abstract class ConnectorCommons implements
         getStateManager().notifyStop(error);
 
         if (error != null) { // Unexpected disconnection is also invalidation
-            getInvalidationCallbacks().forEach(callback -> callback.onInvalidation(this, error));
+            for (InvalidationCallback callback : getInvalidationCallbacks()) {
+                callback.onInvalidation(this, error);
+            }
         }
     }
 

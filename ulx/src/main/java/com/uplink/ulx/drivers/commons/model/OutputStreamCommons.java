@@ -1,7 +1,5 @@
 package com.uplink.ulx.drivers.commons.model;
 
-import android.annotation.SuppressLint;
-
 import com.uplink.ulx.UlxError;
 import com.uplink.ulx.drivers.model.IoResult;
 import com.uplink.ulx.drivers.model.OutputStream;
@@ -95,11 +93,12 @@ public abstract class OutputStreamCommons extends StreamCommons implements Outpu
         }
     }
 
-    @SuppressLint("NewApi") // forEach() is actually supported
     private void notifyHasSpaceAvailable() {
         List<Callback> callbacks = this.getCallbacks();
         if (callbacks != null) {
-            callbacks.forEach(callback -> callback.onSpaceAvailable(this));
+            for (Callback callback : callbacks) {
+                callback.onSpaceAvailable(this);
+            }
         }
     }
 
@@ -164,15 +163,13 @@ public abstract class OutputStreamCommons extends StreamCommons implements Outpu
         });
     }
 
-    @SuppressLint("NewApi")// forEach() is actually supported
     protected final void notifyInvalidated(UlxError error) {
         // TODO make sure StateDelegate.onClose() is also called after this method
         final List<InvalidationCallback> callbacks = getInvalidationCallbacks();
         if (callbacks != null) {
-            callbacks.forEach(invalidationCallback -> invalidationCallback.onInvalidation(
-                    this,
-                    error
-            ));
+            for (InvalidationCallback invalidationCallback : callbacks) {
+                invalidationCallback.onInvalidation(this, error);
+            }
         }
     }
 

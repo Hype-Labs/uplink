@@ -316,7 +316,7 @@ public class NetworkController implements IoController.Delegate,
      * received from this device it will be recognized.
      * @param device The {@link Device}.
      */
-    public void negotiate(Device device) {
+    public void negotiate(@NonNull Device device) {
 
         // TODO the device must be registered before the thread context change
         //      because it creates a race condition with incoming negotiation

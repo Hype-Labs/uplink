@@ -1,7 +1,5 @@
 package com.uplink.ulx.bridge.network.model;
 
-import android.annotation.SuppressLint;
-
 import com.uplink.ulx.UlxError;
 import com.uplink.ulx.UlxErrorCode;
 import com.uplink.ulx.drivers.model.Device;
@@ -118,6 +116,7 @@ public class RoutingTable {
      */
     protected static class Entry {
 
+        @NonNull
         private final Device device;
         private List<Link> links;
 
@@ -126,7 +125,7 @@ public class RoutingTable {
          * @param device The {@link Device} that functions as next-hop for all
          *               the {@link Link}s represented by this data structure.
          */
-        Entry(Device device) {
+        Entry(@NonNull Device device) {
             this.device = device;
             this.links = null;
         }
@@ -138,6 +137,7 @@ public class RoutingTable {
          * packet to that {@link Device}.
          * @return The {@link Device} for the {@link Link}s represented.
          */
+        @NonNull
         protected final Device getDevice() {
             return this.device;
         }
@@ -315,7 +315,7 @@ public class RoutingTable {
      * @param device The {@link Device} that maps to the {@link Entry}.
      * @return The {@link Entry} corresponding to the given {@link Device}.
      */
-    protected Entry getLinkMapEntry(Device device) {
+    protected Entry getLinkMapEntry(@NonNull Device device) {
         Entry entry = getLinkMap().get(device);
 
         // Create an Entry if one does not exist
@@ -371,7 +371,7 @@ public class RoutingTable {
      * identifier, with {@link Device#getIdentifier()}.
      * @param device The {@link Device} to register.
      */
-    public synchronized void register(Device device) {
+    public synchronized void register(@NonNull Device device) {
 
         // If the registry already exists, don't proceed. Doing so would erase
         // the current registry, and all known links would be lost.
@@ -391,8 +391,6 @@ public class RoutingTable {
      * given {@link Device} drops and it becomes unreachable.
      * @param device The {@link Device} to remove.
      */
-    @SuppressLint("NewApi") // forEach() is actually available on every API level
-                            // via desugaring library
     public synchronized void unregister(@NonNull Device device) {
 
         Entry entry = getLinkMap().get(device);
@@ -411,7 +409,9 @@ public class RoutingTable {
         final List<Link> links = new ArrayList<>(entry.getLinks());
 
         // Send notifications for every instance that is lost, if needed
-        links.forEach(this::unregisterAndNotify);
+        for (Link link : links) {
+            unregisterAndNotify(link);
+        }
     }
 
     /**
@@ -593,14 +593,18 @@ public class RoutingTable {
 
         final List<Link> links = compileInternetLinks();
 
-        return links
-                .stream()
-                // Sorting the list will yield the best links at the top
-                .sorted((o1, o2) -> Integer.signum(o1.getInternetHopCount() - o2.getInternetHopCount()))
-                .filter(link -> splitHorizon == null || !splitHorizon.equals(link.getNextHop()))
-                // The best link should be the first, if one exists
-                .findFirst()
-                .orElse(null);
+        // Sorting the list will yield the best links at the top
+        Collections.sort(links, (o1, o2)
+                -> Integer.signum(o1.getInternetHopCount() - o2.getInternetHopCount()));
+
+
+        for (Link link : links) {
+            if (!link.getNextHop().equals(splitHorizon)) {
+                return link;
+            }
+        }
+
+        return null;
     }
 
     /**
@@ -658,6 +662,7 @@ public class RoutingTable {
      * going through that device.
      * @return A {@link List} of known Internet {@link Link}s.
      */
+    @NonNull
     private List<Link> compileInternetLinks() {
 
         List<Link> linkList = new ArrayList<>();
