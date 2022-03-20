@@ -116,7 +116,7 @@ class BleBrowser extends BrowserCommons implements
             );
 
             // Propagate to the delegate
-            onFailedStart(BleBrowser.this, error);
+            onFailedStart(error);
         }
 
         /**
@@ -353,7 +353,7 @@ class BleBrowser extends BrowserCommons implements
 
     @SuppressLint("MissingPermission")
     @Override
-    public void requestAdapterToStart() {
+    public void requestAdapterToStartBrowsing() {
         Timber.i("ULX BLE browser is requesting the adapter to start");
 
         // Are the necessary permissions in place?
@@ -370,9 +370,6 @@ class BleBrowser extends BrowserCommons implements
 
         // Start scanning
         startScanning();
-
-        // Notify the delegate
-        onStart();
     }
 
     private void startScanning() {
@@ -391,6 +388,9 @@ class BleBrowser extends BrowserCommons implements
                         getScanCallback()
                 );
             }
+
+            // Notify the delegate
+            onStart();
         });
     }
 
@@ -408,7 +408,7 @@ class BleBrowser extends BrowserCommons implements
                 "Please give the necessary permissions and turn the adapter on."
         );
 
-        onFailedStart(this, error);
+        onFailedStart(error);
     }
 
     /**
@@ -424,7 +424,7 @@ class BleBrowser extends BrowserCommons implements
                 "The Bluetooth adapter is not available.",
                 "Try turning Bluetooth on.");
 
-        onFailedStart(this, error);
+        onFailedStart(error);
 
         // Restart the adapter
         getBluetoothAdapter().enable();
@@ -432,7 +432,7 @@ class BleBrowser extends BrowserCommons implements
 
     @SuppressLint("MissingPermission")
     @Override
-    public void requestAdapterToStop() {
+    public void requestAdapterToStopBrowsing() {
         Timber.i("ULX BLE browser requesting the adapter to stop");
 
         // Is the adapter enabled?

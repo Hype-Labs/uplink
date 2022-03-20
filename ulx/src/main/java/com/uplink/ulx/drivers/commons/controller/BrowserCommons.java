@@ -20,7 +20,7 @@ import timber.log.Timber;
  * that is needed by all Browser implementations. It implements all basic
  * functionality that is common to browsers, such as state management, delegates,
  * transport type, and so on. Being abstract, it leaves two methods for children
- * to implement: requestAdapterToStart() and requestAdapterToStop(),
+ * to implement: {@link #requestAdapterToStartBrowsing()} and {@link #requestAdapterToStopBrowsing()},
  * which consist of methods that implement the specific logic for each different
  * transport. This leaves out the logic that is specific to each implementation,
  * while at the same time already implementing several conveniences for any new
@@ -66,7 +66,7 @@ public abstract class BrowserCommons implements
      * @return The instance's StateManager.
      * @see StateManager
      */
-    public StateManager getStateManager() {
+    protected StateManager getStateManager() {
         return this.stateManager;
     }
 
@@ -82,7 +82,7 @@ public abstract class BrowserCommons implements
      * must issue a notification to the state manager indicating the outcome of
      * the operation.
      */
-    public abstract void requestAdapterToStart();
+    public abstract void requestAdapterToStartBrowsing();
 
     /**
      * This method commits a request to stop scanning for other devices on the
@@ -98,7 +98,7 @@ public abstract class BrowserCommons implements
      * overlap. When done, the implementation should notify the state manager
      * with respect to the outcome of the operation.
      */
-    public abstract void requestAdapterToStop();
+    public abstract void requestAdapterToStopBrowsing();
 
     @Override
     public final String getIdentifier() {
@@ -183,7 +183,7 @@ public abstract class BrowserCommons implements
 
     @Override
     public void requestStart(StateManager stateManager) {
-        requestAdapterToStart();
+        requestAdapterToStartBrowsing();
     }
 
     @Override
@@ -204,7 +204,7 @@ public abstract class BrowserCommons implements
 
     @Override
     public void requestStop(StateManager stateManager) {
-        this.requestAdapterToStop();
+        this.requestAdapterToStopBrowsing();
     }
 
     @Override
@@ -235,7 +235,7 @@ public abstract class BrowserCommons implements
         getStateManager().stop();
     }
 
-    public void onStart() {
+    protected void onStart() {
         Timber.i("ULX browser started");
         getStateManager().notifyStart();
     }
@@ -245,7 +245,7 @@ public abstract class BrowserCommons implements
         getStateManager().notifyStop(error);
     }
 
-    public void onFailedStart(Browser browser, UlxError error) {
+    protected void onFailedStart(UlxError error) {
         Timber.i("ULX browser failed to start");
         getStateManager().notifyFailedStart(error);
     }
