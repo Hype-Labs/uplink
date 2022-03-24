@@ -548,6 +548,7 @@ public class GattServer extends BluetoothGattServerCallback {
 
             // Notify the characteristic as changed
             if (!getBluetoothGattServer().notifyCharacteristicChanged(bluetoothDevice, characteristic, confirm)) {
+                Timber.w("Failed to change characteristic: notifyCharacteristicChanged() returned false");
                 return 0;
             }
         } catch (Exception ex) { // In practice, NullPointerException or DeadObjectException

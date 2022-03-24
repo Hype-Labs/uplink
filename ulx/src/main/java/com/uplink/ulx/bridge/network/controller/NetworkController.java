@@ -317,7 +317,7 @@ public class NetworkController implements IoController.Delegate,
      * @param device The {@link Device}.
      */
     public void negotiate(@NonNull Device device) {
-
+        Timber.d("ULX initiating negotiation with %s", device.getIdentifier());
         // TODO the device must be registered before the thread context change
         //      because it creates a race condition with incoming negotiation
         //      packets. I'm not a fan of this approach, and I think that the
@@ -325,7 +325,10 @@ public class NetworkController implements IoController.Delegate,
         // Register the device
         getRoutingTable().register(device);
 
+        Timber.d("ULX device %s registered in routing table", device.getIdentifier());
+
         ExecutorPool.getInternetExecutor().execute(() -> {
+            Timber.d("ULX calculating hop count");
 
             // This call may make requests to the Internet, which is why we're
             // using a different thread
@@ -389,6 +392,8 @@ public class NetworkController implements IoController.Delegate,
      * @return Whether the device is connected to the Internet.
      */
     private static boolean isNetworkAvailable(Context context) {
+        Timber.d("Checking network availability");
+
         ConnectivityManager cm = (ConnectivityManager)context.getSystemService(Context.CONNECTIVITY_SERVICE);
 
         NetworkInfo activeNetwork = cm.getActiveNetworkInfo();
