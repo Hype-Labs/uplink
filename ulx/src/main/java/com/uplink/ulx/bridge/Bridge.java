@@ -7,6 +7,7 @@ import com.uplink.ulx.UlxError;
 import com.uplink.ulx.UlxErrorCode;
 import com.uplink.ulx.bridge.network.controller.NetworkController;
 import com.uplink.ulx.bridge.network.model.Ticket;
+import com.uplink.ulx.drivers.model.Channel;
 import com.uplink.ulx.drivers.model.Connector;
 import com.uplink.ulx.drivers.model.Device;
 import com.uplink.ulx.drivers.model.InputStream;
@@ -572,6 +573,12 @@ public class Bridge implements
 
     @Override
     public void onClose(Stream stream, UlxError error) {
+        // A non-null error means the stream closed unexpectedly.
+        // If it was a reliable stream, we need to invalidate the device
+        if (error != null && stream.isReliable()) {
+            final Device device = getSouthRegistry().getDeviceInstance(stream.getIdentifier());
+            removeDevice(device, error);
+        }
     }
 
     @Override
@@ -628,8 +635,20 @@ public class Bridge implements
     public void onInvalidation(Connector connector, UlxError error) {
         // A connector has been invalidated - we need to remove the device from the registry
         final Device device = getSouthRegistry().getDeviceInstance(connector.getIdentifier());
+        removeDevice(device, error);
+    }
 
+    /**
+     * Unregisters device and removes previously set callbacks for its connector
+     * @param device the device to remove
+     * @param error error describing the cause for removal
+     */
+    private void removeDevice(Device device, UlxError error) {
         device.getConnector().removeInvalidationCallback(this);
+
+        final Channel reliableChannel = device.getTransport().getReliableChannel();
+        reliableChannel.getInputStream().setStateDelegate(null);
+        reliableChannel.getOutputStream().setStateDelegate(null);
 
         // Clear the device from the lower grade controllers
         getNetworkController().removeDevice(device, error);

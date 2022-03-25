@@ -179,7 +179,7 @@ public class BleForeignOutputStream extends OutputStreamCommons implements GattC
         // Flag as closed
         onClose(error);
 
-        notifyInvalidated(error);
+        notifyInvalidatedAndClosed(error);
     }
 
 }

@@ -11,8 +11,6 @@ import com.uplink.ulx.drivers.bluetooth.ble.gattServer.GattServer;
 import com.uplink.ulx.drivers.commons.model.OutputStreamCommons;
 import com.uplink.ulx.drivers.model.IoResult;
 
-import java.util.Locale;
-
 import timber.log.Timber;
 
 public class BleDomesticOutputStream extends OutputStreamCommons {
@@ -112,15 +110,10 @@ public class BleDomesticOutputStream extends OutputStreamCommons {
         );
 
         final UlxError error;
-        if (written != data.length) {
+        if (written == 0) {
             error = new UlxError(
                     UlxErrorCode.UNKNOWN,
-                    String.format(
-                            Locale.US,
-                            "Flushed %d bytes of %d. Stream invalidated",
-                            written,
-                            data.length
-                    ),
+                    "Could not write any data",
                     "Failed to update characteristic",
                     "Reconnect to the device"
             );
@@ -152,6 +145,6 @@ public class BleDomesticOutputStream extends OutputStreamCommons {
                 "ULX failed to receive indication for a characteristic update [%s]",
                 error.toString()
         );
-        notifyInvalidated(error);
+        notifyInvalidatedAndClosed(error);
     }
 }

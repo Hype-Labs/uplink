@@ -3,6 +3,7 @@ package com.uplink.ulx.drivers.bluetooth.ble.model.domestic;
 import android.bluetooth.BluetoothGattCharacteristic;
 import android.bluetooth.BluetoothGattDescriptor;
 import android.bluetooth.BluetoothGattService;
+import android.os.Build;
 import android.os.Looper;
 
 import com.uplink.ulx.utils.StringUtils;

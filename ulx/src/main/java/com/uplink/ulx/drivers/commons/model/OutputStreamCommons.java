@@ -138,7 +138,7 @@ public abstract class OutputStreamCommons extends StreamCommons implements Outpu
                 byte[] data = getBuffer().getData();
 
                 // Ask the stream to flush data
-                IoResult result = flush(data);
+                final IoResult result = flush(data);
 
                 // Trim the buffer
                 getBuffer().trim(result.getByteCount());
@@ -157,19 +157,22 @@ public abstract class OutputStreamCommons extends StreamCommons implements Outpu
                         getBuffer().trim(bytesLeft);
                     }
 
-                    notifyInvalidated(error);
+                    notifyInvalidatedAndClosed(error);
                 }
             }
         });
     }
 
-    protected final void notifyInvalidated(UlxError error) {
-        // TODO make sure StateDelegate.onClose() is also called after this method
+    protected final void notifyInvalidatedAndClosed(UlxError error) {
         final List<InvalidationCallback> callbacks = getInvalidationCallbacks();
         if (callbacks != null) {
             for (InvalidationCallback invalidationCallback : callbacks) {
                 invalidationCallback.onInvalidation(this, error);
             }
+        }
+        final StateDelegate stateDelegate = getStateDelegate();
+        if (stateDelegate != null) {
+            stateDelegate.onClose(this, error);
         }
     }
 

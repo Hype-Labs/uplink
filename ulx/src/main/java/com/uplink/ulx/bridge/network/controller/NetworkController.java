@@ -866,7 +866,7 @@ public class NetworkController implements IoController.Delegate,
         // I'm logging an error because the current implementation still has
         // poor recovery policies and not a lot of error handling. Future
         // versions should review this and decide something else.
-        Timber.e("ULX an handshake was received " +
+        Timber.e("ULX a handshake was received " +
                          "for an identifiable device, and that's unexpected. The device " +
                          "should be known, since the streams have already been open.");
     }

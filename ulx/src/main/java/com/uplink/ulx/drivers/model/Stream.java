@@ -3,8 +3,6 @@ package com.uplink.ulx.drivers.model;
 import com.uplink.ulx.TransportType;
 import com.uplink.ulx.UlxError;
 
-import java.util.List;
-
 import androidx.annotation.NonNull;
 
 /**
@@ -203,6 +201,7 @@ public interface Stream {
      * @param stateDelegate The StateDelegate to set.
      * @see Stream.StateDelegate
      */
+    // TODO replace with list of callbacks
     void setStateDelegate(StateDelegate stateDelegate);
 
     /**

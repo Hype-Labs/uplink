@@ -551,7 +551,8 @@ public class IoController implements InputStream.Delegate,
     @Override
     public void onInvalidation(Stream stream, UlxError error) {
         Timber.w(
-                "ULX Stream %s invalidated. Reason: %s",
+                "ULX %s %s invalidated. Reason: %s",
+                stream.getClass().getSimpleName(),
                 stream.getIdentifier(),
                 error.getReason()
         );
