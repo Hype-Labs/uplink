@@ -68,16 +68,16 @@ public class BleForeignConnector extends ConnectorCommons implements GattClient.
 
     @Override
     public void onConnected(GattClient gattClient) {
-        super.onConnected(this);
+        super.onConnected();
     }
 
     @Override
     public void onConnectionFailure(GattClient gattClient, UlxError error) {
-        super.onConnectionFailure(this, error);
+        super.onConnectionFailure(error);
     }
 
     @Override
     public void onDisconnection(GattClient gattClient, UlxError error) {
-        super.onDisconnection(this, error);
+        super.onDisconnection(error);
     }
 }

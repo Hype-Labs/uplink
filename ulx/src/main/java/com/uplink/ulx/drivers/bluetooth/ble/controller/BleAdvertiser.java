@@ -421,7 +421,7 @@ class BleAdvertiser extends AdvertiserCommons implements
         }
 
         final ConnectorCommons connector = (ConnectorCommons) device.getConnector();
-        connector.onDisconnection(connector, error);
+        connector.onDisconnection(error);
     }
 
     @Override

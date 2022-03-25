@@ -4,6 +4,7 @@ import com.uplink.ulx.TransportType;
 import com.uplink.ulx.UlxError;
 
 import androidx.annotation.NonNull;
+import androidx.annotation.Nullable;
 
 /**
  * A Stream is the main I/O abstraction unit provided by the SDK. A Stream,
@@ -258,6 +259,8 @@ public interface Stream {
      * Requests the stream close, meaning that it initiates any necessary
      * procedures to stop being active. This means that the stream will no
      * longer be capable of performing any I/O.
+     *
+     * @param error error that caused the stream to close (optional)
      */
-    void close();
+    void close(@Nullable UlxError error);
 }

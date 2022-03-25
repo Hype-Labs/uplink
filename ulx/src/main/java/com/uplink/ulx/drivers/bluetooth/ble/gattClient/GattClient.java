@@ -1154,4 +1154,8 @@ public class GattClient extends BluetoothGattCallback implements StateManager.De
             inputStreamDelegate.onCharacteristicChanged(this, characteristic);
         }
     }
+
+    public void stop(UlxError error) {
+        getStateManager().notifyStop(error);
+    }
 }

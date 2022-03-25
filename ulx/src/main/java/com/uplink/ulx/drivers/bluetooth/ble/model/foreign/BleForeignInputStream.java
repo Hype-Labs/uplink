@@ -4,7 +4,9 @@ import android.bluetooth.BluetoothGattCharacteristic;
 import android.os.Looper;
 
 import com.uplink.ulx.TransportType;
+import com.uplink.ulx.UlxError;
 import com.uplink.ulx.drivers.bluetooth.ble.gattClient.GattClient;
+import com.uplink.ulx.drivers.commons.StateManager;
 import com.uplink.ulx.drivers.commons.model.InputStreamCommons;
 
 import java.util.Objects;
@@ -72,5 +74,11 @@ public class BleForeignInputStream extends InputStreamCommons implements GattCli
     @Override
     public void onCharacteristicChanged(GattClient gattClient, BluetoothGattCharacteristic characteristic) {
         notifyDataReceived(characteristic.getValue());
+    }
+
+    @Override
+    public void onStop(StateManager stateManager, UlxError error) {
+        getGattClient().stop(error);
+        super.onStop(stateManager, error);
     }
 }

@@ -647,8 +647,15 @@ public class Bridge implements
         device.getConnector().removeInvalidationCallback(this);
 
         final Channel reliableChannel = device.getTransport().getReliableChannel();
-        reliableChannel.getInputStream().setStateDelegate(null);
-        reliableChannel.getOutputStream().setStateDelegate(null);
+
+        final InputStream inputStream = reliableChannel.getInputStream();
+        inputStream.setStateDelegate(null);
+        inputStream.setDelegate(null);
+        inputStream.close(error);
+
+        final OutputStream outputStream = reliableChannel.getOutputStream();
+        outputStream.setStateDelegate(null);
+        outputStream.close(error);
 
         // Clear the device from the lower grade controllers
         getNetworkController().removeDevice(device, error);

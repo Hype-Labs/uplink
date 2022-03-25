@@ -27,7 +27,6 @@ import timber.log.Timber;
  */
 public abstract class ConnectorCommons implements
         Connector,
-        Connector.StateDelegate,
         StateManager.Delegate {
 
     private final String identifier;
@@ -212,14 +211,12 @@ public abstract class ConnectorCommons implements
         }
     }
 
-    @Override
-    public void onConnected(Connector connector) {
+    protected void onConnected() {
         Timber.i("ULX connector %s connected", getIdentifier());
         getStateManager().notifyStart();
     }
 
-    @Override
-    public void onDisconnection(Connector connector, UlxError error) {
+    public void onDisconnection(UlxError error) {
         Timber.e(
                 "ULX connector %s disconnected with error %s",
                 getIdentifier(),
@@ -234,21 +231,12 @@ public abstract class ConnectorCommons implements
         }
     }
 
-    @Override
-    public void onConnectionFailure(Connector connector, UlxError error) {
+    protected void onConnectionFailure(UlxError error) {
         Timber.e(
                 "ULX connector %s failed to connect with error: %s",
                 getIdentifier(),
                 error.toString()
         );
         getStateManager().notifyFailedStart(error);
-    }
-
-    @Override
-    public void onStateChange(Connector connector) {
-        StateDelegate stateDelegate = getStateDelegate();
-        if (stateDelegate != null) {
-            stateDelegate.onStateChange(this);
-        }
     }
 }

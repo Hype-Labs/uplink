@@ -145,6 +145,6 @@ public class BleDomesticOutputStream extends OutputStreamCommons {
                 "ULX failed to receive indication for a characteristic update [%s]",
                 error.toString()
         );
-        notifyInvalidatedAndClosed(error);
+        close(error);
     }
 }

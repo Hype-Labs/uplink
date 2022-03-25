@@ -129,7 +129,7 @@ public abstract class StreamCommons implements
     @Override
     public void requestStop(StateManager stateManager) {
         Timber.i("ULX stream %s is being requested to stop", getIdentifier());
-        this.close();
+        this.close(null);
     }
 
     @Override
@@ -156,9 +156,9 @@ public abstract class StreamCommons implements
     }
 
     @Override
-    public void close() {
+    public void close(UlxError error) {
         Timber.i("ULX stream %s is being requested close", getIdentifier());
-        getStateManager().stop();
+        getStateManager().notifyStop(error);
     }
 
     @NonNull
@@ -203,9 +203,7 @@ public abstract class StreamCommons implements
     @Override
     public void removeInvalidationCallback(InvalidationCallback invalidationCallback) {
         if (invalidationCallbacks != null) {
-            if (!invalidationCallbacks.remove(invalidationCallback)) {
-                Timber.w("Failed to remove invalidation callback, because it was not present");
-            }
+            invalidationCallbacks.remove(invalidationCallback);
         }
     }
 
@@ -217,11 +215,6 @@ public abstract class StreamCommons implements
     protected void onOpen() {
         Timber.i("ULX stream %s is now open", getIdentifier());
         getStateManager().notifyStart();
-    }
-
-    protected void onClose(UlxError error) {
-        Timber.i("ULX stream %s is now closed", getIdentifier());
-        getStateManager().notifyStop(error);
     }
 
     public void onStateChange(Stream stream) {

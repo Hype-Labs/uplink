@@ -8,6 +8,7 @@ import com.uplink.ulx.UlxError;
 import com.uplink.ulx.UlxErrorCode;
 import com.uplink.ulx.drivers.bluetooth.ble.gattClient.GattClient;
 import com.uplink.ulx.drivers.bluetooth.ble.gattServer.MtuRegistry;
+import com.uplink.ulx.drivers.commons.StateManager;
 import com.uplink.ulx.drivers.commons.model.OutputStreamCommons;
 import com.uplink.ulx.drivers.model.IoResult;
 import com.uplink.ulx.utils.ByteUtils;
@@ -177,9 +178,12 @@ public class BleForeignOutputStream extends OutputStreamCommons implements GattC
         );
 
         // Flag as closed
-        onClose(error);
-
-        notifyInvalidatedAndClosed(error);
+        close(error);
     }
 
+    @Override
+    public void onStop(StateManager stateManager, UlxError error) {
+        getGattClient().stop(error);
+        super.onStop(stateManager, error);
+    }
 }

@@ -1,15 +1,10 @@
 package com.uplink.ulx.drivers.bluetooth.ble.model.domestic;
 
-import android.annotation.SuppressLint;
 import android.bluetooth.BluetoothDevice;
-import android.util.Log;
 
 import com.uplink.ulx.TransportType;
-import com.uplink.ulx.UlxError;
 import com.uplink.ulx.drivers.bluetooth.ble.gattServer.GattServer;
 import com.uplink.ulx.drivers.commons.model.ConnectorCommons;
-import com.uplink.ulx.drivers.model.Connector;
-import com.uplink.ulx.drivers.model.Stream;
 
 import java.util.Objects;
 
@@ -53,7 +48,7 @@ public class BleDomesticConnector extends ConnectorCommons {
 
     @Override
     public void requestAdapterToConnect() {
-        super.onConnected(this);
+        super.onConnected();
     }
 
     @Override

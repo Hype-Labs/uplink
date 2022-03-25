@@ -1,6 +1,8 @@
 package com.uplink.ulx.drivers.commons.model;
 
 import com.uplink.ulx.UlxError;
+import com.uplink.ulx.UlxErrorCode;
+import com.uplink.ulx.drivers.commons.StateManager;
 import com.uplink.ulx.drivers.model.IoResult;
 import com.uplink.ulx.drivers.model.OutputStream;
 import com.uplink.ulx.threading.Dispatch;
@@ -63,14 +65,8 @@ public abstract class OutputStreamCommons extends StreamCommons implements Outpu
 
     @Override
     public void removeCallback(Callback callback) {
-        final boolean removed;
         if (callbacks != null) {
-            removed = callbacks.remove(callback);
-        } else {
-            removed = false;
-        }
-        if (!removed) {
-            Timber.w("Failed to find the callback to remove");
+            callbacks.remove(callback);
         }
     }
 
@@ -105,8 +101,15 @@ public abstract class OutputStreamCommons extends StreamCommons implements Outpu
     @Override
     public IoResult write(byte[] data) {
 
+        // This can happen if the stream got closed while the packet was being dispatched
         if (getState() != State.OPEN) {
-            throw new RuntimeException("Could not write to the OutputStream because the stream is not open");
+            final UlxError error = new UlxError(
+                    UlxErrorCode.STREAM_IS_NOT_OPEN,
+                    "Cannot write data to stream",
+                    "Stream is not open",
+                    "Open the stream or use another one"
+            );
+            return new IoResult(0, error);
         }
 
         if (data == null) {
@@ -157,13 +160,25 @@ public abstract class OutputStreamCommons extends StreamCommons implements Outpu
                         getBuffer().trim(bytesLeft);
                     }
 
-                    notifyInvalidatedAndClosed(error);
+                    close(error);
                 }
             }
         });
     }
 
-    protected final void notifyInvalidatedAndClosed(UlxError error) {
+    @Override
+    public void onStop(StateManager stateManager, UlxError error) {
+        notifyInvalidatedAndClosed(error);
+        super.onStop(stateManager, error);
+    }
+
+    /**
+     * Cleans up used resources and notifies callbacks that the stream is invalidated and closed
+     * @param error an error describing cause of the shutdown
+     */
+
+
+    private void notifyInvalidatedAndClosed(UlxError error) {
         final List<InvalidationCallback> callbacks = getInvalidationCallbacks();
         if (callbacks != null) {
             for (InvalidationCallback invalidationCallback : callbacks) {
