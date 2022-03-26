@@ -342,7 +342,7 @@ public class GattServer extends BluetoothGattServerCallback {
                 );
 
                 delegate.onDeviceDisconnected(this, device, error);
-                delegate.onDeviceInvalidation(this, device, error);
+                notifyOnInvalidation(device, error);
             }
         }
     }
