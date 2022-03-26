@@ -158,15 +158,6 @@ public abstract class ConnectorCommons implements
     }
 
     @Override
-    public void disconnect() {
-        Timber.i(
-                "ULX connector %s being requested to disconnect",
-                getIdentifier()
-        );
-        getStateManager().stop();
-    }
-
-    @Override
     public void requestStart(StateManager stateManager) {
         Timber.i("ULX connector %s being requested to start", getIdentifier());
         requestAdapterToConnect();

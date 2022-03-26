@@ -288,18 +288,4 @@ public interface Connector {
      */
     void connect();
 
-    /**
-     * Requests the Connector to terminate an established connection, if one
-     * exists. As with the connect() method, the way in which the disconnection
-     * is performed depends on the transport being implemented. If the transport
-     * is purely peer-to-peer, then the device might terminate the connection
-     * directly, but in some cases some sort of protocol must be in place
-     * because the device might not be capable of terminating the connection
-     * by itself. After the disconnection happens, all streams should be
-     * closed and the device is no longer capable of communicating. This,
-     * however, might not occur immediately, while the device initiates the
-     * necessary procedures to terminate the connection gracefully. Once again,
-     * this depends on the specific transport.
-     */
-    void disconnect();
 }
