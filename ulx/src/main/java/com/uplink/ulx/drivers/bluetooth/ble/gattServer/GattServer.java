@@ -396,14 +396,20 @@ public class GattServer extends BluetoothGattServerCallback {
                         device.getAddress()
                 );
 
-                if (!getBluetoothGattServer().sendResponse(
-                        device,
-                        requestId,
-                        BluetoothGatt.GATT_SUCCESS,
-                        offset,
-                        value
-                )) {
-                    Timber.e("ULX failed to respond to a descriptor write request");
+                try {
+                    if (!getBluetoothGattServer().sendResponse(
+                            device,
+                            requestId,
+                            BluetoothGatt.GATT_SUCCESS,
+                            offset,
+                            value
+                    )) {
+                        Timber.e("ULX failed to respond to a descriptor write request");
+                        return;
+                    }
+                } catch (NullPointerException e) {
+                    // Can be thrown by Android SDK. Apparently, when peer device is unavailable
+                    Timber.e("ULX failed to respond to a descriptor write request", e);
                     return;
                 }
             }
@@ -485,14 +491,20 @@ public class GattServer extends BluetoothGattServerCallback {
                         device.getAddress()
                 );
 
-                if (!getBluetoothGattServer().sendResponse(
-                        device,
-                        requestId,
-                        BluetoothGatt.GATT_SUCCESS,
-                        offset,
-                        value
-                )) {
-                    Timber.e("ULX failed to send characteristic write request response");
+                try {
+                    if (!getBluetoothGattServer().sendResponse(
+                            device,
+                            requestId,
+                            BluetoothGatt.GATT_SUCCESS,
+                            offset,
+                            value
+                    )) {
+                        Timber.e("ULX failed to send characteristic write request response");
+                        return;
+                    }
+                } catch (NullPointerException e) {
+                    // Can be thrown by Android SDK. Apparently, when peer device is unavailable
+                    Timber.e("ULX failed to send characteristic write request response", e);
                     return;
                 }
             }
