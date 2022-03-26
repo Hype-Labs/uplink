@@ -8,6 +8,8 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import androidx.annotation.NonNull;
+
 // TODO this API should be reviewed; this registry is practically unusable.
 
 /**
@@ -67,6 +69,7 @@ public class Registry<T> {
      * @param identifier The identifier to check.
      * @return The collection associated with the given identifier.
      */
+    @NonNull
     protected final List<String> getGenericToDeviceList(String identifier) {
 
         List<String> list = getGenericToDeviceRegistry().get(identifier);
@@ -130,6 +133,7 @@ public class Registry<T> {
      * @param identifier The generic identifier to check.
      * @return The list of device identifiers associated with the identifier.
      */
+    @NonNull
     public List<String> getDeviceIdentifiersFromGenericIdentifier(String identifier) {
         return getGenericToDeviceList(identifier);
     }

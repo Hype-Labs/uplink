@@ -384,6 +384,15 @@ class BleAdvertiser extends AdvertiserCommons implements
     public void onDeviceConnected(GattServer gattServer, BluetoothDevice bluetoothDevice) {
         Timber.i("ULX bluetooth device connected %s", bluetoothDevice.getAddress());
 
+        final List<Device> existingDevices = getRegistry().getDevicesFromGenericIdentifier(
+                bluetoothDevice.getAddress()
+        );
+        if (existingDevices.size() > 0) {
+            Timber.w("ULX device connection received for a known device. Closing old connector(s)");
+
+            forgetBtDevice(bluetoothDevice);
+        }
+
         Connector connector = new BleDomesticConnector(
                 UUID.randomUUID().toString(),
                 gattServer,
@@ -431,6 +440,14 @@ class BleAdvertiser extends AdvertiserCommons implements
                 bluetoothDevice.getAddress()
         );
 
+        forgetBtDevice(bluetoothDevice);
+    }
+
+    /**
+     * Unregisters device's connector and clears its callbacks
+     * @param bluetoothDevice device which needs to be forgotten
+     */
+    private void forgetBtDevice(BluetoothDevice bluetoothDevice) {
         final Device device = getDevice(bluetoothDevice);
 
         if (device == null) {
