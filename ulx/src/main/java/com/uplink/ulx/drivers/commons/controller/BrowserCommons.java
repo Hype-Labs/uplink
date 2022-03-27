@@ -35,9 +35,9 @@ public abstract class BrowserCommons implements
     private final int transportType;
     private final StateManager stateManager;
     private final WeakReference<Context> context;
-    private WeakReference<Browser.Delegate> delegate;
-    private WeakReference<Browser.StateDelegate> stateDelegate;
-    private WeakReference<Browser.NetworkDelegate> networkDelegate;
+    private volatile Browser.Delegate delegate;
+    private volatile Browser.StateDelegate stateDelegate;
+    private volatile Browser.NetworkDelegate networkDelegate;
     private final List<Connector> activeConnectors;
 
     /**
@@ -118,38 +118,32 @@ public abstract class BrowserCommons implements
 
     @Override
     public void setDelegate(Delegate delegate) {
-        this.delegate = new WeakReference<>(delegate);
+        this.delegate = delegate;
     }
 
     @Override
     public Delegate getDelegate() {
-        return this.delegate != null ? this.delegate.get() : null;
+        return delegate;
     }
 
     @Override
     public final void setStateDelegate(Browser.StateDelegate stateDelegate) {
-        this.stateDelegate = new WeakReference<>(stateDelegate);
+        this.stateDelegate = stateDelegate;
     }
 
     @Override
     public final Browser.StateDelegate getStateDelegate() {
-        if (this.stateDelegate != null) {
-            return this.stateDelegate.get();
-        }
-        return null;
+        return stateDelegate;
     }
 
     @Override
     public final void setNetworkDelegate(Browser.NetworkDelegate networkDelegate) {
-        this.networkDelegate = new WeakReference<>(networkDelegate);
+        this.networkDelegate = networkDelegate;
     }
 
     @Override
     public final Browser.NetworkDelegate getNetworkDelegate() {
-        if (this.networkDelegate != null) {
-            return this.networkDelegate.get();
-        }
-        return null;
+        return networkDelegate;
     }
 
     @Override
