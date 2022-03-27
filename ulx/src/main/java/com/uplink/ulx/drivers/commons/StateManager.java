@@ -115,7 +115,6 @@ public class StateManager {
             @Nullable BiConsumer<StateManager, UlxError> onFailedStart,
             @Nullable Consumer<StateManager> onStateChanged
     ) {
-        //noinspection deprecation
         return new StateManager(createDelegate(
                 requestStart,
                 requestStop,
@@ -131,11 +130,8 @@ public class StateManager {
      * sets the current and requested states to IDLE.
      *
      * @param delegate The state manager's delegate.
-     * @deprecated use {@link #createInstance(Consumer, Consumer, Consumer, BiConsumer, BiConsumer, Consumer)}
-     * instead, which allows to provide optional method references to private methods
      */
-    @Deprecated
-    public StateManager(Delegate delegate) {
+    private StateManager(Delegate delegate) {
 
         Objects.requireNonNull(delegate);
 
