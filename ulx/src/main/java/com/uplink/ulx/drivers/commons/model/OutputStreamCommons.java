@@ -166,8 +166,7 @@ public abstract class OutputStreamCommons extends StreamCommons implements Outpu
         });
     }
 
-    @Override
-    public void onStop(StateManager stateManager, UlxError error) {
+    protected void onStop(StateManager stateManager, UlxError error) {
         notifyInvalidatedAndClosed(error);
         super.onStop(stateManager, error);
     }
