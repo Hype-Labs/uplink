@@ -3,7 +3,6 @@ package com.uplink.ulx.drivers.bluetooth.ble.model.domestic;
 import android.bluetooth.BluetoothGattCharacteristic;
 import android.bluetooth.BluetoothGattDescriptor;
 import android.bluetooth.BluetoothGattService;
-import android.os.Build;
 import android.os.Looper;
 
 import com.uplink.ulx.utils.StringUtils;
@@ -11,6 +10,8 @@ import com.uplink.ulx.utils.StringUtils;
 import java.util.Arrays;
 import java.util.Objects;
 import java.util.UUID;
+
+import androidx.annotation.MainThread;
 
 /**
  * This class provides a description of the service that is published by the
@@ -42,8 +43,8 @@ public class BleDomesticService {
 
     public static final String DESCRIPTOR_CONFIGURATION = "00002902-0000-1000-8000-00805F9B34FB";
 
-    private String gattServiceCharacteristicControlIdentifier;
-    private byte [] controlValue;
+    private final String gattServiceCharacteristicControlIdentifier;
+    private final byte [] controlValue;
 
     private BluetoothGattService coreService;
 
@@ -54,21 +55,27 @@ public class BleDomesticService {
     private BluetoothGattDescriptor reliableDescriptorOutputRead;
     private BluetoothGattDescriptor reliableDescriptorControl;
 
+    public BleDomesticService() {
+        gattServiceCharacteristicControlIdentifier = UUID.randomUUID().toString();
+        controlValue = Arrays.copyOfRange(
+                StringUtils.hexStringToByteArray(getControlCharacteristicIdentifier()),
+                0,
+                CONTROL_VALUE_SIZE
+        );
+    }
+
     /**
-     * This method creates a random UUID that persists throughout the lifetime
-     * of the class instance, and corresponds to the identifier that will be
-     * assigned to the control characteristic. This identifier will be used,
-     * among other things, to determine who is the initiator of a given link.
-     * For example, if two devices are acting both as server and client
-     * simultaneously, the lexicographic lower of the two will be the one to
-     * initiate the connection.
+     * Get a random UUID that persists throughout the lifetime of the class
+     * instance, and corresponds to the identifier that will be assigned to the control
+     * characteristic. This identifier will be used, among other things, to determine who is the
+     * initiator of a given link. For example, if two devices are acting both as server and client
+     * simultaneously, the lexicographic lower of the two will be the one to initiate the
+     * connection.
+     *
      * @return The identifier to use for the control characteristic.
      */
     public final String getControlCharacteristicIdentifier() {
-        if (this.gattServiceCharacteristicControlIdentifier == null) {
-            this.gattServiceCharacteristicControlIdentifier = UUID.randomUUID().toString();
-        }
-        return this.gattServiceCharacteristicControlIdentifier;
+        return gattServiceCharacteristicControlIdentifier;
     }
 
     /**
@@ -79,6 +86,7 @@ public class BleDomesticService {
      * it will be now.
      * @return The core Bluetooth GATT service.
      */
+    @MainThread
     public final BluetoothGattService getCoreService() {
         if (this.coreService == null) {
 
@@ -106,13 +114,6 @@ public class BleDomesticService {
      * @return The first CONTROL_VALUE_SIZE bytes of the control characteristic.
      */
     public final byte[] getControlValue() {
-        if (this.controlValue == null) {
-            this.controlValue = Arrays.copyOfRange(
-                    StringUtils.hexStringToByteArray(getControlCharacteristicIdentifier()),
-                    0,
-                    CONTROL_VALUE_SIZE
-            );
-        }
         return this.controlValue;
     }
 
@@ -125,6 +126,7 @@ public class BleDomesticService {
      * @param service The service acting as the receiver for the characteristics.
      * @return Whether the characteristics have been successfully added.
      */
+    @MainThread
     private boolean addCharacteristics(BluetoothGattService service) {
         assert Looper.myLooper() == Looper.getMainLooper();
 
@@ -160,6 +162,7 @@ public class BleDomesticService {
      * to produce output.
      * @return The reliable output BluetoothGattCharacteristic.
      */
+    @MainThread
     public final BluetoothGattCharacteristic getReliableOutputCharacteristic() {
         if (this.reliableOutputRead == null) {
             assert Looper.myLooper() == Looper.getMainLooper();
@@ -186,6 +189,7 @@ public class BleDomesticService {
      * characteristic change in value.
      * @return The control BluetoothGattCharacteristic.
      */
+    @MainThread
     public final BluetoothGattCharacteristic getReliableControl() {
         if (this.reliableControl == null) {
             assert Looper.myLooper() == Looper.getMainLooper();
