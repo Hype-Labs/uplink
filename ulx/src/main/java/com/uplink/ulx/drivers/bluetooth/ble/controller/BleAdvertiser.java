@@ -617,13 +617,11 @@ class BleAdvertiser extends AdvertiserCommons implements
     private void startAdvertising() {
         Timber.i("ULX advertiser is starting");
 
-        Dispatch.post(() -> {
-            getBluetoothLeAdvertiser().startAdvertising(
-                    getAdvertiseSettings(),
-                    getAdvertiseData(),
-                    getAdvertiseCallback()
-            );
-        });
+        Dispatch.post(() -> getBluetoothLeAdvertiser().startAdvertising(
+                getAdvertiseSettings(),
+                getAdvertiseData(),
+                getAdvertiseCallback()
+        ));
     }
 
     /**

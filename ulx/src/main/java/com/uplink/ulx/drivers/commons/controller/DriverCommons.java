@@ -426,15 +426,13 @@ public abstract class DriverCommons implements
     private boolean handleAdapterRestartRequest() {
 
         int advertiserConnectorCount = getAdvertiser().getActiveConnectors().size();
-        int browserConnectorCount = getBrowser().getActiveConnectors().size();
 
         Timber.i(
-                "ULX connection count is %d (advertiser) and %d (browser)",
-                advertiserConnectorCount,
-                browserConnectorCount
+                "ULX advertiser connection count is %d",
+                advertiserConnectorCount
         );
 
-        if (advertiserConnectorCount != 0 || browserConnectorCount != 0) {
+        if (advertiserConnectorCount != 0 || getBrowser().hasActiveConnectors()) {
             Timber.i("ULX driver is rejecting an adapter restart request");
             return false;
         }

@@ -9,9 +9,9 @@ import com.uplink.ulx.drivers.model.Connector;
 import com.uplink.ulx.drivers.model.Device;
 
 import java.lang.ref.WeakReference;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
+import java.util.Vector;
 
 import timber.log.Timber;
 
@@ -38,7 +38,7 @@ public abstract class BrowserCommons implements
     private WeakReference<Browser.Delegate> delegate;
     private WeakReference<Browser.StateDelegate> stateDelegate;
     private WeakReference<Browser.NetworkDelegate> networkDelegate;
-    private List<Connector> activeConnectors;
+    private final List<Connector> activeConnectors;
 
     /**
      * Constructor. Initializes with the given arguments.
@@ -62,7 +62,7 @@ public abstract class BrowserCommons implements
         );
         this.transportType = transportType;
         this.context = new WeakReference<>(context);
-        this.activeConnectors = null;
+        this.activeConnectors = new Vector<>();
     }
 
     /**
@@ -162,12 +162,13 @@ public abstract class BrowserCommons implements
         return this.transportType;
     }
 
-    @Override
-    public final List<Connector> getActiveConnectors() {
-        if (this.activeConnectors == null) {
-            this.activeConnectors = new ArrayList<>();
-        }
+    private List<Connector> getActiveConnectors() {
         return this.activeConnectors;
+    }
+
+    @Override
+    public boolean hasActiveConnectors() {
+        return !getActiveConnectors().isEmpty();
     }
 
     /**

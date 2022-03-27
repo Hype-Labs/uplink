@@ -6,8 +6,6 @@ import com.uplink.ulx.UlxError;
 import com.uplink.ulx.drivers.model.Connector;
 import com.uplink.ulx.drivers.model.Device;
 
-import java.util.List;
-
 /**
  * A browser is responsible for looking for advertisement packets and other
  * forms of advertisement that are being broadcast on the network, or that
@@ -332,10 +330,10 @@ public interface Browser {
     void destroy();
 
     /**
-     * Lists the active connections that are managed by the {@link Browser}.
-     * All {@link Connector}s in the list should have state {@link
+     * Checks whether the {@link Browser} has active connector.
+     * An active {@link Connector} is one with state {@link
      * Connector.State#CONNECTED}.
-     * @return The list of active {@link Connector}s.
+     * @return whether the {@link Browser} has active connectors
      */
-    List<Connector> getActiveConnectors();
+    boolean hasActiveConnectors();
 }
