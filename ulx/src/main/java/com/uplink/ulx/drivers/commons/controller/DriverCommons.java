@@ -39,8 +39,7 @@ public abstract class DriverCommons implements
         Advertiser.NetworkDelegate,
         Browser.Delegate,
         Browser.StateDelegate,
-        Browser.NetworkDelegate,
-        StateManager.Delegate  {
+        Browser.NetworkDelegate {
 
     private final String identifier;
     private final int transportType;
@@ -67,7 +66,14 @@ public abstract class DriverCommons implements
         this.identifier = identifier;
         this.transportType = transportType;
         this.context = new WeakReference<>(context);
-        this.stateManager = new StateManager(this);
+        this.stateManager = StateManager.createInstance(
+                this::requestStart,
+                this::requestStop,
+                this::onStart,
+                this::onStop,
+                this::onFailedStart,
+                this::onStateChange
+        );
         this.browserError = null;
         this.advertiserError = null;
     }
@@ -263,48 +269,42 @@ public abstract class DriverCommons implements
         getStateManager().start();
     }
 
-    @Override
-    public void requestStart(StateManager stateManager) {
+    private void requestStart(StateManager stateManager) {
         getExecutorService().execute(() -> {
             getAdvertiser().start();
             getBrowser().start();
         });
     }
 
-    @Override
-    public void onStart(StateManager stateManager) {
+    private void onStart(StateManager stateManager) {
         StateDelegate delegate = this.getStateDelegate();
         if (delegate != null) {
             delegate.onStart(this);
         }
     }
 
-    @Override
-    public void onStop(StateManager stateManager, UlxError error) {
+    private void onStop(StateManager stateManager, UlxError error) {
         StateDelegate delegate = this.getStateDelegate();
         if (delegate != null) {
             delegate.onStop(this, error);
         }
     }
 
-    @Override
-    public void requestStop(StateManager stateManager) {
+    private void requestStop(StateManager stateManager) {
         getExecutorService().execute(() -> {
             getBrowser().stop();
             getAdvertiser().stop();
         });
     }
 
-    @Override
-    public void onFailedStart(StateManager stateManager, UlxError error) {
+    private void onFailedStart(StateManager stateManager, UlxError error) {
         StateDelegate delegate = this.getStateDelegate();
         if (delegate != null) {
             delegate.onFailedStart(this, error);
         }
     }
 
-    @Override
-    public void onStateChange(StateManager stateManager) {
+    private void onStateChange(StateManager stateManager) {
         StateDelegate delegate = this.getStateDelegate();
         if (delegate != null) {
             delegate.onStateChange(this);
