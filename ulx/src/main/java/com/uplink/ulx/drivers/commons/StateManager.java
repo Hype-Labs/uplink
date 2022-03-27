@@ -171,7 +171,7 @@ public class StateManager {
      * Returns the stateful entity's current state.
      * @return The current state.
      */
-    public final State getState() {
+    public synchronized final State getState() {
         return this.state;
     }
 
