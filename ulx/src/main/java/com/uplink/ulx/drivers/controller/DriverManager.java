@@ -5,12 +5,14 @@ import android.content.Context;
 import com.uplink.ulx.TransportType;
 import com.uplink.ulx.UlxError;
 import com.uplink.ulx.UlxErrorCode;
-import com.uplink.ulx.drivers.model.Device;
 import com.uplink.ulx.drivers.commons.StateManager;
+import com.uplink.ulx.drivers.model.Device;
 import com.uplink.ulx.threading.ExecutorPool;
 
 import java.lang.ref.WeakReference;
-import java.util.*;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Objects;
 import java.util.concurrent.TimeUnit;
 
 /**
@@ -27,7 +29,7 @@ import java.util.concurrent.TimeUnit;
  * and instead enables the SDK to work as a single unit for all types of
  * transport.
  */
-public class DriverManager implements Driver, Driver.NetworkDelegate, StateManager.Delegate, Driver.StateDelegate {
+public class DriverManager implements Driver, Driver.NetworkDelegate, Driver.StateDelegate {
 
     private final StateManager stateManager;
     private final String identifier;
@@ -69,7 +71,14 @@ public class DriverManager implements Driver, Driver.NetworkDelegate, StateManag
 
         this.identifier = identifier;
         this.transportType = TransportType.NONE;
-        this.stateManager = new StateManager(this);
+        this.stateManager = StateManager.createInstance(
+                this::requestStart,
+                this::requestStop,
+                this::onStart,
+                this::onStop,
+                this::onFailedStart,
+                this::onStateChange
+        );
         this.networkDelegate = new WeakReference<>(networkDelegate);
         this.stateDelegate = new WeakReference<>(stateDelegate);
         this.context = new WeakReference<>(context);
@@ -318,45 +327,39 @@ public class DriverManager implements Driver, Driver.NetworkDelegate, StateManag
         }
     }
 
-    @Override
-    public void requestStart(StateManager stateManager) {
+    private void requestStart(StateManager stateManager) {
         requestAllDriversToStart();
     }
 
-    @Override
-    public void onStart(StateManager stateManager) {
+    private void onStart(StateManager stateManager) {
         StateDelegate stateDelegate = getStateDelegate();
         if (stateDelegate != null) {
             stateDelegate.onStart(this);
         }
     }
 
-    @Override
-    public void onFailedStart(StateManager stateManager, UlxError error) {
+    private void onFailedStart(StateManager stateManager, UlxError error) {
         StateDelegate stateDelegate = getStateDelegate();
         if (stateDelegate != null) {
             stateDelegate.onFailedStart(this, error);
         }
     }
 
-    @Override
-    public void onStop(StateManager stateManager, UlxError error) {
+    private void onStop(StateManager stateManager, UlxError error) {
         StateDelegate stateDelegate = getStateDelegate();
         if (stateDelegate != null) {
             stateDelegate.onStop(this, error);
         }
     }
 
-    @Override
-    public void onStateChange(StateManager stateManager) {
+    private void onStateChange(StateManager stateManager) {
         StateDelegate stateDelegate = getStateDelegate();
         if (stateDelegate != null) {
             stateDelegate.onStateChange(this);
         }
     }
 
-    @Override
-    public void requestStop(StateManager stateManager) {
+    private void requestStop(StateManager stateManager) {
         this.requestAllDriversToStop();
     }
 
