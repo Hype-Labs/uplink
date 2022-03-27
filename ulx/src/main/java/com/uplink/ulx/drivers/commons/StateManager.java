@@ -2,9 +2,12 @@ package com.uplink.ulx.drivers.commons;
 
 import com.uplink.ulx.UlxError;
 import com.uplink.ulx.model.State;
+import com.uplink.ulx.utils.BiConsumer;
+import com.uplink.ulx.utils.Consumer;
 
 import java.util.Objects;
 
+import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 
 /**
@@ -99,10 +102,39 @@ public class StateManager {
     private final Delegate delegate;
 
     /**
-     * Constructor. Initializes with the given delegate, keeping a weak
-     * reference to it. It also sets the current and requested states to IDLE.
-     * @param delegate The state manager's delegate.
+     * Creates {@link StateManager} instance given optional callbacks. (See {@link Delegate} for
+     * description of the methods)
+     *
+     * @return the new instance of {@link StateManager}
      */
+    public static StateManager createInstance(
+            @Nullable Consumer<StateManager> requestStart,
+            @Nullable Consumer<StateManager> requestStop,
+            @Nullable Consumer<StateManager> onStart,
+            @Nullable BiConsumer<StateManager, UlxError> onStop,
+            @Nullable BiConsumer<StateManager, UlxError> onFailedStart,
+            @Nullable Consumer<StateManager> onStateChanged
+    ) {
+        //noinspection deprecation
+        return new StateManager(createDelegate(
+                requestStart,
+                requestStop,
+                onStart,
+                onStop,
+                onFailedStart,
+                onStateChanged
+        ));
+    }
+
+    /**
+     * Constructor. Initializes with the given delegate, keeping a weak reference to it. It also
+     * sets the current and requested states to IDLE.
+     *
+     * @param delegate The state manager's delegate.
+     * @deprecated use {@link #createInstance(Consumer, Consumer, Consumer, BiConsumer, BiConsumer, Consumer)}
+     * instead, which allows to provide optional method references to private methods
+     */
+    @Deprecated
     public StateManager(Delegate delegate) {
 
         Objects.requireNonNull(delegate);
@@ -139,7 +171,7 @@ public class StateManager {
      * Returns the stateful entity's current state.
      * @return The current state.
      */
-    public synchronized final State getState() {
+    public final State getState() {
         return this.state;
     }
 
@@ -192,7 +224,7 @@ public class StateManager {
      * event, as if the stateful entity had just started; this guarantees that
      * the function call is met with a delegate response.
      */
-    public void start() {
+    public synchronized void start() {
 
         Delegate delegate = getDelegate();
         setRequestedState(State.RUNNING);
@@ -232,7 +264,7 @@ public class StateManager {
      * had just stopped. This guarantees that each call to stop() is met with
      * a delegate response.
      */
-    public void stop() {
+    public synchronized void stop() {
 
         Delegate delegate = getDelegate();
         setRequestedState(State.IDLE);
@@ -266,7 +298,7 @@ public class StateManager {
      * at this point, the state manager will decide whether to revert the state
      * by asking the managed entity to stop, if needed.
      */
-    public void notifyStart() {
+    public synchronized void notifyStart() {
 
         Delegate delegate = getDelegate();
 
@@ -308,7 +340,7 @@ public class StateManager {
      * @param error An error, possibly indicating a forced stoppage, as well as
      *              the cause for it.
      */
-    public void notifyStop(@Nullable UlxError error) {
+    public synchronized void notifyStop(@Nullable UlxError error) {
 
         Delegate delegate = getDelegate();
 
@@ -391,7 +423,7 @@ public class StateManager {
      * delegate will still be notified. The error parameter is mandatory.
      * @param error An error indication the cause for the failure.
      */
-    public void notifyFailedStart(UlxError error) {
+    public synchronized void notifyFailedStart(UlxError error) {
 
         Delegate delegate = getDelegate();
 
@@ -417,5 +449,61 @@ public class StateManager {
             setState(State.IDLE);
             delegate.onStop(this, error);
         }
+    }
+
+    @NonNull
+    private static Delegate createDelegate(
+            @Nullable Consumer<StateManager> requestStart,
+            @Nullable Consumer<StateManager> requestStop,
+            @Nullable Consumer<StateManager> onStart,
+            @Nullable BiConsumer<StateManager, UlxError> onStop,
+            @Nullable BiConsumer<StateManager, UlxError> onFailedStart,
+            @Nullable Consumer<StateManager> onStateChanged
+    ) {
+        return new Delegate() {
+            @Override
+            public void requestStart(StateManager stateManager) {
+                if (requestStart != null) {
+                    requestStart.accept(stateManager);
+                }
+            }
+
+            @Override
+            public void requestStop(StateManager stateManager) {
+                if (requestStop != null) {
+                    requestStop.accept(stateManager);
+                }
+            }
+
+            @Override
+            public void onStart(StateManager stateManager) {
+                if (onStart != null) {
+                    onStart.accept(stateManager);
+                }
+            }
+
+            @Override
+            public void onStop(StateManager stateManager, UlxError error) {
+                if (onStop != null) {
+                    onStop.accept(stateManager, error);
+                }
+            }
+
+            @Override
+            public void onFailedStart(StateManager stateManager, UlxError error) {
+                if (onFailedStart != null) {
+                    onFailedStart.accept(stateManager, error);
+                }
+            }
+
+            @Override
+            public void onStateChange(StateManager stateManager) {
+                if (onStateChanged != null) {
+                    onStateChanged.accept(stateManager);
+                } else {
+                    Delegate.super.onStateChange(stateManager);
+                }
+            }
+        };
     }
 }
