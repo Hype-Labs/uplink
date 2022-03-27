@@ -29,7 +29,6 @@ import timber.log.Timber;
 public abstract class BrowserCommons implements
         Browser,
         Browser.NetworkDelegate,
-        StateManager.Delegate,
         Connector.InvalidationCallback
 {
     private final String identifier;
@@ -53,7 +52,14 @@ public abstract class BrowserCommons implements
         Objects.requireNonNull(context);
 
         this.identifier = identifier;
-        this.stateManager = new StateManager(this);
+        this.stateManager = StateManager.createInstance(
+                this::requestStart,
+                this::requestStop,
+                this::onStart,
+                this::onStop,
+                this::onFailedStart,
+                this::onStateChange
+        );
         this.transportType = transportType;
         this.context = new WeakReference<>(context);
         this.activeConnectors = null;
@@ -181,42 +187,36 @@ public abstract class BrowserCommons implements
         getActiveConnectors().remove(connector);
     }
 
-    @Override
-    public void requestStart(StateManager stateManager) {
+    private void requestStart(StateManager stateManager) {
         requestAdapterToStartBrowsing();
     }
 
-    @Override
-    public void onStart(StateManager stateManager) {
+    private void onStart(StateManager stateManager) {
         Browser.StateDelegate stateDelegate = getStateDelegate();
         if (stateDelegate != null) {
             stateDelegate.onStart(this);
         }
     }
 
-    @Override
-    public void onStop(StateManager stateManager, UlxError error) {
+    private void onStop(StateManager stateManager, UlxError error) {
         Browser.StateDelegate stateDelegate = getStateDelegate();
         if (stateDelegate != null) {
             stateDelegate.onStop(this, error);
         }
     }
 
-    @Override
-    public void requestStop(StateManager stateManager) {
+    private void requestStop(StateManager stateManager) {
         this.requestAdapterToStopBrowsing();
     }
 
-    @Override
-    public void onFailedStart(StateManager stateManager, UlxError error) {
+    private void onFailedStart(StateManager stateManager, UlxError error) {
         Browser.StateDelegate stateDelegate = getStateDelegate();
         if (stateDelegate != null) {
             stateDelegate.onFailedStart(this, error);
         }
     }
 
-    @Override
-    public void onStateChange(StateManager stateManager) {
+    private void onStateChange(StateManager stateManager) {
         Browser.StateDelegate stateDelegate = getStateDelegate();
         if (stateDelegate != null) {
             stateDelegate.onStateChange(this);
