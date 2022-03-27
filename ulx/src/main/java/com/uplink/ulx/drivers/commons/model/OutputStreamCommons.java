@@ -10,6 +10,7 @@ import com.uplink.ulx.threading.Dispatch;
 import java.util.List;
 import java.util.Vector;
 
+import androidx.annotation.CallSuper;
 import timber.log.Timber;
 
 /**
@@ -166,6 +167,7 @@ public abstract class OutputStreamCommons extends StreamCommons implements Outpu
         });
     }
 
+    @CallSuper
     protected void onStop(StateManager stateManager, UlxError error) {
         notifyInvalidatedAndClosed(error);
         super.onStop(stateManager, error);

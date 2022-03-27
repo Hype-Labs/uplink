@@ -77,7 +77,7 @@ public class BleForeignInputStream extends InputStreamCommons implements GattCli
     }
 
     @Override
-    public void onStop(StateManager stateManager, UlxError error) {
+    protected void onStop(StateManager stateManager, UlxError error) {
         getGattClient().stop(error);
         super.onStop(stateManager, error);
     }

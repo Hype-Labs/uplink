@@ -10,6 +10,7 @@ import java.util.List;
 import java.util.Objects;
 import java.util.Vector;
 
+import androidx.annotation.CallSuper;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import timber.log.Timber;
@@ -117,6 +118,7 @@ public abstract class StreamCommons implements
         }
     }
 
+    @CallSuper
     protected void onStop(StateManager stateManager, UlxError error) {
         Timber.e(
                 "ULX stream %s stopped with error %s",
