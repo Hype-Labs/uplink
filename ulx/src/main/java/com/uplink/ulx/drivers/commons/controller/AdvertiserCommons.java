@@ -7,6 +7,7 @@ import com.uplink.ulx.drivers.commons.StateManager;
 import com.uplink.ulx.drivers.controller.Advertiser;
 import com.uplink.ulx.drivers.model.Connector;
 import com.uplink.ulx.drivers.model.Device;
+
 import java.lang.ref.WeakReference;
 import java.util.ArrayList;
 import java.util.List;
@@ -27,7 +28,6 @@ public abstract class AdvertiserCommons implements
         Advertiser,
         Advertiser.StateDelegate,
         Advertiser.NetworkDelegate,
-        StateManager.Delegate,
         Connector.InvalidationCallback {
 
     private final String identifier;
@@ -51,7 +51,14 @@ public abstract class AdvertiserCommons implements
         Objects.requireNonNull(context);
 
         this.identifier = identifier;
-        this.stateManager = new StateManager(this);
+        this.stateManager = StateManager.createInstance(
+                this::requestStart,
+                this::requestStop,
+                this::onStart,
+                this::onStop,
+                this::onFailedStart,
+                this::onStateChange
+        );
         this.transportType = transportType;
         this.context = new WeakReference<>(context);
         this.activeConnectors = null;
@@ -183,42 +190,36 @@ public abstract class AdvertiserCommons implements
         getActiveConnectors().remove(connector);
     }
 
-    @Override
-    public void requestStart(StateManager stateManager) {
+    private void requestStart(StateManager stateManager) {
         requestAdapterToStart();
     }
 
-    @Override
-    public void onStart(StateManager stateManager) {
+    private void onStart(StateManager stateManager) {
         StateDelegate stateDelegate = this.getStateDelegate();
         if (stateDelegate != null) {
             stateDelegate.onStart(this);
         }
     }
 
-    @Override
-    public void onStop(StateManager stateManager, UlxError error) {
+    private void onStop(StateManager stateManager, UlxError error) {
         StateDelegate stateDelegate = this.getStateDelegate();
         if (stateDelegate != null) {
             stateDelegate.onStop(this, error);
         }
     }
 
-    @Override
-    public void requestStop(StateManager stateManager) {
+    private void requestStop(StateManager stateManager) {
         this.requestAdapterToStop();
     }
 
-    @Override
-    public void onFailedStart(StateManager stateManager, UlxError error) {
+    private void onFailedStart(StateManager stateManager, UlxError error) {
         StateDelegate stateDelegate = this.getStateDelegate();
         if (stateDelegate != null) {
             stateDelegate.onFailedStart(this, error);
         }
     }
 
-    @Override
-    public void onStateChange(StateManager stateManager) {
+    private void onStateChange(StateManager stateManager) {
         StateDelegate stateDelegate = this.getStateDelegate();
         if (stateDelegate != null) {
             stateDelegate.onStateChange(this);
