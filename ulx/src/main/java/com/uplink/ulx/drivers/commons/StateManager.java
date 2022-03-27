@@ -3,7 +3,6 @@ package com.uplink.ulx.drivers.commons;
 import com.uplink.ulx.UlxError;
 import com.uplink.ulx.model.State;
 
-import java.lang.ref.WeakReference;
 import java.util.Objects;
 
 import androidx.annotation.Nullable;
@@ -97,7 +96,7 @@ public class StateManager {
 
     private State state;
     private State requestedState;
-    private final WeakReference<Delegate> delegate;
+    private final Delegate delegate;
 
     /**
      * Constructor. Initializes with the given delegate, keeping a weak
@@ -110,7 +109,7 @@ public class StateManager {
 
         this.state = State.IDLE;
         this.requestedState = State.IDLE;
-        this.delegate = new WeakReference<>(delegate);
+        this.delegate = delegate;
     }
 
     /**
@@ -145,13 +144,12 @@ public class StateManager {
     }
 
     /**
-     * Getter for the state manager's delegate. Although a weak reference is
-     * kept to the object, this method returns a strong reference.
+     * Getter for the state manager's delegate.
      * @return The state manager's delegate.
      * @see Delegate
      */
     private Delegate getDelegate() {
-        return this.delegate.get();
+        return this.delegate;
     }
 
     /**
