@@ -88,7 +88,7 @@ public abstract class BrowserCommons implements
      * must issue a notification to the state manager indicating the outcome of
      * the operation.
      */
-    public abstract void requestAdapterToStartBrowsing();
+    protected abstract void requestAdapterToStartBrowsing();
 
     /**
      * This method commits a request to stop scanning for other devices on the

@@ -40,12 +40,14 @@ import com.uplink.ulx.utils.StringUtils;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
+import java.util.Deque;
 import java.util.HashMap;
-import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.UUID;
+import java.util.concurrent.ConcurrentLinkedDeque;
 
 import timber.log.Timber;
 
@@ -60,11 +62,19 @@ class BleBrowser extends BrowserCommons implements
     private final BleDomesticService domesticService;
 
     private ArrayList<ScanFilter> scanFilters;
-    private ScanCallback scanCallback;
+    private final ScanCallback scanCallback;
 
-    private Map<String, BluetoothDevice> knownDevices;
-    private Map<String, Connector> knownConnectors;
-    private List<Connector> connectorQueue;
+    /**
+     * A map of identifiers (String) to BluetoothDevice, which corresponds to the registry of
+     * devices that have been found by the implementation. This will prevent devices from being
+     * found multiples times.
+     */
+    private final Map<String, BluetoothDevice> knownDevices;
+    /**
+     * Connector queue, which holds connections that are pending. These connections will be
+     * dispatched in sequence, in the same order in which the devices are seen on the network.
+     */
+    private final Deque<Connector> connectorQueue;
     private Connector currentConnector;
 
     /**
@@ -75,7 +85,7 @@ class BleBrowser extends BrowserCommons implements
 
         @Override
         public void onScanResult(int callbackType, final ScanResult scanResult) {
-            if (getKnownDevices().get(scanResult.getDevice().getAddress()) != null) {
+            if (BleBrowser.this.knownDevices.get(scanResult.getDevice().getAddress()) != null) {
                 //Log.i(getClass().getCanonicalName(), String.format("ULX BLE browser ignoring device %s because it's already known", scanResult.getDevice().getAddress()));
                 return;
             }
@@ -134,7 +144,7 @@ class BleBrowser extends BrowserCommons implements
     }
 
     /**
-     * Constructor. Initializes the instance with the given parameters. It also
+     * Initializes the instance with the given parameters. It also
      * subscribes the browser as a BluetoothStateListener observer, so that it
      * can track adapter state changes. The given BluetoothManager is expected
      * to be shared with the advertiser, since it's the abstract entity that
@@ -147,21 +157,39 @@ class BleBrowser extends BrowserCommons implements
      * @param domesticService The service configuration specification.
      * @param context The Android environment Context.
      */
-    public BleBrowser(
+    public static BleBrowser newInstance(
             String identifier,
             BluetoothManager bluetoothManager,
             BleDomesticService domesticService,
-            Context context)
-    {
+            Context context
+    ) {
+        final BleBrowser browser = new BleBrowser(
+                identifier,
+                bluetoothManager,
+                domesticService,
+                context
+        );
+        BluetoothStateListener.addObserver(browser);
+        return browser;
+    }
+
+    private BleBrowser(
+            String identifier,
+            BluetoothManager bluetoothManager,
+            BleDomesticService domesticService,
+            Context context
+    ) {
         super(identifier, TransportType.BLUETOOTH_LOW_ENERGY, context);
 
         this.bluetoothManager = bluetoothManager;
         this.domesticService = domesticService;
 
-        this.currentConnector = null;
+        this.scanCallback = new BLEScannerCallback();
 
-        // TODO Leaking "this" in the constructor
-        BluetoothStateListener.addObserver(this);
+        this.knownDevices = Collections.synchronizedMap(new HashMap<>());
+
+        this.connectorQueue = new ConcurrentLinkedDeque<>();
+        this.currentConnector = null;
     }
 
     /**
@@ -225,7 +253,7 @@ class BleBrowser extends BrowserCommons implements
      * results for services that are of interest to the SDK.
      * @return A list of ScanFilter with a single entry for the core service.
      */
-    private List<ScanFilter> getScanFilters() {
+    private synchronized List<ScanFilter> getScanFilters() {
         if (this.scanFilters == null) {
             this.scanFilters = new ArrayList<>();
 
@@ -270,50 +298,7 @@ class BleBrowser extends BrowserCommons implements
      * @return The BLEScannerCallback instance to handle scan results.
      */
     private ScanCallback getScanCallback() {
-        if (this.scanCallback == null) {
-            this.scanCallback = new BLEScannerCallback();
-        }
         return this.scanCallback;
-    }
-
-    /**
-     * Returns a map of identifiers (String) to BluetoothDevice, which
-     * corresponds to the registry of devices that have been found by the
-     * implementation. This will prevent devices from being found multiples
-     * times.
-     * @return An hash map of known devices.
-     */
-    // TODO synchronize access to the map
-    private Map<String, BluetoothDevice> getKnownDevices() {
-        if (this.knownDevices == null) {
-            this.knownDevices = new HashMap<>();
-        }
-        return this.knownDevices;
-    }
-
-    /**
-     * Accessor for the connector queue, which holds connections that are
-     * pending. These connections will be dispatched in sequence, in the same
-     * order in which the devices are seen on the network.
-     * @return A list of pending connections.
-     */
-    private List<Connector> getConnectorQueue() {
-        if (this.connectorQueue == null) {
-            this.connectorQueue = new LinkedList<>();
-        }
-        return this.connectorQueue;
-    }
-
-    /**
-     * This method returns a map of identifiers-to-connectors, mapping all
-     * Connector that have been found (and not lost) on the network.
-     * @return A map of identifiers to their respective connectors.
-     */
-    private Map<String, Connector> getKnownConnectors() {
-        if (this.knownConnectors == null) {
-            this.knownConnectors = new HashMap<>();
-        }
-        return this.knownConnectors;
     }
 
     /**
@@ -353,7 +338,7 @@ class BleBrowser extends BrowserCommons implements
 
     @SuppressLint("MissingPermission")
     @Override
-    public void requestAdapterToStartBrowsing() {
+    protected void requestAdapterToStartBrowsing() {
         Timber.i("ULX BLE browser is requesting the adapter to start");
 
         // Are the necessary permissions in place?
@@ -459,17 +444,19 @@ class BleBrowser extends BrowserCommons implements
      * @param bluetoothDevice The device to check.
      * @param scanRecord The ScanRecord corresponding to the given device.
      */
-    private synchronized void handleDeviceFound(BluetoothDevice bluetoothDevice, ScanRecord scanRecord) {
+    private void handleDeviceFound(BluetoothDevice bluetoothDevice, ScanRecord scanRecord) {
         //Log.i(BleBrowser.this.getClass().getCanonicalName(), String.format("ULX BLE browser found native device %s", bluetoothDevice.getAddress()));
 
-        // Was the bluetoothDevice already seen?
-        if (getKnownDevices().get(bluetoothDevice.getAddress()) != null) {
-            //Log.i(getClass().getCanonicalName(), String.format("ULX BLE browser ignoring device %s because it's already known", bluetoothDevice.getAddress()));
-            return;
-        }
+        synchronized (knownDevices) {
+            // Was the bluetoothDevice already seen?
+            if (this.knownDevices.get(bluetoothDevice.getAddress()) != null) {
+                //Log.i(getClass().getCanonicalName(), String.format("ULX BLE browser ignoring device %s because it's already known", bluetoothDevice.getAddress()));
+                return;
+            }
 
-        // Add to the registry
-        getKnownDevices().put(bluetoothDevice.getAddress(), bluetoothDevice);
+            // Add to the registry
+            this.knownDevices.put(bluetoothDevice.getAddress(), bluetoothDevice);
+        }
         Timber.d("Device %s added to registry", bluetoothDevice.getAddress());
 
         // Is the record found by the scanner publishing the expected service?
@@ -611,11 +598,8 @@ class BleBrowser extends BrowserCommons implements
         connector.setStateDelegate(this);
         connector.addInvalidationCallback(this);
 
-        // Keep the connector in the registry
-        getKnownConnectors().put(connector.getIdentifier(), connector);
-
         // Queue the connector
-        getConnectorQueue().add(connector);
+        connectorQueue.add(connector);
         Timber.i(
                 "ULX BLE scanner queued connector %s for native device %s",
                 connector.getIdentifier(),
@@ -634,17 +618,15 @@ class BleBrowser extends BrowserCommons implements
      */
     private Connector dequeueConnector() {
 
-        List<Connector> connectorQueue = getConnectorQueue();
+        // Remove the oldest
+        Connector connector = connectorQueue.poll();
 
-        if (connectorQueue.size() == 0) {
+        if (connector == null) {
             return null;
         }
 
-        // Remove the oldest
-        Connector connector = connectorQueue.remove(0);
-
         // The connector might have connected or invalidated meanwhile
-        if (connector == null || connector.getState() != Connector.State.DISCONNECTED) {
+        if (connector.getState() != Connector.State.DISCONNECTED) {
 
             // Try again, until the queue is known to be empty or one connection
             // request succeeds
@@ -662,26 +644,29 @@ class BleBrowser extends BrowserCommons implements
      */
     private void attemptConnection() {
         Timber.i("ULX is removing the next connector from the queue");
+        Connector connector;
 
-        // Don't proceed if busy
-        if (getCurrentConnector() != null) {
-            Timber.i("ULX connector queue not proceeding because it's busy");
-            return;
+        synchronized (connectorQueue) {
+            // Don't proceed if busy
+            if (getCurrentConnector() != null) {
+                Timber.i("ULX connector queue not proceeding because it's busy");
+                return;
+            }
+
+            connector = dequeueConnector();
+
+            // Don't proceed if there's no connector
+            if (connector == null) {
+                Timber.i("ULX attempted to dequeue a connector, but the queue was empty");
+
+                // Resume scanning, no connection is in progress
+                startScanning();
+                return;
+            }
+
+            // Set as busy
+            setCurrentConnector(connector);
         }
-
-        Connector connector = dequeueConnector();
-
-        // Don't proceed if there's no connector
-        if (connector == null) {
-            Timber.i("ULX attempted to dequeue a connector, but the queue was empty");
-
-            // Resume scanning, no connection is in progress
-            startScanning();
-            return;
-        }
-
-        // Set as busy
-        setCurrentConnector(connector);
 
         // Stop scanning while connecting
         stopScanning();
@@ -840,7 +825,7 @@ class BleBrowser extends BrowserCommons implements
             final String address = ((BleForeignConnector) connector).getGattClient().getBluetoothDevice().getAddress();
 
             // Remove the device from the list, so that we can connect to it again in the future
-            getKnownDevices().remove(address);
+            this.knownDevices.remove(address);
         }
     }
 
@@ -857,13 +842,14 @@ class BleBrowser extends BrowserCommons implements
 
         // Remove from the registry; when the device is seen again, the
         // connection should be retried
-        getKnownDevices().remove(bluetoothDevice.getAddress());
+        this.knownDevices.remove(bluetoothDevice.getAddress());
         Timber.d("Device %s removed from registry", bluetoothDevice.getAddress());
-        getKnownConnectors().remove(connector.getIdentifier());
         removeActiveConnector(connector);   // Shouldn't matter
 
         // Free the queue
         setCurrentConnector(null);
+        // Try next connector
+        attemptConnection();
 
         // Since we're having failed connections, we should ask the adapter to
         // restart.

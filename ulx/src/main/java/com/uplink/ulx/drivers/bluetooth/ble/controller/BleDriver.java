@@ -88,7 +88,7 @@ public class BleDriver extends DriverCommons implements Driver {
     @Override
     public Browser getBrowser() {
         if (this.browser == null) {
-            this.browser = new BleBrowser(
+            this.browser = BleBrowser.newInstance(
                     getIdentifier(),
                     getBluetoothManager(),
                     getDomesticService(),
