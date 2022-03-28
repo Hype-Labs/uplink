@@ -181,7 +181,8 @@ public class BleForeignOutputStream extends OutputStreamCommons implements GattC
         close(error);
     }
 
-    protected void onStop(StateManager stateManager, UlxError error) {
+    @Override
+    public void onStop(StateManager stateManager, UlxError error) {
         getGattClient().stop(error);
         super.onStop(stateManager, error);
     }

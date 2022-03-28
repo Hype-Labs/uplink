@@ -40,7 +40,7 @@ import timber.log.Timber;
  * its characteristics for I/O purposes. It communicates up the hierarchy
  * through a series of delegates.
  */
-public class GattClient extends BluetoothGattCallback {
+public class GattClient extends BluetoothGattCallback implements StateManager.Delegate {
 
     /**
      * This delegate listen to connection events, related with connection
@@ -193,14 +193,7 @@ public class GattClient extends BluetoothGattCallback {
         this.inputStreamDelegate = null;
         this.outputStreamDelegate = null;
 
-        this.stateManager = StateManager.createInstance(
-                this::requestStart,
-                null, // TODO implement requestStop()
-                this::onStart,
-                this::onStop,
-                this::onFailedStart,
-                null
-        );
+        this.stateManager = new StateManager(this);
 
         this.bluetoothDevice = bluetoothDevice;
         this.bluetoothManager = bluetoothManager;
@@ -441,15 +434,23 @@ public class GattClient extends BluetoothGattCallback {
         return this.bluetoothGatt;
     }
 
-    private void requestStart(StateManager stateManager) {
+    @Override
+    public void requestStart(StateManager stateManager) {
         doConnect();
     }
 
-    private void onStart(StateManager stateManager) {
+    @Override
+    public void requestStop(StateManager stateManager) {
+        // TODO implement
+    }
+
+    @Override
+    public void onStart(StateManager stateManager) {
         negotiateMtu();
     }
 
-    private void onStop(StateManager stateManager, UlxError error) {
+    @Override
+    public void onStop(StateManager stateManager, UlxError error) {
         Dispatch.post(() -> {
             // Clean up; without this, future attempts to connect between these
             // same two devices should result in more 133 error codes. See:
@@ -465,8 +466,14 @@ public class GattClient extends BluetoothGattCallback {
         });
     }
 
-    private void onFailedStart(StateManager stateManager, UlxError error) {
+    @Override
+    public void onFailedStart(StateManager stateManager, UlxError error) {
         notifyOnConnectionFailure(error);
+    }
+
+    @Override
+    public void onStateChange(StateManager stateManager) {
+        StateManager.Delegate.super.onStateChange(stateManager);
     }
 
     /**

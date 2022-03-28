@@ -41,6 +41,7 @@ import timber.log.Timber;
  * an API that enables consuming all features within the SDK.
  */
 public class Implementation implements
+        StateManager.Delegate,
         Service.StateDelegate,
         Service.NetworkDelegate,
         Service.MessageDelegate
@@ -97,14 +98,7 @@ public class Implementation implements
      */
     private synchronized StateManager getStateManager() {
         if (this.stateManager == null) {
-            this.stateManager = StateManager.createInstance(
-                    this::requestStart,
-                    this::requestStop,
-                    this::onStart,
-                    this::onStop,
-                    this::onFailedStart,
-                    this::onStateChange
-            );
+            this.stateManager = new StateManager(this);
         }
         return this.stateManager;
     }
@@ -321,7 +315,8 @@ public class Implementation implements
         getStateManager().start();
     }
 
-    private void requestStart(StateManager stateManager) {
+    @Override
+    public void requestStart(StateManager stateManager) {
 
         // This initialization shouldn't be here; when we have the service is
         // in place, the service will be constructed by the system. Instead,
@@ -371,7 +366,8 @@ public class Implementation implements
         notifyReady();
     }
 
-    private void onStart(StateManager stateManager) {
+    @Override
+    public void onStart(StateManager stateManager) {
         notifyStart();
     }
 
@@ -413,14 +409,16 @@ public class Implementation implements
         getStateManager().stop();
     }
 
-    private void requestStop(StateManager stateManager) {
+    @Override
+    public void requestStop(StateManager stateManager) {
         // The driver manager stops first. When that's done, the service
         // should also stop and be destroyed, but the stoppage is done in
         // reverse order with respect to starting.
         getService().stop();
     }
 
-    private void onStop(StateManager stateManager, UlxError error) {
+    @Override
+    public void onStop(StateManager stateManager, UlxError error) {
         notifyStop(error);
     }
 
@@ -439,7 +437,8 @@ public class Implementation implements
         });
     }
 
-    private void onFailedStart(StateManager stateManager, UlxError error) {
+    @Override
+    public void onFailedStart(StateManager stateManager, UlxError error) {
         notifyFailedStart(error);
     }
 
@@ -458,7 +457,8 @@ public class Implementation implements
         });
     }
 
-    private void onStateChange(StateManager stateManager) {
+    @Override
+    public void onStateChange(StateManager stateManager) {
         notifyStateChange();
     }
 

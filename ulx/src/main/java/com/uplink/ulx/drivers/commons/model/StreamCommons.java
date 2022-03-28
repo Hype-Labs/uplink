@@ -10,7 +10,6 @@ import java.util.List;
 import java.util.Objects;
 import java.util.Vector;
 
-import androidx.annotation.CallSuper;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import timber.log.Timber;
@@ -29,7 +28,8 @@ import timber.log.Timber;
  * @see OutputStreamCommons
  */
 public abstract class StreamCommons implements
-        Stream {
+        Stream,
+        StateManager.Delegate {
 
     @NonNull
     private final String identifier;
@@ -50,14 +50,7 @@ public abstract class StreamCommons implements
         Objects.requireNonNull(identifier);
 
         this.identifier = identifier;
-        this.stateManager = StateManager.createInstance(
-                this::requestStart,
-                this::requestStop,
-                this::onStart,
-                this::onStop,
-                this::onFailedStart,
-                this::onStateChange
-        );
+        this.stateManager = new StateManager(this);
         this.transportType = transportType;
         this.reliable = reliable;
     }
@@ -102,7 +95,8 @@ public abstract class StreamCommons implements
         return State.fromInt(getStateManager().getState().getValue());
     }
 
-    private void requestStart(StateManager stateManager) {
+    @Override
+    public void requestStart(StateManager stateManager) {
         Timber.i(
                 "ULX stream %s is being requested to start",
                 getIdentifier()
@@ -110,7 +104,8 @@ public abstract class StreamCommons implements
         requestAdapterToOpen();
     }
 
-    private void onStart(StateManager stateManager) {
+    @Override
+    public void onStart(StateManager stateManager) {
         Timber.i("ULX stream %s started", getIdentifier());
         StateDelegate stateDelegate = this.getStateDelegate();
         if (stateDelegate != null) {
@@ -118,8 +113,8 @@ public abstract class StreamCommons implements
         }
     }
 
-    @CallSuper
-    protected void onStop(StateManager stateManager, UlxError error) {
+    @Override
+    public void onStop(StateManager stateManager, UlxError error) {
         Timber.e(
                 "ULX stream %s stopped with error %s",
                 getIdentifier(),
@@ -131,12 +126,14 @@ public abstract class StreamCommons implements
         }
     }
 
-    private void requestStop(StateManager stateManager) {
+    @Override
+    public void requestStop(StateManager stateManager) {
         Timber.i("ULX stream %s is being requested to stop", getIdentifier());
         this.close(null);
     }
 
-    private void onFailedStart(StateManager stateManager, UlxError error) {
+    @Override
+    public void onFailedStart(StateManager stateManager, UlxError error) {
         Timber.e("ULX stream %s failed to start", getIdentifier());
         StateDelegate stateDelegate = this.getStateDelegate();
         if (stateDelegate != null) {
@@ -144,7 +141,8 @@ public abstract class StreamCommons implements
         }
     }
 
-    private void onStateChange(StateManager stateManager) {
+    @Override
+    public void onStateChange(StateManager stateManager) {
         StateDelegate stateDelegate = this.getStateDelegate();
         if (stateDelegate != null) {
             stateDelegate.onStateChange(this);
