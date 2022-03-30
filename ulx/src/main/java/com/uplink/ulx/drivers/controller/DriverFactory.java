@@ -114,7 +114,10 @@ class DriverFactory {
                 // Bluetooth Low Energy
                 if ((it & TransportType.BLUETOOTH_LOW_ENERGY) != 0 && getCompatibility().isCompatible(TransportType.BLUETOOTH_LOW_ENERGY)) {
                     if (BluetoothPermissionChecker.isBleGranted(getContext())) {
-                        driver = new BleDriver(StringUtils.generateRandomIdentifier(), getContext());
+                        driver = BleDriver.newInstance(
+                                StringUtils.generateRandomIdentifier(),
+                                getContext()
+                        );
                     }
                 }
 

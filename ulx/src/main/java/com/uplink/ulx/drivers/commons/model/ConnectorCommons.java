@@ -4,6 +4,7 @@ import com.uplink.ulx.UlxError;
 import com.uplink.ulx.drivers.commons.StateManager;
 import com.uplink.ulx.drivers.model.Connector;
 import com.uplink.ulx.threading.ExecutorPool;
+import com.uplink.ulx.utils.SetOnceRef;
 
 import java.lang.ref.WeakReference;
 import java.util.ArrayList;
@@ -24,14 +25,16 @@ import timber.log.Timber;
  * about the details of its specific transport, leaving this commonalities for
  * this class, which is to be used as a base class. This class also leaves
  * the Stream's InvalidationCallback methods for the child class to implement.
+ * <br>
+ * CONTRACT: subclasses must hide their constructors, create a factory method(s) and
+ * call {@link ConnectorCommons#initialize()} before returning the new instance
  */
 public abstract class ConnectorCommons implements
-        Connector,
-        StateManager.Delegate {
+        Connector {
 
     private final String identifier;
     private final int transportType;
-    private final StateManager stateManager;
+    private final SetOnceRef<StateManager> stateManager;
     private WeakReference<StateDelegate> stateDelegate;
     private final List<InvalidationCallback> invalidationCallbacks = new ArrayList<>();
     private ExecutorService executorService;
@@ -43,8 +46,57 @@ public abstract class ConnectorCommons implements
      */
     public ConnectorCommons(String identifier, int transportType) {
         this.identifier = identifier;
-        this.stateManager = new StateManager(this);
+        this.stateManager = new SetOnceRef<>();
         this.transportType = transportType;
+    }
+
+    protected void initialize() {
+        stateManager.setRef(new StateManager(new StateManager.Delegate() {
+            @Override
+            public void requestStart(StateManager stateManager1) {
+                Timber.i("ULX connector %s being requested to start", getIdentifier());
+                requestAdapterToConnect();
+            }
+
+            @Override
+            public void onStart(StateManager stateManager1) {
+                StateDelegate stateDelegate1 = getStateDelegate();
+                if (stateDelegate1 != null) {
+                    stateDelegate1.onConnected(ConnectorCommons.this);
+                }
+            }
+
+            @Override
+            public void onStop(StateManager stateManager1, UlxError error) {
+                StateDelegate stateDelegate1 = getStateDelegate();
+                if (stateDelegate1 != null) {
+                    stateDelegate1.onDisconnection(ConnectorCommons.this, error);
+                }
+            }
+
+            @Override
+            public void requestStop(StateManager stateManager1) {
+                Timber.i("ULX connector %s being requested to stop", getIdentifier());
+                requestAdapterToDisconnect();
+            }
+
+            @Override
+            public void onFailedStart(StateManager stateManager1, UlxError error) {
+                Timber.e("ULX connector %s failed to connect", getIdentifier());
+                StateDelegate stateDelegate1 = getStateDelegate();
+                if (stateDelegate1 != null) {
+                    stateDelegate1.onConnectionFailure(ConnectorCommons.this, error);
+                }
+            }
+
+            @Override
+            public void onStateChange(StateManager stateManager1) {
+                StateDelegate stateDelegate1 = getStateDelegate();
+                if (stateDelegate1 != null) {
+                    stateDelegate1.onStateChange(ConnectorCommons.this);
+                }
+            }
+        }));
     }
 
     /**
@@ -52,7 +104,7 @@ public abstract class ConnectorCommons implements
      * @return The Connector's StateManager.
      */
     private StateManager getStateManager() {
-        return this.stateManager;
+        return stateManager.getRef();
     }
 
     /**
@@ -155,51 +207,6 @@ public abstract class ConnectorCommons implements
                 getIdentifier()
         );
         getStateManager().start();
-    }
-
-    @Override
-    public void requestStart(StateManager stateManager) {
-        Timber.i("ULX connector %s being requested to start", getIdentifier());
-        requestAdapterToConnect();
-    }
-
-    @Override
-    public void onStart(StateManager stateManager) {
-        StateDelegate stateDelegate = this.getStateDelegate();
-        if (stateDelegate != null) {
-            stateDelegate.onConnected(this);
-        }
-    }
-
-    @Override
-    public void onStop(StateManager stateManager, UlxError error) {
-        StateDelegate stateDelegate = this.getStateDelegate();
-        if (stateDelegate != null) {
-            stateDelegate.onDisconnection(this, error);
-        }
-    }
-
-    @Override
-    public void requestStop(StateManager stateManager) {
-        Timber.i("ULX connector %s being requested to stop", getIdentifier());
-        this.requestAdapterToDisconnect();
-    }
-
-    @Override
-    public void onFailedStart(StateManager stateManager, UlxError error) {
-        Timber.e("ULX connector %s failed to connect", getIdentifier());
-        StateDelegate stateDelegate = this.getStateDelegate();
-        if (stateDelegate != null) {
-            stateDelegate.onConnectionFailure(this, error);
-        }
-    }
-
-    @Override
-    public void onStateChange(StateManager stateManager) {
-        StateDelegate stateDelegate = this.getStateDelegate();
-        if (stateDelegate != null) {
-            stateDelegate.onStateChange(this);
-        }
     }
 
     protected void onConnected() {

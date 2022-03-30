@@ -169,6 +169,7 @@ class BleBrowser extends BrowserCommons implements
                 domesticService,
                 context
         );
+        browser.initialize();
         BluetoothStateListener.addObserver(browser);
         return browser;
     }
@@ -581,7 +582,7 @@ class BleBrowser extends BrowserCommons implements
         );
 
         // Instantiate the GATT client
-        GattClient gattClient = new GattClient(
+        GattClient gattClient = GattClient.newInstance(
                 bluetoothDevice,
                 getBluetoothManager(),
                 getDomesticService(),
@@ -589,7 +590,7 @@ class BleBrowser extends BrowserCommons implements
         );
 
         // Create the connector
-        Connector connector = new BleForeignConnector(
+        Connector connector = BleForeignConnector.newInstance(
                 UUID.randomUUID().toString(),
                 gattClient
         );
@@ -773,14 +774,14 @@ class BleBrowser extends BrowserCommons implements
         BluetoothGattCharacteristic physicalReliableInputCharacteristic = foreignService.getCharacteristic(reliableInputCharacteristic.getUuid());
 
         // Create the input stream
-        BleForeignInputStream inputStream = new BleForeignInputStream(
+        BleForeignInputStream inputStream = BleForeignInputStream.newInstance(
                 identifier,
                 gattClient,
                 physicalReliableOutputCharacteristic
         );
 
         // Create the output stream
-        BleForeignOutputStream outputStream = new BleForeignOutputStream(
+        BleForeignOutputStream outputStream = BleForeignOutputStream.newInstance(
                 identifier,
                 gattClient,
                 physicalReliableInputCharacteristic

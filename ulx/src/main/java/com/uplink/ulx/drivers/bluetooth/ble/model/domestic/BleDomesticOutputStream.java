@@ -20,13 +20,30 @@ public class BleDomesticOutputStream extends OutputStreamCommons {
     private final BluetoothGattCharacteristic characteristic;
 
     /**
-     * Constructor. Initializes with given arguments.
+     * Factory method. Initializes with given arguments.
      * @param identifier An identifier used for JNI bridging and debugging.
      * @param gattServer The GATT server that is managing this stream.
      * @param bluetoothDevice The corresponding {@link BluetoothDevice}.
      * @param characteristic The characteristic used by the stream for output.
      */
-    public BleDomesticOutputStream(
+
+    public static BleDomesticOutputStream newInstance(
+            String identifier,
+            GattServer gattServer,
+            BluetoothDevice bluetoothDevice,
+            BluetoothGattCharacteristic characteristic
+    ) {
+        final BleDomesticOutputStream instance = new BleDomesticOutputStream(
+                identifier,
+                gattServer,
+                bluetoothDevice,
+                characteristic
+        );
+        instance.initialize();
+        return instance;
+    }
+
+    private BleDomesticOutputStream(
             String identifier,
             GattServer gattServer,
             BluetoothDevice bluetoothDevice,

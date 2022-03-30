@@ -6,7 +6,6 @@ import android.os.Looper;
 import com.uplink.ulx.TransportType;
 import com.uplink.ulx.UlxError;
 import com.uplink.ulx.drivers.bluetooth.ble.gattClient.GattClient;
-import com.uplink.ulx.drivers.commons.StateManager;
 import com.uplink.ulx.drivers.commons.model.InputStreamCommons;
 
 import java.util.Objects;
@@ -17,14 +16,29 @@ public class BleForeignInputStream extends InputStreamCommons implements GattCli
     private final GattClient gattClient;
 
     /**
-     * Constructor. Initializes with the given arguments. By default, this also
+     * Factory method. Initializes with the given arguments. By default, this also
      * initializes the stream to trigger onDataAvailable delegate notifications
      * as soon as data arrives.
      * @param identifier An identifier used for JNI bridging and debugging.
      * @param gattClient The {@link GattClient} used to interact with the adapter.
      * @param inputCharacteristic The reliable input characteristic.
      */
-    public BleForeignInputStream(
+
+    public static BleForeignInputStream newInstance(
+            String identifier,
+            GattClient gattClient,
+            BluetoothGattCharacteristic inputCharacteristic
+    ) {
+        final BleForeignInputStream instance = new BleForeignInputStream(
+                identifier,
+                gattClient,
+                inputCharacteristic
+        );
+        instance.initialize();
+        return instance;
+    }
+
+    private BleForeignInputStream(
             String identifier,
             GattClient gattClient,
             BluetoothGattCharacteristic inputCharacteristic
@@ -77,8 +91,8 @@ public class BleForeignInputStream extends InputStreamCommons implements GattCli
     }
 
     @Override
-    protected void onStop(StateManager stateManager, UlxError error) {
+    protected void onClose(UlxError error) {
         getGattClient().stop(error);
-        super.onStop(stateManager, error);
+        super.onClose(error);
     }
 }

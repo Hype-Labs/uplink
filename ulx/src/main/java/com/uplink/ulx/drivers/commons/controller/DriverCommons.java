@@ -10,6 +10,7 @@ import com.uplink.ulx.drivers.controller.Driver;
 import com.uplink.ulx.drivers.controller.TransportDriver;
 import com.uplink.ulx.drivers.model.Device;
 import com.uplink.ulx.threading.ExecutorPool;
+import com.uplink.ulx.utils.SetOnceRef;
 
 import java.lang.ref.WeakReference;
 import java.util.Objects;
@@ -31,6 +32,9 @@ import timber.log.Timber;
  * use. However, this class still manages both the Browser and Advertiser from
  * an abstract perspective, meaning that calls to the driver are propagated to
  * both, and that the driver tries to synchronize the states of the two.
+ * <br>
+ * CONTRACT: subclasses must hide their constructors, create a factory method(s) and
+ * call {@link DriverCommons#initialize()} before returning the new instance
  */
 public abstract class DriverCommons implements
         TransportDriver,
@@ -39,12 +43,11 @@ public abstract class DriverCommons implements
         Advertiser.NetworkDelegate,
         Browser.Delegate,
         Browser.StateDelegate,
-        Browser.NetworkDelegate,
-        StateManager.Delegate  {
+        Browser.NetworkDelegate {
 
     private final String identifier;
     private final int transportType;
-    private final StateManager stateManager;
+    private final SetOnceRef<StateManager> stateManager;
     private final WeakReference<Context> context;
     private WeakReference<StateDelegate> statusDelegate;
     private WeakReference<Driver.NetworkDelegate> networkDelegate;
@@ -67,9 +70,61 @@ public abstract class DriverCommons implements
         this.identifier = identifier;
         this.transportType = transportType;
         this.context = new WeakReference<>(context);
-        this.stateManager = new StateManager(this);
+        this.stateManager = new SetOnceRef<>();
         this.browserError = null;
         this.advertiserError = null;
+    }
+
+    protected void initialize() {
+        stateManager.setRef(new StateManager(new StateManager.Delegate() {
+            @Override
+            public void requestStart(StateManager stateManager) {
+                getExecutorService().execute(() -> {
+                    getAdvertiser().start();
+                    getBrowser().start();
+                });
+            }
+
+            @Override
+            public void onStart(StateManager stateManager) {
+                StateDelegate delegate = getStateDelegate();
+                if (delegate != null) {
+                    delegate.onStart(DriverCommons.this);
+                }
+            }
+
+            @Override
+            public void onStop(StateManager stateManager, UlxError error) {
+                StateDelegate delegate = getStateDelegate();
+                if (delegate != null) {
+                    delegate.onStop(DriverCommons.this, error);
+                }
+            }
+
+            @Override
+            public void requestStop(StateManager stateManager) {
+                getExecutorService().execute(() -> {
+                    getBrowser().stop();
+                    getAdvertiser().stop();
+                });
+            }
+
+            @Override
+            public void onFailedStart(StateManager stateManager, UlxError error) {
+                StateDelegate delegate = getStateDelegate();
+                if (delegate != null) {
+                    delegate.onFailedStart(DriverCommons.this, error);
+                }
+            }
+
+            @Override
+            public void onStateChange(StateManager stateManager) {
+                StateDelegate delegate = getStateDelegate();
+                if (delegate != null) {
+                    delegate.onStateChange(DriverCommons.this);
+                }
+            }
+        }));
     }
 
     /**
@@ -80,7 +135,7 @@ public abstract class DriverCommons implements
      * @see StateManager
      */
     private StateManager getStateManager() {
-        return this.stateManager;
+        return stateManager.getRef();
     }
 
     /**
@@ -261,54 +316,6 @@ public abstract class DriverCommons implements
         setBrowserError(null);
         setAdvertiserError(null);
         getStateManager().start();
-    }
-
-    @Override
-    public void requestStart(StateManager stateManager) {
-        getExecutorService().execute(() -> {
-            getAdvertiser().start();
-            getBrowser().start();
-        });
-    }
-
-    @Override
-    public void onStart(StateManager stateManager) {
-        StateDelegate delegate = this.getStateDelegate();
-        if (delegate != null) {
-            delegate.onStart(this);
-        }
-    }
-
-    @Override
-    public void onStop(StateManager stateManager, UlxError error) {
-        StateDelegate delegate = this.getStateDelegate();
-        if (delegate != null) {
-            delegate.onStop(this, error);
-        }
-    }
-
-    @Override
-    public void requestStop(StateManager stateManager) {
-        getExecutorService().execute(() -> {
-            getBrowser().stop();
-            getAdvertiser().stop();
-        });
-    }
-
-    @Override
-    public void onFailedStart(StateManager stateManager, UlxError error) {
-        StateDelegate delegate = this.getStateDelegate();
-        if (delegate != null) {
-            delegate.onFailedStart(this, error);
-        }
-    }
-
-    @Override
-    public void onStateChange(StateManager stateManager) {
-        StateDelegate delegate = this.getStateDelegate();
-        if (delegate != null) {
-            delegate.onStateChange(this);
-        }
     }
 
     @Override

@@ -29,11 +29,20 @@ public class BleForeignConnector extends ConnectorCommons implements GattClient.
     private final GattClient gattClient;
 
     /**
-     * Constructor. Initializes with given parameters.
+     * Factory method. Initializes with given parameters.
      * @param identifier A random unique identifier, mostly for bridging.
      * @param gattClient The GATT client for the connector.
      */
-    public BleForeignConnector(
+    public static BleForeignConnector newInstance(
+            String identifier,
+            GattClient gattClient
+    ) {
+        final BleForeignConnector instance = new BleForeignConnector(identifier, gattClient);
+        instance.initialize();
+        return instance;
+    }
+
+    private BleForeignConnector(
             String identifier,
             GattClient gattClient
     ) {

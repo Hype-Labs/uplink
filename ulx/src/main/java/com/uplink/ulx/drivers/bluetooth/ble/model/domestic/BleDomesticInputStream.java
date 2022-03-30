@@ -9,12 +9,19 @@ import timber.log.Timber;
 public class BleDomesticInputStream extends InputStreamCommons {
 
     /**
-     * Constructor. Initializes with the given arguments. By default, this also
+     * Factory method. Initializes with the given arguments. By default, this also
      * initializes the stream to trigger onDataAvailable delegate notifications
      * as soon as data arrives.
      * @param identifier An identifier used for JNI bridging and debugging.
      */
-    public BleDomesticInputStream(String identifier) {
+
+    public static BleDomesticInputStream newInstance(String identifier) {
+        final BleDomesticInputStream instance = new BleDomesticInputStream(identifier);
+        instance.initialize();
+        return instance;
+    }
+
+    private BleDomesticInputStream(String identifier) {
         super(identifier, TransportType.BLUETOOTH_LOW_ENERGY, true);
     }
 

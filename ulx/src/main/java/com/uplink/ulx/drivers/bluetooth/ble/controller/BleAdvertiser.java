@@ -161,12 +161,29 @@ class BleAdvertiser extends AdvertiserCommons implements
     }
 
     /**
-     * Constructor. Initializes with the given arguments.
+     * Factory method. Initializes with the given arguments.
      * @param identifier A string identifier for the instance.
      * @param bluetoothManager The BluetoothManager instance.
      * @param domesticService The service configuration specification.
      * @param context The Android environment Context.
      */
+
+    public static BleAdvertiser newInstance(
+            String identifier,
+            BluetoothManager bluetoothManager,
+            BleDomesticService domesticService,
+            Context context
+    ) {
+        final BleAdvertiser instance = new BleAdvertiser(
+                identifier,
+                bluetoothManager,
+                domesticService,
+                context
+        );
+        instance.initialize();
+        return instance;
+    }
+
     public BleAdvertiser(
             String identifier,
             BluetoothManager bluetoothManager,
@@ -393,7 +410,7 @@ class BleAdvertiser extends AdvertiserCommons implements
             forgetBtDevice(bluetoothDevice);
         }
 
-        Connector connector = new BleDomesticConnector(
+        Connector connector = BleDomesticConnector.newInstance(
                 UUID.randomUUID().toString(),
                 gattServer,
                 bluetoothDevice,
@@ -682,9 +699,9 @@ class BleAdvertiser extends AdvertiserCommons implements
 
         BleDomesticConnector domesticConnector = (BleDomesticConnector)connector;
 
-        InputStream inputStream = new BleDomesticInputStream(connector.getIdentifier());
+        InputStream inputStream = BleDomesticInputStream.newInstance(connector.getIdentifier());
 
-        OutputStream outputStream = new BleDomesticOutputStream(
+        OutputStream outputStream = BleDomesticOutputStream.newInstance(
                 connector.getIdentifier(),
                 getGattServer(),
                 domesticConnector.getBluetoothDevice(),

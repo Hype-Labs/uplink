@@ -322,7 +322,7 @@ public class Service extends android.app.Service implements
      */
     private DriverManager getDriverManager() {
         if (this.driverManager == null) {
-            this.driverManager = new DriverManager(
+            this.driverManager = DriverManager.newInstance(
                     UUID.randomUUID().toString(),
                     this,
                     this,

@@ -2,7 +2,6 @@ package com.uplink.ulx.drivers.commons.model;
 
 import com.uplink.ulx.UlxError;
 import com.uplink.ulx.UlxErrorCode;
-import com.uplink.ulx.drivers.commons.StateManager;
 import com.uplink.ulx.drivers.model.IoResult;
 import com.uplink.ulx.drivers.model.OutputStream;
 import com.uplink.ulx.threading.Dispatch;
@@ -167,9 +166,9 @@ public abstract class OutputStreamCommons extends StreamCommons implements Outpu
     }
 
     @Override
-    public void onStop(StateManager stateManager, UlxError error) {
+    public void onClose(UlxError error) {
         notifyInvalidatedAndClosed(error);
-        super.onStop(stateManager, error);
+        super.onClose(error);
     }
 
     /**

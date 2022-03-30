@@ -17,7 +17,23 @@ public class BleDomesticConnector extends ConnectorCommons {
     private final BleDomesticService domesticService;
     private final GattServer gattServer;
 
-    public BleDomesticConnector(
+    public static BleDomesticConnector newInstance(
+            String identifier,
+            GattServer gattServer,
+            BluetoothDevice bluetoothDevice,
+            BleDomesticService domesticService
+    ) {
+        final BleDomesticConnector instance = new BleDomesticConnector(
+                identifier,
+                gattServer,
+                bluetoothDevice,
+                domesticService
+        );
+        instance.initialize();
+        return instance;
+    }
+
+    private BleDomesticConnector(
             String identifier,
             GattServer gattServer,
             BluetoothDevice bluetoothDevice,

@@ -101,37 +101,14 @@ public class StateManager {
     private State requestedState;
     private final Delegate delegate;
 
-    /**
-     * Creates {@link StateManager} instance given optional callbacks. (See {@link Delegate} for
-     * description of the methods)
-     *
-     * @return the new instance of {@link StateManager}
-     */
-    public static StateManager createInstance(
-            @Nullable Consumer<StateManager> requestStart,
-            @Nullable Consumer<StateManager> requestStop,
-            @Nullable Consumer<StateManager> onStart,
-            @Nullable BiConsumer<StateManager, UlxError> onStop,
-            @Nullable BiConsumer<StateManager, UlxError> onFailedStart,
-            @Nullable Consumer<StateManager> onStateChanged
-    ) {
-        return new StateManager(createDelegate(
-                requestStart,
-                requestStop,
-                onStart,
-                onStop,
-                onFailedStart,
-                onStateChanged
-        ));
-    }
 
     /**
-     * Constructor. Initializes with the given delegate, keeping a weak reference to it. It also
+     * Constructor. Initializes with the given delegate. It also
      * sets the current and requested states to IDLE.
      *
      * @param delegate The state manager's delegate.
      */
-    private StateManager(Delegate delegate) {
+    public StateManager(Delegate delegate) {
 
         Objects.requireNonNull(delegate);
 

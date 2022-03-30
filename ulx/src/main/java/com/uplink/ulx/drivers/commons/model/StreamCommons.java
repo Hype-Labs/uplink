@@ -3,6 +3,7 @@ package com.uplink.ulx.drivers.commons.model;
 import com.uplink.ulx.UlxError;
 import com.uplink.ulx.drivers.commons.StateManager;
 import com.uplink.ulx.drivers.model.Stream;
+import com.uplink.ulx.utils.SetOnceRef;
 
 import java.lang.ref.WeakReference;
 import java.util.ArrayList;
@@ -24,18 +25,20 @@ import timber.log.Timber;
  * from those instead. For the most part, this class handles the stream's
  * lifecycle, processing start and stop requests, and propagating delegate
  * notifications.
+ * <br>
+ * CONTRACT: subclasses must hide their constructors, create a factory method(s) and
+ * call {@link StreamCommons#initialize()} before returning the new instance
  * @see InputStreamCommons
  * @see OutputStreamCommons
  */
 public abstract class StreamCommons implements
-        Stream,
-        StateManager.Delegate {
+        Stream {
 
     @NonNull
     private final String identifier;
     private final int transportType;
     private final boolean reliable;
-    private final StateManager stateManager;
+    private final SetOnceRef<StateManager> stateManager;
     private WeakReference<StateDelegate> stateDelegate;
     private List<InvalidationCallback> invalidationCallbacks;
 
@@ -50,9 +53,59 @@ public abstract class StreamCommons implements
         Objects.requireNonNull(identifier);
 
         this.identifier = identifier;
-        this.stateManager = new StateManager(this);
+        this.stateManager = new SetOnceRef<>();
         this.transportType = transportType;
         this.reliable = reliable;
+    }
+    
+    protected void initialize() {
+        stateManager.setRef(new StateManager(new StateManager.Delegate(){
+            @Override
+            public void requestStart(StateManager stateManager) {
+                Timber.i(
+                        "ULX stream %s is being requested to start",
+                        getIdentifier()
+                );
+                requestAdapterToOpen();
+            }
+
+            @Override
+            public void onStart(StateManager stateManager) {
+                Timber.i("ULX stream %s started", getIdentifier());
+                StateDelegate stateDelegate = getStateDelegate();
+                if (stateDelegate != null) {
+                    stateDelegate.onOpen(StreamCommons.this);
+                }
+            }
+
+            @Override
+            public void onStop(StateManager stateManager, UlxError error) {
+                onClose(error);
+            }
+
+            @Override
+            public void requestStop(StateManager stateManager) {
+                Timber.i("ULX stream %s is being requested to stop", getIdentifier());
+                close(null);
+            }
+
+            @Override
+            public void onFailedStart(StateManager stateManager, UlxError error) {
+                Timber.e("ULX stream %s failed to start", getIdentifier());
+                StateDelegate stateDelegate = getStateDelegate();
+                if (stateDelegate != null) {
+                    stateDelegate.onFailedOpen(StreamCommons.this, error);
+                }
+            }
+
+            @Override
+            public void onStateChange(StateManager stateManager) {
+                StateDelegate stateDelegate = getStateDelegate();
+                if (stateDelegate != null) {
+                    stateDelegate.onStateChange(StreamCommons.this);
+                }
+            }
+        }));
     }
 
     /**
@@ -63,7 +116,7 @@ public abstract class StreamCommons implements
      * @see StateManager
      */
     private StateManager getStateManager() {
-        return this.stateManager;
+        return this.stateManager.getRef();
     }
 
     /**
@@ -93,60 +146,6 @@ public abstract class StreamCommons implements
     @Override
     public State getState() {
         return State.fromInt(getStateManager().getState().getValue());
-    }
-
-    @Override
-    public void requestStart(StateManager stateManager) {
-        Timber.i(
-                "ULX stream %s is being requested to start",
-                getIdentifier()
-        );
-        requestAdapterToOpen();
-    }
-
-    @Override
-    public void onStart(StateManager stateManager) {
-        Timber.i("ULX stream %s started", getIdentifier());
-        StateDelegate stateDelegate = this.getStateDelegate();
-        if (stateDelegate != null) {
-            stateDelegate.onOpen(this);
-        }
-    }
-
-    @Override
-    public void onStop(StateManager stateManager, UlxError error) {
-        Timber.e(
-                "ULX stream %s stopped with error %s",
-                getIdentifier(),
-                error.toString()
-        );
-        StateDelegate stateDelegate = this.getStateDelegate();
-        if (stateDelegate != null) {
-            stateDelegate.onClose(this, error);
-        }
-    }
-
-    @Override
-    public void requestStop(StateManager stateManager) {
-        Timber.i("ULX stream %s is being requested to stop", getIdentifier());
-        this.close(null);
-    }
-
-    @Override
-    public void onFailedStart(StateManager stateManager, UlxError error) {
-        Timber.e("ULX stream %s failed to start", getIdentifier());
-        StateDelegate stateDelegate = this.getStateDelegate();
-        if (stateDelegate != null) {
-            stateDelegate.onFailedOpen(this, error);
-        }
-    }
-
-    @Override
-    public void onStateChange(StateManager stateManager) {
-        StateDelegate stateDelegate = this.getStateDelegate();
-        if (stateDelegate != null) {
-            stateDelegate.onStateChange(this);
-        }
     }
 
     @Override
@@ -219,6 +218,22 @@ public abstract class StreamCommons implements
 
     public void onStateChange(Stream stream) {
         getStateDelegate().onStateChange(stream);
+    }
+
+    /**
+     * Clean up used resources and notify state delegate
+     * @param error reason for closing
+     */
+    protected void onClose(UlxError error) {
+        Timber.e(
+                "ULX stream %s stopped with error %s",
+                getIdentifier(),
+                error.toString()
+        );
+        StateDelegate stateDelegate = getStateDelegate();
+        if (stateDelegate != null) {
+            stateDelegate.onClose(StreamCommons.this, error);
+        }
     }
 
     @SuppressWarnings("ControlFlowStatementWithoutBraces")

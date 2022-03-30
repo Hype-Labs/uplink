@@ -28,14 +28,20 @@ public class BleDriver extends DriverCommons implements Driver {
     private Browser browser;
 
     /**
-     * Constructor. Initializes with the given parameters. It also makes sure
+     * Factory method. Initializes with the given parameters. It also makes sure
      * that the given Android environment context is registered as a broadcast
      * receiver (BroadcastReceiver), so that the implementation can later
      * subscribe to adapter state change events.
      * @param identifier The Driver's identifier to use.
      * @param context The Android environment context.
      */
-    public BleDriver(String identifier, Context context) {
+    public static BleDriver newInstance(String identifier, Context context) {
+        final BleDriver instance = new BleDriver(identifier, context);
+        instance.initialize();
+        return instance;
+    }
+
+    private BleDriver(String identifier, Context context) {
         super(identifier, TransportType.BLUETOOTH_LOW_ENERGY, context);
         BluetoothStateListener.register(context);
     }
@@ -72,7 +78,7 @@ public class BleDriver extends DriverCommons implements Driver {
     @Override
     public Advertiser getAdvertiser() {
         if (this.advertiser == null) {
-            this.advertiser = new BleAdvertiser(
+            this.advertiser = BleAdvertiser.newInstance(
                     getIdentifier(),
                     getBluetoothManager(),
                     getDomesticService(),

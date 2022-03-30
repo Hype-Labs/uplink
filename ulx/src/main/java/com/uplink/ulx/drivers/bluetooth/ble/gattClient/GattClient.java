@@ -22,6 +22,7 @@ import com.uplink.ulx.drivers.bluetooth.ble.model.foreign.BleForeignService;
 import com.uplink.ulx.drivers.commons.StateManager;
 import com.uplink.ulx.model.State;
 import com.uplink.ulx.threading.Dispatch;
+import com.uplink.ulx.utils.SetOnceRef;
 
 import java.lang.ref.WeakReference;
 import java.util.List;
@@ -40,7 +41,7 @@ import timber.log.Timber;
  * its characteristics for I/O purposes. It communicates up the hierarchy
  * through a series of delegates.
  */
-public class GattClient extends BluetoothGattCallback implements StateManager.Delegate {
+public class GattClient extends BluetoothGattCallback {
 
     /**
      * This delegate listen to connection events, related with connection
@@ -149,7 +150,7 @@ public class GattClient extends BluetoothGattCallback implements StateManager.De
     private WeakReference<InputStreamDelegate> inputStreamDelegate;
     private WeakReference<OutputStreamDelegate> outputStreamDelegate;
 
-    private final StateManager stateManager;
+    private final SetOnceRef<StateManager> stateManager;
 
     private final BleDomesticService domesticService;
     private final BluetoothDevice bluetoothDevice;
@@ -169,6 +170,22 @@ public class GattClient extends BluetoothGattCallback implements StateManager.De
 
     private final WeakReference<Context> context;
 
+    public static GattClient newInstance(
+            BluetoothDevice bluetoothDevice,
+            BluetoothManager bluetoothManager,
+            BleDomesticService domesticService,
+            Context context
+    ) {
+        final GattClient instance = new GattClient(
+                bluetoothDevice,
+                bluetoothManager,
+                domesticService,
+                context
+        );
+        instance.initialize();
+        return instance;
+    }
+
     /**
      * Constructor. Initializes with the given parameters.
      *
@@ -178,7 +195,7 @@ public class GattClient extends BluetoothGattCallback implements StateManager.De
      * @param domesticService  The BLE service description.
      * @param context          The Android environment context.
      */
-    public GattClient(
+    private GattClient(
             BluetoothDevice bluetoothDevice,
             BluetoothManager bluetoothManager,
             BleDomesticService domesticService,
@@ -193,7 +210,7 @@ public class GattClient extends BluetoothGattCallback implements StateManager.De
         this.inputStreamDelegate = null;
         this.outputStreamDelegate = null;
 
-        this.stateManager = new StateManager(this);
+        this.stateManager = new SetOnceRef<>();
 
         this.bluetoothDevice = bluetoothDevice;
         this.bluetoothManager = bluetoothManager;
@@ -205,6 +222,52 @@ public class GattClient extends BluetoothGattCallback implements StateManager.De
         this.domesticService = domesticService;
 
         this.context = new WeakReference<>(context);
+    }
+
+    private void initialize() {
+        stateManager.setRef(new StateManager(new StateManager.Delegate(){
+            @Override
+            public void requestStart(StateManager stateManager) {
+                doConnect();
+            }
+
+            @Override
+            public void requestStop(StateManager stateManager) {
+                // TODO implement
+            }
+
+            @Override
+            public void onStart(StateManager stateManager) {
+                negotiateMtu();
+            }
+
+            @Override
+            public void onStop(StateManager stateManager, UlxError error) {
+                Dispatch.post(() -> {
+                    // Clean up; without this, future attempts to connect between these
+                    // same two devices should result in more 133 error codes. See:
+                    // https://stackoverflow.com/questions/25330938/android-bluetoothgatt-status-133-register-callback
+                    bluetoothGatt.disconnect();
+                    bluetoothGatt.close();
+
+                    if (error != null) {
+                        notifyOnDisconnection(error);
+                    } else {
+                        // TODO
+                    }
+                });
+            }
+
+            @Override
+            public void onFailedStart(StateManager stateManager, UlxError error) {
+                notifyOnConnectionFailure(error);
+            }
+
+            @Override
+            public void onStateChange(StateManager stateManager) {
+                StateManager.Delegate.super.onStateChange(stateManager);
+            }
+        }));
     }
 
     /**
@@ -434,55 +497,13 @@ public class GattClient extends BluetoothGattCallback implements StateManager.De
         return this.bluetoothGatt;
     }
 
-    @Override
-    public void requestStart(StateManager stateManager) {
-        doConnect();
-    }
-
-    @Override
-    public void requestStop(StateManager stateManager) {
-        // TODO implement
-    }
-
-    @Override
-    public void onStart(StateManager stateManager) {
-        negotiateMtu();
-    }
-
-    @Override
-    public void onStop(StateManager stateManager, UlxError error) {
-        Dispatch.post(() -> {
-            // Clean up; without this, future attempts to connect between these
-            // same two devices should result in more 133 error codes. See:
-            // https://stackoverflow.com/questions/25330938/android-bluetoothgatt-status-133-register-callback
-            bluetoothGatt.disconnect();
-            bluetoothGatt.close();
-
-            if (error != null) {
-                notifyOnDisconnection(error);
-            } else {
-                // TODO
-            }
-        });
-    }
-
-    @Override
-    public void onFailedStart(StateManager stateManager, UlxError error) {
-        notifyOnConnectionFailure(error);
-    }
-
-    @Override
-    public void onStateChange(StateManager stateManager) {
-        StateManager.Delegate.super.onStateChange(stateManager);
-    }
-
     /**
      * Getter for the StateManager that is managing the class's state.
      * @return The GattClient's state manager instance.
      * @see StateManager
      */
     private StateManager getStateManager() {
-        return this.stateManager;
+        return stateManager.getRef();
     }
 
     /**

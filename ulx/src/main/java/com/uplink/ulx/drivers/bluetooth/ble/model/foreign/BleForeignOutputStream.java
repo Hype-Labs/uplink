@@ -8,7 +8,6 @@ import com.uplink.ulx.UlxError;
 import com.uplink.ulx.UlxErrorCode;
 import com.uplink.ulx.drivers.bluetooth.ble.gattClient.GattClient;
 import com.uplink.ulx.drivers.bluetooth.ble.gattServer.MtuRegistry;
-import com.uplink.ulx.drivers.commons.StateManager;
 import com.uplink.ulx.drivers.commons.model.OutputStreamCommons;
 import com.uplink.ulx.drivers.model.IoResult;
 import com.uplink.ulx.utils.ByteUtils;
@@ -37,12 +36,27 @@ public class BleForeignOutputStream extends OutputStreamCommons implements GattC
     private int mtu;
 
     /**
-     * Constructor. Initializes with given arguments.
+     * Factory method. Initializes with given arguments.
      * @param identifier An identifier used for JNI bridging and debugging.
      * @param gattClient The {@link GattClient} interacting with this stream.
      * @param outputCharacteristic The reliable output characteristic.
      */
-    public BleForeignOutputStream(
+
+    public static BleForeignOutputStream newInstance(
+            String identifier,
+            GattClient gattClient,
+            BluetoothGattCharacteristic outputCharacteristic
+    ) {
+        final BleForeignOutputStream instance = new BleForeignOutputStream(
+                identifier,
+                gattClient,
+                outputCharacteristic
+        );
+        instance.initialize();
+        return instance;
+    }
+
+    private BleForeignOutputStream(
             String identifier,
             GattClient gattClient,
             BluetoothGattCharacteristic outputCharacteristic
@@ -182,8 +196,8 @@ public class BleForeignOutputStream extends OutputStreamCommons implements GattC
     }
 
     @Override
-    public void onStop(StateManager stateManager, UlxError error) {
+    public void onClose(UlxError error) {
         getGattClient().stop(error);
-        super.onStop(stateManager, error);
+        super.onClose(error);
     }
 }

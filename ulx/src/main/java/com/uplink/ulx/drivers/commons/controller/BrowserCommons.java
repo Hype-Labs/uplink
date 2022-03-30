@@ -7,6 +7,7 @@ import com.uplink.ulx.drivers.commons.StateManager;
 import com.uplink.ulx.drivers.controller.Browser;
 import com.uplink.ulx.drivers.model.Connector;
 import com.uplink.ulx.drivers.model.Device;
+import com.uplink.ulx.utils.SetOnceRef;
 
 import java.lang.ref.WeakReference;
 import java.util.List;
@@ -25,16 +26,18 @@ import timber.log.Timber;
  * transport. This leaves out the logic that is specific to each implementation,
  * while at the same time already implementing several conveniences for any new
  * implementations.
+ * <br>
+ * CONTRACT: subclasses must hide their constructors, create a factory method(s) and
+ * call {@link BrowserCommons#initialize()} before returning the new instance
  */
 public abstract class BrowserCommons implements
         Browser,
         Browser.NetworkDelegate,
-        StateManager.Delegate,
         Connector.InvalidationCallback
 {
     private final String identifier;
     private final int transportType;
-    private final StateManager stateManager;
+    private final SetOnceRef<StateManager> stateManager;
     private final WeakReference<Context> context;
     private volatile Browser.Delegate delegate;
     private volatile Browser.StateDelegate stateDelegate;
@@ -53,10 +56,56 @@ public abstract class BrowserCommons implements
         Objects.requireNonNull(context);
 
         this.identifier = identifier;
-        this.stateManager = new StateManager(this);
+        this.stateManager = new SetOnceRef<>();
         this.transportType = transportType;
         this.context = new WeakReference<>(context);
         this.activeConnectors = new Vector<>();
+    }
+    
+    protected void initialize() {
+        stateManager.setRef(new StateManager(new StateManager.Delegate() {
+            @Override
+            public void requestStart(StateManager stateManager) {
+                requestAdapterToStartBrowsing();
+            }
+
+            @Override
+            public void onStart(StateManager stateManager) {
+                Browser.StateDelegate stateDelegate = getStateDelegate();
+                if (stateDelegate != null) {
+                    stateDelegate.onStart(BrowserCommons.this);
+                }
+            }
+
+            @Override
+            public void onStop(StateManager stateManager, UlxError error) {
+                Browser.StateDelegate stateDelegate = getStateDelegate();
+                if (stateDelegate != null) {
+                    stateDelegate.onStop(BrowserCommons.this, error);
+                }
+            }
+
+            @Override
+            public void requestStop(StateManager stateManager) {
+                requestAdapterToStopBrowsing();
+            }
+
+            @Override
+            public void onFailedStart(StateManager stateManager, UlxError error) {
+                Browser.StateDelegate stateDelegate = getStateDelegate();
+                if (stateDelegate != null) {
+                    stateDelegate.onFailedStart(BrowserCommons.this, error);
+                }
+            }
+
+            @Override
+            public void onStateChange(StateManager stateManager) {
+                Browser.StateDelegate stateDelegate = getStateDelegate();
+                if (stateDelegate != null) {
+                    stateDelegate.onStateChange(BrowserCommons.this);
+                }
+            }
+        }));
     }
 
     /**
@@ -67,7 +116,7 @@ public abstract class BrowserCommons implements
      * @see StateManager
      */
     protected StateManager getStateManager() {
-        return this.stateManager;
+        return this.stateManager.getRef();
     }
 
     /**
@@ -174,48 +223,6 @@ public abstract class BrowserCommons implements
      */
     protected final void removeActiveConnector(Connector connector) {
         getActiveConnectors().remove(connector);
-    }
-
-    @Override
-    public void requestStart(StateManager stateManager) {
-        requestAdapterToStartBrowsing();
-    }
-
-    @Override
-    public void onStart(StateManager stateManager) {
-        Browser.StateDelegate stateDelegate = getStateDelegate();
-        if (stateDelegate != null) {
-            stateDelegate.onStart(this);
-        }
-    }
-
-    @Override
-    public void onStop(StateManager stateManager, UlxError error) {
-        Browser.StateDelegate stateDelegate = getStateDelegate();
-        if (stateDelegate != null) {
-            stateDelegate.onStop(this, error);
-        }
-    }
-
-    @Override
-    public void requestStop(StateManager stateManager) {
-        this.requestAdapterToStopBrowsing();
-    }
-
-    @Override
-    public void onFailedStart(StateManager stateManager, UlxError error) {
-        Browser.StateDelegate stateDelegate = getStateDelegate();
-        if (stateDelegate != null) {
-            stateDelegate.onFailedStart(this, error);
-        }
-    }
-
-    @Override
-    public void onStateChange(StateManager stateManager) {
-        Browser.StateDelegate stateDelegate = getStateDelegate();
-        if (stateDelegate != null) {
-            stateDelegate.onStateChange(this);
-        }
     }
 
     @Override
