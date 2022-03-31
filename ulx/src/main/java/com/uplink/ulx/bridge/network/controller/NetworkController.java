@@ -402,9 +402,10 @@ public class NetworkController implements IoController.Delegate,
         NetworkInfo activeNetwork = cm.getActiveNetworkInfo();
 
         if (activeNetwork != null && activeNetwork.isConnected()) {
+            HttpURLConnection connection = null;
             try {
                 URL url = new URL("https://www.google.com/");
-                HttpURLConnection connection = (HttpURLConnection)url.openConnection();
+                connection = (HttpURLConnection)url.openConnection();
                 connection.setRequestProperty("User-Agent", "test");
                 connection.setRequestProperty("Connection", "close");
                 connection.setConnectTimeout(5000);
@@ -417,6 +418,10 @@ public class NetworkController implements IoController.Delegate,
             } catch (IOException e) {
                 Timber.e("ULX Internet not directly available");
                 return false;
+            } finally {
+                if (connection != null) {
+                    connection.disconnect();
+                }
             }
         }
 
