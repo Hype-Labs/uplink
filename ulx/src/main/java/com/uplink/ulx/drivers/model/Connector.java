@@ -130,7 +130,7 @@ public interface Connector {
          * and prepared for I/O.
          * @param connector The connector issuing the notification.
          */
-        void onConnected(Connector connector);
+        void onConnected(@NonNull Connector connector);
 
         /**
          * This event notification is triggered when the connection is dropped,
@@ -143,7 +143,7 @@ public interface Connector {
          * @param connector The connector issuing the notification.
          * @param error An error, indicating a probable cause.
          */
-        void onDisconnection(Connector connector, UlxError error);
+        void onDisconnection(@NonNull Connector connector, UlxError error);
 
         /**
          * This notification is issued to the delegate when a requested
@@ -156,7 +156,7 @@ public interface Connector {
          * @param connector The connector issuing the notification.
          * @param error An error, indicating a probable cause.
          */
-        void onConnectionFailure(Connector connector, UlxError error);
+        void onConnectionFailure(@NonNull Connector connector, UlxError error);
 
         /**
          * State change events are useful for tracking the connector's

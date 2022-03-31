@@ -3,6 +3,7 @@ package com.uplink.ulx.drivers.commons.controller;
 import android.content.Context;
 
 import com.uplink.ulx.UlxError;
+import com.uplink.ulx.bridge.Bridge;
 import com.uplink.ulx.drivers.commons.StateManager;
 import com.uplink.ulx.drivers.controller.Advertiser;
 import com.uplink.ulx.drivers.controller.Browser;
@@ -431,15 +432,7 @@ public abstract class DriverCommons implements
      * @return whether the request was honored
      */
     private boolean handleAdapterRestartRequest() {
-
-        int advertiserConnectorCount = getAdvertiser().getActiveConnectors().size();
-
-        Timber.i(
-                "ULX advertiser connection count is %d",
-                advertiserConnectorCount
-        );
-
-        if (advertiserConnectorCount != 0 || getBrowser().hasActiveConnectors()) {
+        if (Bridge.getInstance().hasActiveDevices()) {
             Timber.i("ULX driver is rejecting an adapter restart request");
             return false;
         }

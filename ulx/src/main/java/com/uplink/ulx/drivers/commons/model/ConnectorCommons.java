@@ -9,6 +9,7 @@ import com.uplink.ulx.utils.SetOnceRef;
 import java.lang.ref.WeakReference;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 import java.util.concurrent.ExecutorService;
 
 import androidx.annotation.NonNull;
@@ -31,7 +32,7 @@ import timber.log.Timber;
  */
 public abstract class ConnectorCommons implements
         Connector {
-
+    @NonNull
     private final String identifier;
     private final int transportType;
     private final SetOnceRef<StateManager> stateManager;
@@ -44,7 +45,7 @@ public abstract class ConnectorCommons implements
      * @param identifier An identifier for the Connector.
      * @param transportType The Connector's transport type.
      */
-    public ConnectorCommons(String identifier, int transportType) {
+    public ConnectorCommons(@NonNull String identifier, int transportType) {
         this.identifier = identifier;
         this.stateManager = new SetOnceRef<>();
         this.transportType = transportType;
@@ -53,47 +54,47 @@ public abstract class ConnectorCommons implements
     protected void initialize() {
         stateManager.setRef(new StateManager(new StateManager.Delegate() {
             @Override
-            public void requestStart(StateManager stateManager1) {
+            public void requestStart(StateManager stateManager) {
                 Timber.i("ULX connector %s being requested to start", getIdentifier());
                 requestAdapterToConnect();
             }
 
             @Override
-            public void onStart(StateManager stateManager1) {
-                StateDelegate stateDelegate1 = getStateDelegate();
-                if (stateDelegate1 != null) {
-                    stateDelegate1.onConnected(ConnectorCommons.this);
+            public void onStart(StateManager stateManager) {
+                StateDelegate stateDelegate = getStateDelegate();
+                if (stateDelegate != null) {
+                    stateDelegate.onConnected(ConnectorCommons.this);
                 }
             }
 
             @Override
-            public void onStop(StateManager stateManager1, UlxError error) {
-                StateDelegate stateDelegate1 = getStateDelegate();
-                if (stateDelegate1 != null) {
-                    stateDelegate1.onDisconnection(ConnectorCommons.this, error);
+            public void onStop(StateManager stateManager, UlxError error) {
+                StateDelegate stateDelegate = getStateDelegate();
+                if (stateDelegate != null) {
+                    stateDelegate.onDisconnection(ConnectorCommons.this, error);
                 }
             }
 
             @Override
-            public void requestStop(StateManager stateManager1) {
+            public void requestStop(StateManager stateManager) {
                 Timber.i("ULX connector %s being requested to stop", getIdentifier());
                 requestAdapterToDisconnect();
             }
 
             @Override
-            public void onFailedStart(StateManager stateManager1, UlxError error) {
+            public void onFailedStart(StateManager stateManager, UlxError error) {
                 Timber.e("ULX connector %s failed to connect", getIdentifier());
-                StateDelegate stateDelegate1 = getStateDelegate();
-                if (stateDelegate1 != null) {
-                    stateDelegate1.onConnectionFailure(ConnectorCommons.this, error);
+                StateDelegate stateDelegate = getStateDelegate();
+                if (stateDelegate != null) {
+                    stateDelegate.onConnectionFailure(ConnectorCommons.this, error);
                 }
             }
 
             @Override
-            public void onStateChange(StateManager stateManager1) {
-                StateDelegate stateDelegate1 = getStateDelegate();
-                if (stateDelegate1 != null) {
-                    stateDelegate1.onStateChange(ConnectorCommons.this);
+            public void onStateChange(StateManager stateManager) {
+                StateDelegate stateDelegate = getStateDelegate();
+                if (stateDelegate != null) {
+                    stateDelegate.onStateChange(ConnectorCommons.this);
                 }
             }
         }));
@@ -236,5 +237,19 @@ public abstract class ConnectorCommons implements
                 error.toString()
         );
         getStateManager().notifyFailedStart(error);
+    }
+
+    @SuppressWarnings("ControlFlowStatementWithoutBraces")
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (!(o instanceof ConnectorCommons)) return false;
+        final ConnectorCommons that = (ConnectorCommons) o;
+        return identifier.equals(that.identifier);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(identifier);
     }
 }

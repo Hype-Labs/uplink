@@ -28,6 +28,7 @@ import java.util.HashMap;
 import java.util.Objects;
 import java.util.UUID;
 
+import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import timber.log.Timber;
 
@@ -487,12 +488,12 @@ public class Bridge implements
     }
 
     @Override
-    public void onConnected(Connector connector) {
+    public void onConnected(@NonNull Connector connector) {
         Timber.i("ULX bridge connector connected");
     }
 
     @Override
-    public void onDisconnection(Connector connector, UlxError error) {
+    public void onDisconnection(@NonNull Connector connector, UlxError error) {
         Timber.e("ULX connector disconnected on the bridge");
         Timber.e("ULX connector is %s", connector.getIdentifier());
 
@@ -529,7 +530,7 @@ public class Bridge implements
     }
 
     @Override
-    public void onConnectionFailure(Connector connector, UlxError error) {
+    public void onConnectionFailure(@NonNull Connector connector, UlxError error) {
         Timber.e("ULX connection failed");
 
         // Try again?
@@ -629,6 +630,13 @@ public class Bridge implements
         // Open the streams
         inputStream.open();
         outputStream.open();
+    }
+
+    /**
+     * @return whether the bridge knows about any device(s)
+     */
+    public boolean hasActiveDevices() {
+        return getSouthRegistry().hasDevicesRegistered();
     }
 
     @Override

@@ -9,6 +9,7 @@ import java.util.List;
 import java.util.Map;
 
 import androidx.annotation.NonNull;
+import androidx.annotation.Nullable;
 
 // TODO this API should be reviewed; this registry is practically unusable.
 
@@ -24,6 +25,7 @@ import androidx.annotation.NonNull;
  */
 public class Registry<T> {
 
+    @Nullable
     private Map<String, Device> deviceRegistry;
 
     private Map<String, List<String>> genericToDeviceRegistry;
@@ -47,6 +49,13 @@ public class Registry<T> {
             this.deviceRegistry = new HashMap<>();
         }
         return this.deviceRegistry;
+    }
+
+    /**
+     * @return whether the registry has any devices
+     */
+    public boolean hasDevicesRegistered() {
+        return !getDeviceRegistry().isEmpty();
     }
 
     /**

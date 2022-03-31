@@ -11,6 +11,7 @@ import com.uplink.ulx.drivers.commons.model.ConnectorCommons;
 
 import java.util.Objects;
 
+import androidx.annotation.NonNull;
 import timber.log.Timber;
 
 /**
@@ -34,7 +35,7 @@ public class BleForeignConnector extends ConnectorCommons implements GattClient.
      * @param gattClient The GATT client for the connector.
      */
     public static BleForeignConnector newInstance(
-            String identifier,
+            @NonNull String identifier,
             GattClient gattClient
     ) {
         final BleForeignConnector instance = new BleForeignConnector(identifier, gattClient);
@@ -43,7 +44,7 @@ public class BleForeignConnector extends ConnectorCommons implements GattClient.
     }
 
     private BleForeignConnector(
-            String identifier,
+            @NonNull String identifier,
             GattClient gattClient
     ) {
         super(identifier, TransportType.BLUETOOTH_LOW_ENERGY);

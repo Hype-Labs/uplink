@@ -10,9 +10,9 @@ import com.uplink.ulx.drivers.model.Device;
 import com.uplink.ulx.utils.SetOnceRef;
 
 import java.lang.ref.WeakReference;
-import java.util.ArrayList;
-import java.util.List;
 import java.util.Objects;
+
+import androidx.annotation.CallSuper;
 
 /**
  * This is a base class for advertisers that implements common functionality
@@ -41,7 +41,6 @@ public abstract class AdvertiserCommons implements
     private WeakReference<Delegate> delegate;
     private WeakReference<StateDelegate> stateDelegate;
     private WeakReference<NetworkDelegate> networkDelegate;
-    private List<Connector> activeConnectors;
 
     /**
      * Constructor. Initializes with the given arguments.
@@ -58,9 +57,9 @@ public abstract class AdvertiserCommons implements
         this.stateManager = new SetOnceRef<>();
         this.transportType = transportType;
         this.context = new WeakReference<>(context);
-        this.activeConnectors = null;
     }
-    
+
+    @CallSuper
     protected void initialize() {
         stateManager.setRef(new StateManager(new StateManager.Delegate() {
             @Override
@@ -206,31 +205,6 @@ public abstract class AdvertiserCommons implements
     @Override
     public final int getTransportType() {
         return this.transportType;
-    }
-
-    @Override
-    public final List<Connector> getActiveConnectors() {
-        if (this.activeConnectors == null) {
-            this.activeConnectors = new ArrayList<>();
-        }
-        return this.activeConnectors;
-    }
-
-    /**
-     * Adds a {@link Connector} as being active. This will be kept until the
-     * {@link Connector} notifies an invalidation or disconnection.
-     * @param connector The {@link Connector} to add as active.
-     */
-    protected final void addActiveConnector(Connector connector) {
-        getActiveConnectors().add(connector);
-    }
-
-    /**
-     * Removes a {@link Connector} from the list of active connectors.
-     * @param connector The {@link Connector} to remove.
-     */
-    protected final void removeActiveConnector(Connector connector) {
-        getActiveConnectors().remove(connector);
     }
 
     @Override

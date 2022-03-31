@@ -1,11 +1,9 @@
 package com.uplink.ulx.drivers.controller;
 
 import android.content.Context;
-import com.uplink.ulx.UlxError;
-import com.uplink.ulx.drivers.model.Connector;
-import com.uplink.ulx.drivers.model.Device;
 
-import java.util.List;
+import com.uplink.ulx.UlxError;
+import com.uplink.ulx.drivers.model.Device;
 
 /**
  * An advertiser is responsible for publishing a device on the network over a
@@ -332,12 +330,4 @@ public interface Advertiser {
      * from having previously started.
      */
     void destroy();
-
-    /**
-     * Lists the active connections that are managed by the {@link Advertiser}.
-     * All {@link Connector}s in the list should have state {@link
-     * Connector.State#CONNECTED}.
-     * @return The list of active {@link Connector}s.
-     */
-    List<Connector> getActiveConnectors();
 }

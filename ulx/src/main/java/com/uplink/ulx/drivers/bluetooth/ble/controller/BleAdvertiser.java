@@ -16,7 +16,6 @@ import android.os.ParcelUuid;
 import com.uplink.ulx.TransportType;
 import com.uplink.ulx.UlxError;
 import com.uplink.ulx.UlxErrorCode;
-import com.uplink.ulx.bridge.Registry;
 import com.uplink.ulx.drivers.bluetooth.ble.gattServer.GattServer;
 import com.uplink.ulx.drivers.bluetooth.ble.model.BleChannel;
 import com.uplink.ulx.drivers.bluetooth.ble.model.BleDevice;
@@ -37,9 +36,12 @@ import com.uplink.ulx.drivers.model.OutputStream;
 import com.uplink.ulx.drivers.model.Transport;
 import com.uplink.ulx.threading.Dispatch;
 
-import java.util.List;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.UUID;
 
+import androidx.annotation.GuardedBy;
+import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import timber.log.Timber;
 
@@ -66,7 +68,19 @@ class BleAdvertiser extends AdvertiserCommons implements
     private AdvertiseCallback advertiseCallback;
     private GattServer gattServer;
 
-    private Registry<BluetoothDevice> registry;
+    /**
+     * The connector registry that keeps mappings of {@link BluetoothDevice}s to {@link Connector}s
+     * in connecting state. If the connection succeeds, the mapping is removed and replaced by one
+     * in {@link #deviceRegistry}
+     */
+    @GuardedBy("connectorRegistry")
+    private final Map<BluetoothDevice, BleDomesticConnector> connectorRegistry;
+    /**
+     * The device registry that is used to keep mappings of {@link BluetoothDevice}s to {@link
+     * Device}s
+     */
+    @GuardedBy("connectorRegistry")
+    private final Map<BluetoothDevice, Device> deviceRegistry;
 
     /**
      * The BleAdvertiserCallback is used to respond to the result of requesting
@@ -184,7 +198,7 @@ class BleAdvertiser extends AdvertiserCommons implements
         return instance;
     }
 
-    public BleAdvertiser(
+    private BleAdvertiser(
             String identifier,
             BluetoothManager bluetoothManager,
             BleDomesticService domesticService,
@@ -195,8 +209,14 @@ class BleAdvertiser extends AdvertiserCommons implements
         this.bluetoothManager = bluetoothManager;
         this.domesticService = domesticService;
 
-        this.registry = null;
+        // BluetoothDevice overrides equals() and hashcode(), so it's safe to use it in HashMap
+        this.deviceRegistry = new HashMap<>();
+        this.connectorRegistry = new HashMap<>();
+    }
 
+    @Override
+    protected void initialize() {
+        super.initialize();
         BluetoothStateListener.addObserver(this);
     }
 
@@ -265,52 +285,15 @@ class BleAdvertiser extends AdvertiserCommons implements
     }
 
     /**
-     * Returns the device registry that is used by the implementation to keep
-     * track of native-to-abstract device mappings. If the registry has not
-     * been created yet, it will at this point.
-     * @return The {@code Device}-to-{@code BluetoothDevice} registry.
-     */
-    private Registry<BluetoothDevice> getRegistry() {
-        if (this.registry == null) {
-            this.registry = new Registry<>();
-        }
-        return this.registry;
-    }
-
-    /**
-     * Returns the {@link Device} associated with the given {@link
-     * BluetoothDevice}, if one exists. Otherwise returns {@code null}.
-     * If more than one device is registered, this method will
-     * raise a {@link RuntimeException}, although this is a behaviour that is
-     * expected to change in the future.
+     * Returns the {@link Device} associated with the given {@link BluetoothDevice}, if one exists.
+     * Otherwise returns {@code null}.
+     *
      * @param bluetoothDevice The {@link BluetoothDevice} in the association.
      * @return The {@link Device} in the association or {@code null}.
      */
     @Nullable
     private Device getDevice(BluetoothDevice bluetoothDevice) {
-
-        final String address = bluetoothDevice.getAddress();
-        List<Device> deviceList = getRegistry().getDevicesFromGenericIdentifier(address);
-
-        // If the address is not registered, we skipped something
-        if (deviceList == null || deviceList.isEmpty()) {
-            Timber.w(
-                    "A device for address %s was requested but is not registered",
-                    address
-            );
-            return null;
-        }
-
-        if (deviceList.size() > 1) {
-            Timber.e("An unexpected amount of devices was " +
-                             "found in association with a single BluetoothDevice address. " +
-                             "This means that the registry got corrupted, since only a " +
-                             "single entry is expected.");
-            return null;
-        }
-
-        // There should be only one
-        return deviceList.get(0);
+        return deviceRegistry.get(bluetoothDevice);
     }
 
     @Override
@@ -400,33 +383,39 @@ class BleAdvertiser extends AdvertiserCommons implements
     @Override
     public void onDeviceConnected(GattServer gattServer, BluetoothDevice bluetoothDevice) {
         Timber.i("ULX bluetooth device connected %s", bluetoothDevice.getAddress());
+        BleDomesticConnector connector;
 
-        final List<Device> existingDevices = getRegistry().getDevicesFromGenericIdentifier(
-                bluetoothDevice.getAddress()
-        );
-        if (existingDevices.size() > 0) {
-            Timber.w("ULX device connection received for a known device. Closing old connector(s)");
+        synchronized (connectorRegistry) {
+            // Remove the old connector if the connection from this device is
+            // already being established (should not normally happen)
+            final Connector existingConnector = connectorRegistry.remove(bluetoothDevice);
+            if (existingConnector != null) {
+                Timber.w("An incoming connection occurred while another one from the same device is being processed. Something went wrong.");
+                detachFromConnector(existingConnector);
+            } else {
+                // Check if there is a connected device. This can happen only if its connector
+                // has been removed from connectorRegistry
+                final Device existingDevice = getDevice(bluetoothDevice);
+                if (existingDevice != null) {
+                    Timber.w("ULX device connection received for a known device. Closing old connector(s)");
 
-            forgetBtDevice(bluetoothDevice);
+                    forgetBtDevice(bluetoothDevice);
+                }
+            }
+
+            connector = BleDomesticConnector.newInstance(
+                    UUID.randomUUID().toString(),
+                    gattServer,
+                    bluetoothDevice,
+                    getDomesticService()
+            );
+
+            // This connector is now active
+            connectorRegistry.put(bluetoothDevice, connector);
         }
-
-        Connector connector = BleDomesticConnector.newInstance(
-                UUID.randomUUID().toString(),
-                gattServer,
-                bluetoothDevice,
-                getDomesticService()
-        );
-
-        // This connector is now active
-        addActiveConnector(connector);
 
         connector.setStateDelegate(this);
         connector.addInvalidationCallback(this);
-
-        // Register the connector's ID (not the actual connector) in association
-        // with the given BluetoothDevice. This will enable retrieving the
-        // Connector and the Device instances for BluetoothDevice notifications
-        register(connector, bluetoothDevice);
 
         // Proceed with the discover process
         connector.connect();
@@ -439,7 +428,17 @@ class BleAdvertiser extends AdvertiserCommons implements
                 bluetoothDevice.getAddress()
         );
 
-        final Device device = getDevice(bluetoothDevice);
+        final Device device;
+
+        synchronized (connectorRegistry) {
+            // Connector is no longer in 'connecting' state - unregister it
+            final BleDomesticConnector connector;
+            if ((connector = connectorRegistry.remove(bluetoothDevice)) != null) {
+                detachFromConnector(connector);
+            }
+
+            device = getDevice(bluetoothDevice);
+        }
 
         if (device == null) {
             Timber.w("ULX Device not found. Ignoring disconnection event");
@@ -457,7 +456,15 @@ class BleAdvertiser extends AdvertiserCommons implements
                 bluetoothDevice.getAddress()
         );
 
-        forgetBtDevice(bluetoothDevice);
+        synchronized (connectorRegistry) {
+            // Unregister connector
+            final BleDomesticConnector connector;
+            if ((connector = connectorRegistry.remove(bluetoothDevice)) != null) {
+                detachFromConnector(connector);
+            }
+
+            forgetBtDevice(bluetoothDevice);
+        }
     }
 
     /**
@@ -465,59 +472,32 @@ class BleAdvertiser extends AdvertiserCommons implements
      * @param bluetoothDevice device which needs to be forgotten
      */
     private void forgetBtDevice(BluetoothDevice bluetoothDevice) {
-        final Device device = getDevice(bluetoothDevice);
+        Connector connector;
+        synchronized (connectorRegistry) {
+            final Device device = getDevice(bluetoothDevice);
 
-        if (device == null) {
-            Timber.e("ULX device not found on the registry; not proceeding");
-            return;
+            if (device == null) {
+                Timber.e("ULX device not found on the registry; not proceeding");
+                return;
+            }
+
+            connector = device.getConnector();
+
+            // Unregister the association between the connector and native device
+            deviceRegistry.remove(bluetoothDevice);
         }
 
-        Connector connector = device.getConnector();
-
-        // Unregister the association between the connector and native device
-        unregister(connector, bluetoothDevice);
-
-        // Clear the delegates
-        connector.setStateDelegate(null);
-        connector.removeInvalidationCallback(this);
-
-        // No longer active; should the connector have an event of its own?
-        removeActiveConnector(connector);
+        detachFromConnector(connector);
     }
 
     /**
-     * Registers the {@code Connector}'s identifier (not the actual Connector)
-     * in association with the address for the given {@code BluetoothDevice}.
-     * This will result in the BluetoothDevice being associated with its address
-     * and the address and connector identifier with each other. What remains
-     * to be registered is the association of the identifier with the {@code
-     * Device}, which will come later once the device is discovered. This
-     * association will be needed then.
-     * @param connector The {@code Connector} whose identifier is to be
-     *                  associated.
-     * @param bluetoothDevice The {@code BluetoothDevice} whose address is to
-     *                        be associated.
+     * Removes connector's state delegate and invalidation callback
+     * @param connector the connector to detach from
      */
-    private void register(Connector connector, BluetoothDevice bluetoothDevice) {
-
-        Timber.e(
-                "ULX registering connector %s with BluetoothDevice %s",
-                connector.getIdentifier(),
-                bluetoothDevice.getAddress()
-        );
-
-        String address = bluetoothDevice.getAddress();
-        String identifier = connector.getIdentifier();
-
-        getRegistry().associate(address, identifier);
-    }
-
-    private void unregister(Connector connector, BluetoothDevice bluetoothDevice) {
-
-        String address = bluetoothDevice.getAddress();
-        String identifier = connector.getIdentifier();
-
-        getRegistry().dissociate(address, identifier);
+    private void detachFromConnector(@NonNull Connector connector) {
+        // Clear the delegates
+        connector.setStateDelegate(null);
+        connector.removeInvalidationCallback(this);
     }
 
     @Override
@@ -621,8 +601,8 @@ class BleAdvertiser extends AdvertiserCommons implements
 
     @Override
     public void onInvalidation(Connector connector, UlxError error) {
-        connector.removeInvalidationCallback(this);
-        removeActiveConnector(connector);
+        removeIfRegistered(connector);
+        detachFromConnector(connector);
     }
 
     /**
@@ -695,16 +675,18 @@ class BleAdvertiser extends AdvertiserCommons implements
     }
 
     @Override
-    public void onConnected(Connector connector) {
+    public void onConnected(@NonNull Connector connector) {
 
         BleDomesticConnector domesticConnector = (BleDomesticConnector)connector;
 
         InputStream inputStream = BleDomesticInputStream.newInstance(connector.getIdentifier());
 
+        final BluetoothDevice bluetoothDevice = domesticConnector.getBluetoothDevice();
+
         OutputStream outputStream = BleDomesticOutputStream.newInstance(
                 connector.getIdentifier(),
                 getGattServer(),
-                domesticConnector.getBluetoothDevice(),
+                bluetoothDevice,
                 getDomesticService().getReliableOutputCharacteristic()
         );
 
@@ -725,29 +707,34 @@ class BleAdvertiser extends AdvertiserCommons implements
                 transport
         );
 
-        // Register the device (the BluetoothDevice, identifier, and address
-        // should already be there; this should complete the association)
-        getRegistry().setDevice(device.getIdentifier(), device);
+        synchronized (connectorRegistry) {
+            if (removeIfRegistered(connector)) {
+                // Register the device
+                deviceRegistry.put(bluetoothDevice, device);
 
-        super.onDeviceFound(this, device);
+                onDeviceFound(this, device);
+            } // Else the connector has been replaced by another incoming connection. Ignore
+        }
     }
 
     @Override
-    public void onDisconnection(Connector connector, UlxError error) {
+    public void onDisconnection(@NonNull Connector connector, UlxError error) {
         Timber.e("ULX BLE advertiser disconnection");
 
-        // The connector is no longer active
-        removeActiveConnector(connector);
+        // The connector is no longer active.
+        // Normally connectorRegistry won't contain the connector at this point,
+        // but we're still removing it - just in case
+        removeIfRegistered(connector);
     }
 
     @Override
-    public void onConnectionFailure(Connector connector, UlxError error) {
+    public void onConnectionFailure(@NonNull Connector connector, UlxError error) {
         Timber.e("ULX BLE advertiser connection failure");
         Timber.e("ULX connector state is %s", connector.getState().toString());
 
         // Remove from the registry; when the device is seen again, the
         // connection should be retried
-        removeActiveConnector(connector);   // Shouldn't matter
+        removeIfRegistered(connector);
 
         // Since we're having failed connections, we should ask the adapter to
         // restart.
@@ -755,5 +742,28 @@ class BleAdvertiser extends AdvertiserCommons implements
         if (delegate != null) {
             delegate.onAdapterRestartRequest(this);
         }
+    }
+
+    /**
+     * Removes given connector from {@link #connectorRegistry} if one is present
+     * @param connector connector to remove
+     * @return whether the given connector was found and removed
+     */
+    private boolean removeIfRegistered(@NonNull Connector connector) {
+        if (connector instanceof BleDomesticConnector) {
+
+            final BluetoothDevice bluetoothDevice =
+                    ((BleDomesticConnector) connector).getBluetoothDevice();
+
+            synchronized (connectorRegistry) {
+                final BleDomesticConnector existingConnector = connectorRegistry.get(bluetoothDevice);
+                if (existingConnector != null && existingConnector.equals(connector)) {
+                    connectorRegistry.remove(bluetoothDevice);
+                    return true;
+                }
+            }
+        }
+
+        return false;
     }
 }

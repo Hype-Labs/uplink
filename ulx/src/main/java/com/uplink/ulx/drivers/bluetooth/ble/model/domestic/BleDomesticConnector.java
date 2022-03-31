@@ -8,6 +8,8 @@ import com.uplink.ulx.drivers.commons.model.ConnectorCommons;
 
 import java.util.Objects;
 
+import androidx.annotation.NonNull;
+
 /**
  *
  */
@@ -18,7 +20,7 @@ public class BleDomesticConnector extends ConnectorCommons {
     private final GattServer gattServer;
 
     public static BleDomesticConnector newInstance(
-            String identifier,
+            @NonNull String identifier,
             GattServer gattServer,
             BluetoothDevice bluetoothDevice,
             BleDomesticService domesticService
@@ -34,7 +36,7 @@ public class BleDomesticConnector extends ConnectorCommons {
     }
 
     private BleDomesticConnector(
-            String identifier,
+            @NonNull String identifier,
             GattServer gattServer,
             BluetoothDevice bluetoothDevice,
             BleDomesticService domesticService

@@ -44,11 +44,14 @@ import java.util.Collections;
 import java.util.Deque;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentLinkedDeque;
 
+import androidx.annotation.NonNull;
+import androidx.annotation.Nullable;
 import timber.log.Timber;
 
 @TargetApi(Build.VERSION_CODES.LOLLIPOP)
@@ -243,6 +246,7 @@ class BleBrowser extends BrowserCommons implements
      * BLE scanning operations. This is queried from the BluetoothAdapter
      * instance, which already holds a strong reference to the scanner.
      */
+    @Nullable
     private BluetoothLeScanner getBluetoothLeScanner() {
         return getBluetoothAdapter().getBluetoothLeScanner();
     }
@@ -358,25 +362,40 @@ class BleBrowser extends BrowserCommons implements
         startScanning();
     }
 
+    @SuppressLint("MissingPermission")
     private void startScanning() {
         Timber.i("ULX BLE scanner starting");
 
         Dispatch.post(() -> {
 
-            if (android.os.Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
-                getBluetoothLeScanner().startScan(
-                        getScanFilters(),
-                        getScanSettings(),
-                        getScanCallback()
-                );
-            } else {
-                getBluetoothLeScanner().startScan(
-                        getScanCallback()
-                );
-            }
+            final BluetoothLeScanner bluetoothLeScanner = getBluetoothLeScanner();
+            if (bluetoothLeScanner != null) {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+                    bluetoothLeScanner.startScan(
+                            getScanFilters(),
+                            getScanSettings(),
+                            getScanCallback()
+                    );
+                } else {
+                    bluetoothLeScanner.startScan(
+                            getScanCallback()
+                    );
+                }
 
-            // Notify the delegate
-            onStart();
+                // Notify the delegate
+                onStart();
+            } else {
+                onFailedStart(new UlxError(
+                        UlxErrorCode.UNKNOWN,
+                        "Failed to start BLE scanning",
+                        String.format(
+                                Locale.US,
+                                "BT scanner unavailable. BT adapter state: %d",
+                                getBluetoothAdapter().getState()
+                        ),
+                        "Try restarting bluetooth"
+                ));
+            }
         });
     }
 
@@ -433,9 +452,18 @@ class BleBrowser extends BrowserCommons implements
         onStop(null);
     }
 
+    @SuppressLint("MissingPermission")
     private void stopScanning() {
         Timber.i("ULX BLE scanner stopping");
-        getBluetoothLeScanner().stopScan(getScanCallback());
+        final BluetoothLeScanner bluetoothLeScanner = getBluetoothLeScanner();
+        if (bluetoothLeScanner != null) {
+            bluetoothLeScanner.stopScan(getScanCallback());
+        } else {
+            Timber.e(
+                    "Failed to stop scanning. Unable to access scanner. BT state: %d",
+                    getBluetoothAdapter().getState()
+            );
+        }
     }
 
     /**
@@ -726,7 +754,7 @@ class BleBrowser extends BrowserCommons implements
     }
 
     @Override
-    public void onConnected(Connector connector) {
+    public void onConnected(@NonNull Connector connector) {
         Timber.i(
                 "ULX BLE browser connector %s connected",
                 connector.getIdentifier()
@@ -813,7 +841,7 @@ class BleBrowser extends BrowserCommons implements
     }
 
     @Override
-    public void onDisconnection(Connector connector, UlxError error) {
+    public void onDisconnection(@NonNull Connector connector, UlxError error) {
         Timber.e(
                 "ULX BLE browser disconnection for connector %s",
                 connector.getIdentifier()
@@ -831,7 +859,7 @@ class BleBrowser extends BrowserCommons implements
     }
 
     @Override
-    public void onConnectionFailure(Connector connector, UlxError error) {
+    public void onConnectionFailure(@NonNull Connector connector, UlxError error) {
         Timber.e(
                 "ULX BLE browser connection failure for connector %s with state %s",
                 connector.getIdentifier(),
