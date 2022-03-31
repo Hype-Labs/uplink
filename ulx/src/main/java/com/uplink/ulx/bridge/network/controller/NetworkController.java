@@ -49,6 +49,9 @@ import timber.log.Timber;
 public class NetworkController implements IoController.Delegate,
                                           RoutingTable.Delegate {
 
+    private static final int INTERNET_CONNECT_TIMEOUT_MS = 10_000;
+    private static final int INTERNET_READ_TIMEOUT_MS = 10_000;
+
     /**
      * The {@link NetworkController} delegate receives notifications from the
      * network controller, with respect to instances being found and some
@@ -1346,6 +1349,9 @@ public class NetworkController implements IoController.Delegate,
                 connection.setRequestProperty("X-Originator", originator.getStringIdentifier());
                 connection.setRequestProperty("X-Test", Integer.toString(test));
 
+                connection.setConnectTimeout(INTERNET_CONNECT_TIMEOUT_MS);
+                connection.setReadTimeout(INTERNET_READ_TIMEOUT_MS);
+
                 // We're writing and reading
                 connection.setDoInput(true);
                 connection.setDoOutput(true);
@@ -1377,7 +1383,7 @@ public class NetworkController implements IoController.Delegate,
                 notifyOnInternetResponse(internetRequestDelegate, connection.getResponseCode(), stringBuilder.toString());
 
             } catch (IOException e) {
-
+                Timber.w(e, "Failed to send internet request");
                 // We might end up here for several reasons, all of indicating
                 // that the request may not proceed. The request proceeds by
                 // relying on the mesh.
