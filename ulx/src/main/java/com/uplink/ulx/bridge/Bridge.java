@@ -1,6 +1,5 @@
 package com.uplink.ulx.bridge;
 
-import android.bluetooth.BluetoothDevice;
 import android.content.Context;
 
 import com.uplink.ulx.UlxError;
@@ -25,8 +24,10 @@ import java.lang.ref.WeakReference;
 import java.net.URL;
 import java.nio.ByteBuffer;
 import java.util.HashMap;
+import java.util.Map;
 import java.util.Objects;
 import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
@@ -196,7 +197,10 @@ public class Bridge implements
     private WeakReference<NetworkDelegate> networkDelegate;
     private WeakReference<MessageDelegate> messageDelegate;
 
-    private Registry<BluetoothDevice> southRegistry;
+    /**
+     * Maps {@link Device}s' ids to the {@link Device}s themselves
+     */
+    private final Map<String, Device> southRegistry;
 
     private NetworkController networkController;
     private HashMap<Ticket, MessageInfo> tickets;
@@ -214,7 +218,7 @@ public class Bridge implements
         this.networkDelegate = null;
         this.messageDelegate = null;
 
-        this.southRegistry = null;
+        this.southRegistry = new ConcurrentHashMap<>();
 
         this.networkController = null;
         this.tickets = null;
@@ -321,21 +325,6 @@ public class Bridge implements
      */
     public MessageDelegate getMessageDelegate() {
         return this.messageDelegate != null ? this.messageDelegate.get() : null;
-    }
-
-    /**
-     * Returns the device registry that is used by the South bridge to map
-     * native system framework {@link BluetoothDevice} instances with their
-     * corresponding abstract {@link Device} instances. This will be used by
-     * the South bridge to track which devices correspond to what native system
-     * instances.
-     * @return The South bridge registry.
-     */
-    private Registry<BluetoothDevice> getSouthRegistry() {
-        if (this.southRegistry == null) {
-            this.southRegistry = new Registry<>();
-        }
-        return this.southRegistry;
     }
 
     /**
@@ -497,7 +486,8 @@ public class Bridge implements
         Timber.e("ULX connector disconnected on the bridge");
         Timber.e("ULX connector is %s", connector.getIdentifier());
 
-        Device device = getSouthRegistry().getDeviceInstance(connector.getIdentifier());
+        // Unregister the device
+        final Device device = southRegistry.remove(connector.getIdentifier());
 
         if (device == null) {
             Timber.e("ULX device was not found on the registry");
@@ -524,9 +514,6 @@ public class Bridge implements
 
         // Clear the device from the lower grade controllers
         getNetworkController().removeDevice(device, error);
-
-        // Unregister the device
-        getSouthRegistry().unsetDevice(device.getIdentifier());
     }
 
     @Override
@@ -543,7 +530,7 @@ public class Bridge implements
 
     @Override
     public void onOpen(Stream stream) {
-        Device device = getSouthRegistry().getDeviceInstance(stream.getIdentifier());
+        Device device = southRegistry.get(stream.getIdentifier());
 
         // Make sure the device was previously registered
         if (device == null) {
@@ -577,8 +564,15 @@ public class Bridge implements
         // A non-null error means the stream closed unexpectedly.
         // If it was a reliable stream, we need to invalidate the device
         if (error != null && stream.isReliable()) {
-            final Device device = getSouthRegistry().getDeviceInstance(stream.getIdentifier());
-            removeDevice(device, error);
+            final Device device = southRegistry.get(stream.getIdentifier());
+            if (device != null) {
+                removeDevice(device, error);
+            } else {
+                Timber.w(
+                        "Stream closed, but its device cannot be found in registry. Id: %s",
+                        stream.getIdentifier()
+                );
+            }
         }
     }
 
@@ -602,7 +596,7 @@ public class Bridge implements
     public void takeover(Device device) {
 
         // Register the device
-        getSouthRegistry().setDevice(device.getIdentifier(), device);
+        southRegistry.put(device.getIdentifier(), device);
 
         // Since we've registered the device, we would need to unregister it when its invalidated
         device.getConnector().addInvalidationCallback(this);
@@ -636,14 +630,21 @@ public class Bridge implements
      * @return whether the bridge knows about any device(s)
      */
     public boolean hasActiveDevices() {
-        return getSouthRegistry().hasDevicesRegistered();
+        return !southRegistry.isEmpty();
     }
 
     @Override
     public void onInvalidation(Connector connector, UlxError error) {
         // A connector has been invalidated - we need to remove the device from the registry
-        final Device device = getSouthRegistry().getDeviceInstance(connector.getIdentifier());
-        removeDevice(device, error);
+        final Device device = southRegistry.get(connector.getIdentifier());
+        if (device != null) {
+            removeDevice(device, error);
+        } else {
+            Timber.w(
+                    "Connector invalidated, but its device was not registered. Id: %s",
+                    connector.getIdentifier()
+            );
+        }
     }
 
     /**
@@ -651,7 +652,7 @@ public class Bridge implements
      * @param device the device to remove
      * @param error error describing the cause for removal
      */
-    private void removeDevice(Device device, UlxError error) {
+    private void removeDevice(@NonNull Device device, UlxError error) {
         device.getConnector().removeInvalidationCallback(this);
 
         final Channel reliableChannel = device.getTransport().getReliableChannel();
@@ -669,7 +670,7 @@ public class Bridge implements
         getNetworkController().removeDevice(device, error);
 
         // Unregister the device
-        getSouthRegistry().unsetDevice(device.getIdentifier());
+        southRegistry.remove(device.getIdentifier());
     }
 
     public void send(Message message) {
