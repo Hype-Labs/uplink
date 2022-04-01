@@ -7,9 +7,9 @@ import com.uplink.ulx.threading.ExecutorPool;
 import com.uplink.ulx.utils.SetOnceRef;
 
 import java.lang.ref.WeakReference;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.ExecutorService;
 
 import androidx.annotation.NonNull;
@@ -37,7 +37,7 @@ public abstract class ConnectorCommons implements
     private final int transportType;
     private final SetOnceRef<StateManager> stateManager;
     private WeakReference<StateDelegate> stateDelegate;
-    private final List<InvalidationCallback> invalidationCallbacks = new ArrayList<>();
+    private final List<InvalidationCallback> invalidationCallbacks = new CopyOnWriteArrayList<>();
     private ExecutorService executorService;
 
     /**
@@ -181,24 +181,17 @@ public abstract class ConnectorCommons implements
     @NonNull
     @Override
     public final List<InvalidationCallback> getInvalidationCallbacks() {
-        synchronized (invalidationCallbacks) {
-            // The caller can (and, in fact, does) modify callbacks list, so we'll give them a copy
-            return new ArrayList<>(invalidationCallbacks);
-        }
+        return invalidationCallbacks;
     }
 
     @Override
     public final void addInvalidationCallback(InvalidationCallback invalidationCallback) {
-        synchronized (invalidationCallbacks) {
-            invalidationCallbacks.add(invalidationCallback);
-        }
+        invalidationCallbacks.add(invalidationCallback);
     }
 
     @Override
     public void removeInvalidationCallback(InvalidationCallback callback) {
-        synchronized (invalidationCallbacks) {
-            invalidationCallbacks.remove(callback);
-        }
+        invalidationCallbacks.remove(callback);
     }
 
     @Override
