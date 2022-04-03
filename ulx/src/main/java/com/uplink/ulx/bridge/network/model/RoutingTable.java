@@ -13,7 +13,9 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.CopyOnWriteArrayList;
 
+import androidx.annotation.GuardedBy;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import timber.log.Timber;
@@ -114,7 +116,7 @@ public class RoutingTable {
      * as well as some other metadata associated with the link. This is
      * represented with the {@link Link} class.
      */
-    protected static class Entry {
+    private static class Entry {
 
         @NonNull
         private final Device device;
@@ -149,24 +151,9 @@ public class RoutingTable {
          */
         protected final List<Link> getLinks() {
             if (this.links == null) {
-                this.links = new ArrayList<>();
+                this.links = new CopyOnWriteArrayList<>();
             }
             return this.links;
-        }
-
-        /**
-         * Collects all destination {@link Instance}s that are made accessible
-         * by this {@link Entry}.
-         * @return A list of instances.
-         */
-        protected final List<Instance> collectDestinations() {
-            List<Instance> instances = new ArrayList<>();
-
-            for (Link link : getLinks()) {
-                instances.add(link.getDestination());
-            }
-
-            return instances;
         }
 
         /**
@@ -284,30 +271,23 @@ public class RoutingTable {
         }
     }
 
-    private HashMap<Device, Entry> linkMap;
+    /**
+     * The {@link Device}-to-{@link Link} map, which is used to keep
+     * track of which links are reachable over which devices. Links inform of
+     * which {@link Instance}s are reachable, which means that the system can
+     * use this data structure as a foundation for the mesh.
+     */
+    @GuardedBy("this")
+    private final Map<Device, Entry> linkMap;
     private WeakReference<Delegate> delegate;
 
     /**
      * Constructor.
      */
      public RoutingTable() {
-         this.linkMap = null;
+         this.linkMap = new HashMap<>();
          this.delegate = null;
      }
-
-    /**
-     * Returns the {@link Device}-to-{@link Link} map, which is used to keep
-     * track of which links are reachable over which devices. Links inform of
-     * which {@link Instance}s are reachable, which means that the system can
-     * use this data structure as a foundation for the mesh.
-     * @return The map that tracks {@link Instance} reachability.
-     */
-    protected final HashMap<Device, Entry> getLinkMap() {
-        if (this.linkMap == null) {
-            this.linkMap = new HashMap<>();
-        }
-        return this.linkMap;
-    }
 
     /**
      * Returns an {@link Entry} for the given {@link Device}. If one does not
@@ -315,12 +295,12 @@ public class RoutingTable {
      * @param device The {@link Device} that maps to the {@link Entry}.
      * @return The {@link Entry} corresponding to the given {@link Device}.
      */
-    protected Entry getLinkMapEntry(@NonNull Device device) {
-        Entry entry = getLinkMap().get(device);
+    protected synchronized Entry getLinkMapEntry(@NonNull Device device) {
+        Entry entry = linkMap.get(device);
 
         // Create an Entry if one does not exist
         if (entry == null) {
-            getLinkMap().put(device, entry = new Entry(device));
+            linkMap.put(device, entry = new Entry(device));
         }
 
         return entry;
@@ -356,11 +336,12 @@ public class RoutingTable {
      * null}.
      */
     public synchronized Device getDevice(String identifier) {
-        for (Map.Entry<Device, Entry> entry : getLinkMap().entrySet()) {
-            if (entry.getKey().getIdentifier().equals(identifier)) {
-                return entry.getKey();
+        for (final Device device : linkMap.keySet()) {
+            if (device.getIdentifier().equals(identifier)) {
+                return device;
             }
         }
+
         return null;
     }
 
@@ -375,12 +356,10 @@ public class RoutingTable {
 
         // If the registry already exists, don't proceed. Doing so would erase
         // the current registry, and all known links would be lost.
-        if (getLinkMap().containsKey(device)) {
-            return;
+        if (!linkMap.containsKey(device)) {
+            // Register a new entry
+            linkMap.put(device, new Entry(device));
         }
-
-        // Register a new entry
-        getLinkMap().put(device, new Entry(device));
     }
 
     /**
@@ -393,7 +372,7 @@ public class RoutingTable {
      */
     public synchronized void unregister(@NonNull Device device) {
 
-        Entry entry = getLinkMap().get(device);
+        final Entry entry = linkMap.get(device);
 
         // Don't proceed if the device is already not registered
         if (entry == null) {
@@ -402,14 +381,10 @@ public class RoutingTable {
 
         // Remove the map entry. Doing so before unregisterAndNotify()
         // prevents updates to be sent to the device being unregistered
-        getLinkMap().remove(device);
-
-        // Collect all links from this device for further removal. We need to use our
-        // own List instance, since the original one will be modified during iteration
-        final List<Link> links = new ArrayList<>(entry.getLinks());
+        linkMap.remove(device);
 
         // Send notifications for every instance that is lost, if needed
-        for (Link link : links) {
+        for (Link link : entry.getLinks()) {
             unregisterAndNotify(link);
         }
     }
@@ -445,7 +420,7 @@ public class RoutingTable {
             );
 
             // Find an existing entry for the given device
-            final Entry existingEntry = getLinkMap().get(device);
+            final Entry existingEntry = linkMap.get(device);
             if (existingEntry != null) {
                 // Find an existing link for the instance
                 final Link existingLink = existingEntry.get(instance);
@@ -503,14 +478,10 @@ public class RoutingTable {
      * update will be propagated. It is ok if the link's device (and thus the link itself) is not
      * already registered at this point. In such case, the method will just notify the remaining
      * devices about the link degradation, if necessary.
-     * <p>
-     * WARNING: make sure you are not calling this method while iterating through {@link
-     * Entry#getLinks()} list - doing so can cause {@link java.util.ConcurrentModificationException}
-     * to be thrown
      *
      * @param link The link to remove
      */
-    private void unregisterAndNotify(@NonNull Link link) {
+    private synchronized void unregisterAndNotify(@NonNull Link link) {
 
         Timber.i("ULX deleting an instance from the registry");
 
@@ -520,7 +491,7 @@ public class RoutingTable {
         final Link oldBestLink = getBestLink(instance, null);
 
         // Do not call getLinkMapEntry(), because it would create an empty entry if not found
-        final Entry entry = getLinkMap().get(device);
+        final Entry entry =  linkMap.get(device);
         if (entry != null) {
             // If the device is still registered, so must be the link
             if (!entry.remove(instance)) {
@@ -639,12 +610,15 @@ public class RoutingTable {
      * @param splitHorizon
      * @return A {@link List} of {@link Link}s to the given {@link Instance}.
      */
-    private List<Link> compileLinksTo(Instance instance, @Nullable Device splitHorizon) {
+    private synchronized List<Link> compileLinksTo(
+            Instance instance,
+            @Nullable Device splitHorizon
+    ) {
 
-        List<Link> linkList = new ArrayList<>();
+        final List<Link> linkList = new ArrayList<>();
 
-        for (Map.Entry<Device, Entry> entry : getLinkMap().entrySet()) {
-            Link link = entry.getValue().get(instance);
+        for (Entry entry : linkMap.values()) {
+            Link link = entry.get(instance);
 
             if (link != null && !link.getNextHop().equals(splitHorizon)) {
                 linkList.add(link);
@@ -663,12 +637,12 @@ public class RoutingTable {
      * @return A {@link List} of known Internet {@link Link}s.
      */
     @NonNull
-    private List<Link> compileInternetLinks() {
+    private synchronized List<Link> compileInternetLinks() {
 
-        List<Link> linkList = new ArrayList<>();
+        final List<Link> linkList = new ArrayList<>();
 
-        for (Map.Entry<Device, Entry> entry : getLinkMap().entrySet()) {
-            Link link = entry.getValue().getBestInternetLink();
+        for (Entry entry : linkMap.values()) {
+            Link link = entry.getBestInternetLink();
 
             if (link != null) {
                 linkList.add(link);
@@ -751,30 +725,8 @@ public class RoutingTable {
      * in direct link (LoS).
      * @return The list of known {@link Device}s.
      */
-    public Set<Device> getDeviceList() {
-        return getLinkMap().keySet();
-    }
-
-    /**
-     * Returns a {@link List} of all {@link Link}s known to the routing table.
-     * All links will be under the threshold of {@link #MAXIMUM_HOP_COUNT}
-     * number of hops. The returned list is a copy and is generated with each
-     * call.
-     * @return A {@link List} of {@link Link}s.
-     */
-    public List<Link> getLinks() {
-
-        List<Link> linkList = new ArrayList<>();
-
-        for (Map.Entry<Device, Entry> entry : getLinkMap().entrySet()) {
-            for (Link link : entry.getValue().getLinks()) {
-                if (link.getHopCount() < MAXIMUM_HOP_COUNT) {
-                    linkList.add(link);
-                }
-            }
-        }
-
-        return linkList;
+    public synchronized Set<Device> getDeviceList() {
+        return linkMap.keySet();
     }
 
     /**
@@ -783,12 +735,12 @@ public class RoutingTable {
      * optimized in the future.
      * @return A {@link Set} of all known {@link Instance}s.
      */
-    public Set<Instance> getInstances() {
+    public synchronized Set<Instance> getInstances() {
 
         Set<Instance> instanceSet = new HashSet<>();
 
-        for (Map.Entry<Device, Entry> entry : getLinkMap().entrySet()) {
-            for (Link link : entry.getValue().getLinks()) {
+        for (Entry entry : linkMap.values()) {
+            for (Link link : entry.getLinks()) {
                 instanceSet.add(link.getDestination());
             }
         }
@@ -796,13 +748,11 @@ public class RoutingTable {
         return instanceSet;
     }
 
-    public void log() {
+    public synchronized void log() {
         Timber.e("ULX-M logging the routing table");
-        for (HashMap.Entry<Device, Entry> entry : getLinkMap().entrySet()) {
+        for (Entry entry : linkMap.values()) {
 
-            Entry deviceEntry = entry.getValue();
-
-            for (Link link : deviceEntry.getLinks()) {
+            for (Link link : entry.getLinks()) {
                 Timber.e("ULX-M RTR %s", link.toString());
             }
         }

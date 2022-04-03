@@ -250,7 +250,7 @@ public class NetworkController implements IoController.Delegate,
      * track of devices and links on the network.
      * @return The {@link RoutingTable}.
      */
-    protected final RoutingTable getRoutingTable() {
+    protected synchronized final RoutingTable getRoutingTable() {
         if (this.routingTable == null) {
             this.routingTable = new RoutingTable();
             this.routingTable.setDelegate(this);
@@ -310,6 +310,16 @@ public class NetworkController implements IoController.Delegate,
     }
 
     /**
+     * Registers a device and thus prepares for potential packet exchange with it
+     * @param device the device to add
+     */
+    public void addDevice(@NonNull Device device) {
+        // Register the device
+        getRoutingTable().register(device);
+        Timber.d("ULX device %s registered in routing table", device.getIdentifier());
+    }
+
+    /**
      * Negotiates with the given {@link Device} by sending an handshake packet
      * that identifies the host instance. The negotiation process does not
      * involve any other steps from the host's end, other than waiting for the
@@ -321,14 +331,6 @@ public class NetworkController implements IoController.Delegate,
      */
     public void negotiate(@NonNull Device device) {
         Timber.d("ULX initiating negotiation with %s", device.getIdentifier());
-        // TODO the device must be registered before the thread context change
-        //      because it creates a race condition with incoming negotiation
-        //      packets. I'm not a fan of this approach, and I think that the
-        //      thread management should be reviewed overall.
-        // Register the device
-        getRoutingTable().register(device);
-
-        Timber.d("ULX device %s registered in routing table", device.getIdentifier());
 
         ExecutorPool.getInternetExecutor().execute(() -> {
             Timber.d("ULX calculating hop count");
@@ -712,33 +714,35 @@ public class NetworkController implements IoController.Delegate,
         );
 
         // Compute the device, according to the InputStream given
-        Device device = getRoutingTable().getDevice(inputStream.getIdentifier());
+        synchronized (getRoutingTable()) {
+            Device device = getRoutingTable().getDevice(inputStream.getIdentifier());
 
-        switch (packet.getType()) {
+            switch (packet.getType()) {
 
-            case HANDSHAKE:
-                handleHandshakePacketReceived(device, (HandshakePacket) packet);
-                break;
+                case HANDSHAKE:
+                    handleHandshakePacketReceived(device, (HandshakePacket) packet);
+                    break;
 
-            case UPDATE:
-                handleUpdatePacketReceived(device, (UpdatePacket) packet);
-                break;
+                case UPDATE:
+                    handleUpdatePacketReceived(device, (UpdatePacket) packet);
+                    break;
 
-            case DATA:
-                handleDataPacketReceived(device, (DataPacket) packet);
-                break;
+                case DATA:
+                    handleDataPacketReceived(device, (DataPacket) packet);
+                    break;
 
-            case ACKNOWLEDGEMENT:
-                handleAcknowledgementPacketReceived(device, (AcknowledgementPacket) packet);
-                break;
+                case ACKNOWLEDGEMENT:
+                    handleAcknowledgementPacketReceived(device, (AcknowledgementPacket) packet);
+                    break;
 
-            case INTERNET:
-                handleInternetPacketReceived(device, (InternetPacket) packet);
-                break;
+                case INTERNET:
+                    handleInternetPacketReceived(device, (InternetPacket) packet);
+                    break;
 
-            case INTERNET_RESPONSE:
-                handleInternetResponsePacketReceived(device, (InternetResponsePacket) packet);
-                break;
+                case INTERNET_RESPONSE:
+                    handleInternetResponsePacketReceived(device, (InternetResponsePacket) packet);
+                    break;
+            }
         }
 
         Timber.d("Packet handled");

@@ -621,6 +621,9 @@ public class Bridge implements
         inputStream.addInvalidationCallback(getNetworkController().getIoController());
         outputStream.addInvalidationCallback(getNetworkController().getIoController());
 
+        // Add device to network controller
+        getNetworkController().addDevice(device);
+
         // Open the streams
         inputStream.open();
         outputStream.open();

@@ -69,4 +69,11 @@ public interface Device {
      * @see Connector
      */
     Connector getConnector();
+
+    /**
+     * Shortcut for {@code getTransport().getReliableChannel().getOutputStream()}
+     */
+    default OutputStream getOutputStream() {
+        return getTransport().getReliableChannel().getOutputStream();
+    }
 }

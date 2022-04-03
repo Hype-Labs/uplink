@@ -40,6 +40,7 @@ import java.util.Locale;
 import java.util.Objects;
 import java.util.Queue;
 
+import androidx.annotation.GuardedBy;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import timber.log.Timber;
@@ -157,9 +158,13 @@ public class IoController implements InputStream.Delegate,
     private HashMap<String, Buffer> inputMap;
     private WeakReference<Delegate> delegate;
     private Serializer serializer;
-    private Queue<IoPacket> queue;
+    /**
+     * The {@link Queue} that is managed by the {@link IoController}
+     * to keep the order of packets being delivered.
+     */
+    private final Queue<IoPacket> queue;
+    @GuardedBy("queue")
     private IoPacket currentPacket;
-    private final Object currentPacketLock = new Object();
 
     /**
      * Constructor.
@@ -168,7 +173,7 @@ public class IoController implements InputStream.Delegate,
         this.inputMap = null;
         this.delegate = null;
         this.serializer = null;
-        this.queue = null;
+        this.queue = new LinkedList<>();
         this.currentPacket = null;
     }
 
@@ -250,18 +255,6 @@ public class IoController implements InputStream.Delegate,
         return this.delegate != null ? this.delegate.get() : null;
     }
 
-    /**
-     * Returns the {@link Queue} that is managed by the {@link IoController}
-     * to keep the order of packets being delivered.
-     * @return The {@link IoPacket} {@link Queue}.
-     */
-    private Queue<IoPacket> getQueue() {
-        if (this.queue == null) {
-            this.queue = new LinkedList<>();
-        }
-        return this.queue;
-    }
-
     private void setCurrentPacket(IoPacket currentPacket) {
         this.currentPacket = currentPacket;
     }
@@ -277,11 +270,17 @@ public class IoController implements InputStream.Delegate,
      * @param ioPacket The {@link IoPacket} to queue.
      */
     public void add(IoPacket ioPacket) {
+        final Device device = ioPacket.getDevice();
+        if (device == null || device.getOutputStream().getState() != Stream.State.OPEN) {
+            Timber.i("Failed to queue packet [%s]. It does not have an open output stream");
+            return;
+        }
+
         Timber.i("ULX queueing packet %s", ioPacket);
 
         // Queue the packet
-        synchronized (getQueue()) {
-            getQueue().add(ioPacket);
+        synchronized (queue) {
+            queue.add(ioPacket);
         }
 
         // Attempt to process it, if the controller is idle
@@ -298,7 +297,7 @@ public class IoController implements InputStream.Delegate,
      * nothing, and simply returns.
      */
     private void attemptDequeue() {
-        Timber.i("ULX dequeueing packet");
+        Timber.i("ULX queueing packet");
 
         IoPacket ioPacket;
 
@@ -306,7 +305,7 @@ public class IoController implements InputStream.Delegate,
 
         // The loop will break if current packet's device is not null
         while (true) {
-            synchronized (currentPacketLock) {
+            synchronized (queue) {
                 // If another packet is already being processed, do not proceed, and
                 // instead let if finish
                 if (getCurrentPacket() != null) {
@@ -315,9 +314,7 @@ public class IoController implements InputStream.Delegate,
                 }
 
                 // Pop the next packet to dispatch
-                synchronized (getQueue()) {
-                    ioPacket = getQueue().poll();
-                }
+                ioPacket = queue.poll();
 
                 // Don't proceed if the queue is empty
                 if (ioPacket == null) {
@@ -329,32 +326,32 @@ public class IoController implements InputStream.Delegate,
 
                 // Flag the controller as busy, so packets do not overlap
                 setCurrentPacket(ioPacket);
-            }
 
-            device = ioPacket.getDevice();
+                device = ioPacket.getDevice();
 
-            if (device != null) {
-                break;
-            } else {
-                Timber.e("ULX destination not found");
+                if (device != null) {
+                    break;
+                } else {
+                    Timber.e("ULX destination not found");
 
-                UlxError error = new UlxError(
-                        UlxErrorCode.UNKNOWN,
-                        "Could not send a packet to a destination.",
-                        "The destination is not known or reachable.",
-                        "Try bringing the destination closer to the host " +
-                                "device or restarting the Bluetooth adapter."
-                );
+                    UlxError error = new UlxError(
+                            UlxErrorCode.UNKNOWN,
+                            "Could not send a packet to a destination.",
+                            "The destination is not known or reachable.",
+                            "Try bringing the destination closer to the host " +
+                                    "device or restarting the Bluetooth adapter."
+                    );
 
-                // Clear the current packet, so the queue may proceed
-                setCurrentPacket(null);
+                    // Clear the current packet, so the queue may proceed
+                    setCurrentPacket(null);
 
-                notifyOnPacketWriteFailure(null, ioPacket, error);
+                    notifyOnPacketWriteFailure(null, ioPacket, error);
+                }
             }
         }
 
         // Write to the stream
-        add(ioPacket, device.getTransport().getReliableChannel().getOutputStream());
+        add(ioPacket, device.getOutputStream());
     }
 
     /**
@@ -533,7 +530,7 @@ public class IoController implements InputStream.Delegate,
     public void onSpaceAvailable(OutputStream outputStream) {
         Timber.d("ULX Space available on stream %s", outputStream.getIdentifier());
 
-        synchronized (currentPacketLock) {
+        synchronized (queue) {
             // If this happens, something's wrong
             assert getCurrentPacket() != null;
 
@@ -559,14 +556,14 @@ public class IoController implements InputStream.Delegate,
 
         final IoPacket currentPacket;
 
-        synchronized (currentPacketLock) {
+        synchronized (queue) {
             currentPacket = getCurrentPacket();
 
             final Device device = currentPacket != null ? currentPacket.getDevice() : null;
 
             // Drop current packet if it cannot longer identify its device or
             // if it belongs to the invalidated stream
-            if (device == null || stream.equals(device.getTransport().getReliableChannel().getOutputStream())) {
+            if (device == null || stream.equals(device.getOutputStream())) {
                 setCurrentPacket(null);
             }
         }
@@ -593,8 +590,8 @@ public class IoController implements InputStream.Delegate,
      * @param stream The failed stream
      */
     private void dropPacketsForStream(OutputStream stream) {
-        synchronized (getQueue()) {
-            final Iterator<IoPacket> iterator = getQueue().iterator();
+        synchronized (queue) {
+            final Iterator<IoPacket> iterator = queue.iterator();
             while (iterator.hasNext()) {
                 final IoPacket ioPacket = iterator.next();
                 final Device device = ioPacket.getDevice();
@@ -602,7 +599,7 @@ public class IoController implements InputStream.Delegate,
                 // If the packet cannot identify its device
                 if (device == null
                         // or was intended for the stream that failed...
-                        || stream.equals(device.getTransport().getReliableChannel().getOutputStream())
+                        || stream.equals(device.getOutputStream())
                 ) {
                     // ... - drop the packet
                     iterator.remove();

@@ -461,9 +461,10 @@ class BleAdvertiser extends AdvertiserCommons implements
             final BleDomesticConnector connector;
             if ((connector = connectorRegistry.remove(bluetoothDevice)) != null) {
                 detachFromConnector(connector);
+            } else {
+                // A connector could be registered, or a Device, but not both per one BluetoothDevice
+                forgetBtDevice(bluetoothDevice);
             }
-
-            forgetBtDevice(bluetoothDevice);
         }
     }
 
