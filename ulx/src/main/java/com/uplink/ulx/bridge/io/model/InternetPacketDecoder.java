@@ -4,6 +4,7 @@ import com.uplink.ulx.UlxError;
 import com.uplink.ulx.UlxErrorCode;
 import com.uplink.ulx.model.Instance;
 import com.uplink.ulx.serialization.Decoder;
+import com.uplink.ulx.utils.ByteUtils;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
@@ -106,7 +107,9 @@ public class InternetPacketDecoder implements Decoder {
             return new Result(null, 0, makeGeneralError());
         }
 
-        String message = new String(messageData, StandardCharsets.UTF_8);
+        final byte[] uncompressedMessage = ByteUtils.decompress(messageData);
+
+        String message = new String(uncompressedMessage, StandardCharsets.UTF_8);
 
         // Create the object. It's notable that version and type are losing
         // precision. This is an unchecked cast that is probably dangerous,

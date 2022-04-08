@@ -1,8 +1,17 @@
 package com.uplink.ulx.utils;
 
+import android.os.SystemClock;
+
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.UUID;
+import java.util.zip.DataFormatException;
+import java.util.zip.Deflater;
+import java.util.zip.Inflater;
+
+import timber.log.Timber;
 
 /**
  * Byte utilities class, that provides several static utility methods for byte
@@ -78,5 +87,88 @@ public class ByteUtils {
         System.arraycopy(data, 0, copy, 0, copy.length);
 
         return copy;
+    }
+
+    public static byte[] compress(byte[] bytes) {
+        final Deflater deflater = new Deflater(Deflater.BEST_COMPRESSION);
+
+        Timber.v("Compressing %d bytes", bytes.length);
+        final long startTimestamp = SystemClock.elapsedRealtime();
+
+        deflater.setInput(bytes);
+        deflater.finish();
+
+        int bytesWritten;
+        final List<byte[]> buffers = new ArrayList<>();
+
+        do {
+            buffers.add(new byte[bytes.length]);
+            bytesWritten = deflater.deflate(buffers.get(buffers.size() - 1));
+        } while (bytesWritten == bytes.length);
+
+        final byte[] result = new byte[(buffers.size() - 1) * bytes.length + bytesWritten];
+
+        for (int i = 0; i < buffers.size(); i++) {
+            System.arraycopy(
+                    buffers.get(i),
+                    0,
+                    result,
+                    i * bytes.length,
+                    i == buffers.size() - 1 ? bytesWritten : bytes.length
+            );
+        }
+
+        deflater.end();
+
+        Timber.v(
+                "Compressed to %d bytes. Time used: %d ms",
+                result.length,
+                SystemClock.elapsedRealtime() - startTimestamp
+        );
+
+        return result;
+    }
+
+    public static byte[] decompress(byte[] bytes) {
+        Timber.v("Decompressing %d bytes", bytes.length);
+        final long startTimestamp = SystemClock.elapsedRealtime();
+
+        final Inflater decompressor = new Inflater();
+        decompressor.setInput(bytes, 0, bytes.length);
+
+        int bytesWritten;
+        final List<byte[]> buffers = new ArrayList<>();
+
+        do {
+            buffers.add(new byte[bytes.length]);
+            try {
+                bytesWritten = decompressor.inflate(buffers.get(buffers.size() - 1));
+            } catch (DataFormatException e) {
+                Timber.e(e, "Failed to decompress bytes");
+                bytesWritten = 0;
+            }
+        } while (bytesWritten == bytes.length);
+
+        decompressor.end();
+
+        final byte[] result = new byte[(buffers.size() - 1) * bytes.length + bytesWritten];
+
+        for (int i = 0; i < buffers.size(); i++) {
+            System.arraycopy(
+                    buffers.get(i),
+                    0,
+                    result,
+                    i * bytes.length,
+                    i == buffers.size() - 1 ? bytesWritten : bytes.length
+            );
+        }
+
+        Timber.v(
+                "Decompressing finished. Result size: %d. Time: %d ms",
+                result.length,
+                SystemClock.elapsedRealtime() - startTimestamp
+        );
+
+        return result;
     }
 }

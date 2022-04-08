@@ -1,6 +1,7 @@
 package com.uplink.ulx.bridge.io.model;
 
 import com.uplink.ulx.serialization.Encoder;
+import com.uplink.ulx.utils.ByteUtils;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -31,7 +32,7 @@ public class InternetResponsePacketEncoder implements Encoder {
         );
 
         // Encode the data
-        byte[] data = packet.getData().getBytes(StandardCharsets.UTF_8);
+        byte[] data = ByteUtils.compress(packet.getData().getBytes(StandardCharsets.UTF_8));
 
         // Encode the data size
         ByteBuffer messageSizeData = ByteBuffer.allocate(4).putInt(data.length);
