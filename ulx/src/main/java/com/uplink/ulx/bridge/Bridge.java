@@ -23,7 +23,6 @@ import org.json.JSONObject;
 import java.lang.ref.WeakReference;
 import java.net.URL;
 import java.nio.ByteBuffer;
-import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 import java.util.UUID;
@@ -203,7 +202,7 @@ public class Bridge implements
     private final Map<String, Device> southRegistry;
 
     private NetworkController networkController;
-    private HashMap<Ticket, MessageInfo> tickets;
+    private final Map<Ticket, MessageInfo> tickets;
 
     private WeakReference<Context> context;
 
@@ -221,7 +220,7 @@ public class Bridge implements
         this.southRegistry = new ConcurrentHashMap<>();
 
         this.networkController = null;
-        this.tickets = null;
+        this.tickets = new ConcurrentHashMap<>();
 
         this.context = null;
     }
@@ -343,10 +342,7 @@ public class Bridge implements
      * their corresponding {@link MessageInfo}.
      * @return The ticket hash map.
      */
-    private HashMap<Ticket, MessageInfo> getTickets() {
-        if (this.tickets == null) {
-            this.tickets = new HashMap<>();
-        }
+    private Map<Ticket, MessageInfo> getTickets() {
         return this.tickets;
     }
 
