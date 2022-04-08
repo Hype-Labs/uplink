@@ -879,13 +879,14 @@ class BleBrowser extends BrowserCommons implements
 
         // Free the queue
         setCurrentConnector(null);
-        // Try next connector
-        attemptConnection();
 
         // Since we're having failed connections, we should ask the adapter to
         // restart.
         Delegate delegate = getDelegate();
         if (delegate == null || !delegate.onAdapterRestartRequest(this)) {
+            // Try next connector
+            attemptConnection();
+
             // If we cannot restart the adapter - let's continue scanning
             startScanning();
         }
