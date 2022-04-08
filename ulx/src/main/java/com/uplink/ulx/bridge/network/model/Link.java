@@ -17,14 +17,16 @@ import androidx.annotation.NonNull;
  * hops that it takes to reach that instance, or whether it makes the Internet
  * reachable. This container is also hashable and comparable, so it's suitable
  * for use in complex data structures, such as hash tables and so on.
+ *
+ * This class is thread-safe
  */
 public class Link implements Comparable<Link> {
 
     @NonNull
     private final Device nextHop;
     private final Instance destination;
-    private int hopCount;
-    private int internetHopCount;
+    private volatile int hopCount;
+    private volatile int internetHopCount;
     private final long timestamp;
 
     /**
@@ -173,6 +175,7 @@ public class Link implements Comparable<Link> {
         return Integer.signum((int) -(getStability() - o.getStability()));
     }
 
+    @NonNull
     @Override
     public String toString() {
         return String.format(Locale.ENGLISH, "%s(hop: %s, dst: %s, hops: %d, i-hops: %d, s: %d)",
