@@ -4,6 +4,8 @@ import com.uplink.ulx.utils.StringUtils;
 
 import java.util.Arrays;
 
+import androidx.annotation.NonNull;
+
 /**
  * Instances map to devices participating on the network. Instances are
  * advertised on the network and, when found, a notification is issued
@@ -47,6 +49,7 @@ public class Instance {
      * identifier byte array using hexadecimal notation.
      * @return The instance's identifier in string form.
      */
+    @NonNull
     public String getStringIdentifier() {
         return StringUtils.byteArrayToHexString(getIdentifier()).toUpperCase();
     }
@@ -95,21 +98,17 @@ public class Instance {
         return StringUtils.byteArrayToHexString(getDeviceIdentifier()).toUpperCase();
     }
 
+    @SuppressWarnings("ControlFlowStatementWithoutBraces")
     @Override
-    public boolean equals(Object object) {
-
-        if (object == this) {
-            return true;
-        }
-
-        if (!(object instanceof Instance)) {
-            return false;
-        }
-
-        return equals((Instance)object);
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (!(o instanceof Instance)) return false;
+        final Instance instance = (Instance) o;
+        return Arrays.equals(identifier, instance.identifier);
     }
 
-    public boolean equals(Instance instance) {
-        return instance != null && instance.getStringIdentifier().equals(getStringIdentifier());
+    @Override
+    public int hashCode() {
+        return Arrays.hashCode(identifier);
     }
 }
