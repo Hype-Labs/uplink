@@ -50,6 +50,7 @@ import java.util.Objects;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentLinkedDeque;
 
+import androidx.annotation.MainThread;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import timber.log.Timber;
@@ -783,6 +784,7 @@ class BleBrowser extends BrowserCommons implements
      * @param connector The connector to the remote device.
      * @return An umbrella BleDevice instance corresponds to the given connector.
      */
+    @MainThread
     private BleDevice createDevice(BleForeignConnector connector) {
 
         // Common stuff being initialized here...

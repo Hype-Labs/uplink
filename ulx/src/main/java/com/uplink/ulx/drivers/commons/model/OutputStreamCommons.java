@@ -9,6 +9,7 @@ import com.uplink.ulx.threading.Dispatch;
 import java.util.List;
 import java.util.Vector;
 
+import androidx.annotation.MainThread;
 import timber.log.Timber;
 
 /**
@@ -199,5 +200,6 @@ public abstract class OutputStreamCommons extends StreamCommons implements Outpu
      * @param data The data to write.
      * @return The {@link IoResult} for the operation.
      */
+    @MainThread
     protected abstract IoResult flush(byte[] data);
 }

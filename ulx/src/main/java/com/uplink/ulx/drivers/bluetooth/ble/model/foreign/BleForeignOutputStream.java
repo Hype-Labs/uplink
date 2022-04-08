@@ -14,6 +14,7 @@ import com.uplink.ulx.utils.ByteUtils;
 
 import java.util.Objects;
 
+import androidx.annotation.MainThread;
 import timber.log.Timber;
 
 /**
@@ -124,6 +125,7 @@ public class BleForeignOutputStream extends OutputStreamCommons implements GattC
     }
 
     @Override
+    @MainThread
     public IoResult flush(byte[] data) {
 
         assert Looper.myLooper() == Looper.getMainLooper();

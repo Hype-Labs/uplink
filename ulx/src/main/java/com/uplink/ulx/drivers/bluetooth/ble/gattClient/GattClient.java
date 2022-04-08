@@ -32,6 +32,7 @@ import java.util.TimerTask;
 import java.util.UUID;
 
 import androidx.annotation.GuardedBy;
+import androidx.annotation.MainThread;
 import timber.log.Timber;
 
 /**
@@ -166,6 +167,7 @@ public class GattClient extends BluetoothGattCallback {
     private final Object mtuLock = new Object();
     private final Runnable mtuRequestTimeoutRunnable = this::onMtuRequestTimeout;
 
+    @GuardedBy("this")
     private Timer connectionTimeout;
 
     private final WeakReference<Context> context;
@@ -244,11 +246,7 @@ public class GattClient extends BluetoothGattCallback {
             @Override
             public void onStop(StateManager stateManager, UlxError error) {
                 Dispatch.post(() -> {
-                    // Clean up; without this, future attempts to connect between these
-                    // same two devices should result in more 133 error codes. See:
-                    // https://stackoverflow.com/questions/25330938/android-bluetoothgatt-status-133-register-callback
-                    bluetoothGatt.disconnect();
-                    bluetoothGatt.close();
+                    cleanup();
 
                     if (error != null) {
                         notifyOnDisconnection(error);
@@ -258,8 +256,18 @@ public class GattClient extends BluetoothGattCallback {
                 });
             }
 
+            @MainThread
+            private void cleanup() {
+                // Clean up; without this, future attempts to connect between these
+                // same two devices should result in more 133 error codes. See:
+                // https://stackoverflow.com/questions/25330938/android-bluetoothgatt-status-133-register-callback
+                bluetoothGatt.disconnect();
+                bluetoothGatt.close();
+            }
+
             @Override
             public void onFailedStart(StateManager stateManager, UlxError error) {
+                Dispatch.post(this::cleanup);
                 notifyOnConnectionFailure(error);
             }
 
@@ -438,9 +446,13 @@ public class GattClient extends BluetoothGattCallback {
                         "Please try reconnecting or restarting the Bluetooth adapter."
                 );
 
-                getStateManager().notifyStop(error);
+                synchronized (GattClient.this) {
+                    if (connectionTimeout != null) {
+                        getStateManager().notifyFailedStart(error);
 
-                GattClient.this.connectionTimeout = null;
+                        GattClient.this.connectionTimeout = null;
+                    } // else the connection event occurred and the timeout has been cancelled in parallel thread
+                }
             }
         }, timeout);
     }
@@ -473,6 +485,7 @@ public class GattClient extends BluetoothGattCallback {
      *
      * @return The Bluetooth GATT profile abstraction.
      */
+    @MainThread
     private BluetoothGatt getBluetoothGatt() {
 
         // Make sure we're on the main thread
@@ -520,7 +533,15 @@ public class GattClient extends BluetoothGattCallback {
 
             BluetoothGatt bluetoothGatt = getBluetoothGatt();
 
-            if (!bluetoothGatt.connect()) {
+            if (bluetoothGatt.connect()) {
+                Timber.i(
+                        "ULX connection request for native device %s accepted",
+                        getBluetoothDevice().getAddress()
+                );
+
+                // Set a timeout for 3s
+                setConnectionTimeout(bluetoothGatt, 30000);
+            } else {
                 Timber.e(
                         "ULX connection request for native device %s rejected",
                         getBluetoothDevice().getAddress()
@@ -535,14 +556,6 @@ public class GattClient extends BluetoothGattCallback {
                 );
 
                 getStateManager().notifyFailedStart(error);
-            } else {
-                Timber.i(
-                        "ULX connection request for native device %s accepted",
-                        getBluetoothDevice().getAddress()
-                );
-
-                // Set a timeout for 3s
-                setConnectionTimeout(bluetoothGatt, 30000);
             }
         });
     }
@@ -565,8 +578,15 @@ public class GattClient extends BluetoothGattCallback {
 
         ConnectorDelegate connectorDelegate = getConnectorDelegate();
 
-        // Don't wait anymore to drop the connection attempt
-        cancelConnectionTimeout();
+        synchronized (this) {
+            if (getStateManager().getState() != State.IDLE) {
+                // Don't wait anymore to drop the connection attempt
+                cancelConnectionTimeout();
+            } else {
+                Timber.w("onConnectionStateChange() event received in IDLE state. Most likely the connection was timed out");
+                return;
+            }
+        }
 
         // Don't proceed without a delegate; although this means that the
         // state change will simply be ignored.
@@ -1094,6 +1114,7 @@ public class GattClient extends BluetoothGattCallback {
      * @param service The service to match.
      * @return A matching service or null, if one does not exist.
      */
+    @MainThread
     public BluetoothGattService getServiceMatching(BluetoothGattService service) {
         return getServiceMatching(service.getUuid());
     }
@@ -1104,6 +1125,7 @@ public class GattClient extends BluetoothGattCallback {
      * @param uuid The service UUID to look for.
      * @return A matching service or null, if one does not exist.
      */
+    @MainThread
     public BluetoothGattService getServiceMatching(UUID uuid) {
         return getBluetoothGatt().getService(uuid);
     }
