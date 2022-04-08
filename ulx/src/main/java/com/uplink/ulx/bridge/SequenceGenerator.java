@@ -1,5 +1,8 @@
 package com.uplink.ulx.bridge;
 
+/**
+ * This class is thread-safe
+ */
 public class SequenceGenerator {
 
     private int sequence;

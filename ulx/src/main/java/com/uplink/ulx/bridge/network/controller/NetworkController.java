@@ -32,7 +32,6 @@ import java.io.BufferedWriter;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.io.OutputStreamWriter;
-import java.lang.ref.WeakReference;
 import java.net.HttpURLConnection;
 import java.net.URL;
 import java.util.Objects;
@@ -189,14 +188,14 @@ public class NetworkController implements IoController.Delegate,
         public abstract void handleOnWriteFailure(UlxError error);
     }
 
-    private final WeakReference<Context> context;
+    private final Context context;
 
     private IoController ioController;
     private RoutingTable routingTable;
     private final Instance hostInstance;
 
-    private WeakReference<Delegate> delegate;
-    private WeakReference<InternetRequestDelegate> internetRequestDelegate;
+    private Delegate delegate;
+    private InternetRequestDelegate internetRequestDelegate;
 
     // This identifier is used to give a sequence number to packets as they are
     // being dispatched. The sequence begins in 0 and resets at 65535.
@@ -219,7 +218,7 @@ public class NetworkController implements IoController.Delegate,
 
         this.sequenceGenerator = null;
 
-        this.context = new WeakReference<>(context);
+        this.context = context;
     }
 
     /**
@@ -227,8 +226,9 @@ public class NetworkController implements IoController.Delegate,
      * implementation to check for Internet connectivity.
      * @return The Android environment {@link Context}.
      */
+    @NonNull
     private Context getContext() {
-        return this.context.get();
+        return this.context;
     }
 
     /**
@@ -237,7 +237,7 @@ public class NetworkController implements IoController.Delegate,
      * also be set for the context instance.
      * @return The {@link IoController}.
      */
-    public final IoController getIoController() {
+    public final synchronized IoController getIoController() {
         if (this.ioController == null) {
             this.ioController = new IoController();
             this.ioController.setDelegate(this);
@@ -261,12 +261,12 @@ public class NetworkController implements IoController.Delegate,
     /**
      * Returns a strong reference to the {@link Delegate} instance that is
      * currently receiving delegate notifications. If no delegate has been
-     * registered or if the delegate has been deallocated, this method returns
+     * registered, this method returns
      * null.
      * @return A strong reference to the {@link Delegate}.
      */
     private Delegate getDelegate() {
-        return this.delegate != null ? this.delegate.get() : null;
+        return delegate;
     }
 
     /**
@@ -277,15 +277,15 @@ public class NetworkController implements IoController.Delegate,
      * @param delegate The {@link Delegate} to set.
      */
     public final void setDelegate(Delegate delegate) {
-        this.delegate = new WeakReference<>(delegate);
+        this.delegate = delegate;
     }
 
     private InternetRequestDelegate getInternetRequestDelegate() {
-        return this.internetRequestDelegate != null ? this.internetRequestDelegate.get() : null;
+        return internetRequestDelegate;
     }
 
     public final void setInternetRequestDelegate(InternetRequestDelegate internetRequestDelegate) {
-        this.internetRequestDelegate = new WeakReference<>(internetRequestDelegate);
+        this.internetRequestDelegate = internetRequestDelegate;
     }
 
     /**
@@ -396,7 +396,7 @@ public class NetworkController implements IoController.Delegate,
      * @param context The Android environment context.
      * @return Whether the device is connected to the Internet.
      */
-    private static boolean isNetworkAvailable(Context context) {
+    private static boolean isNetworkAvailable(@NonNull Context context) {
         Timber.d("Checking network availability");
 
         ConnectivityManager cm = (ConnectivityManager)context.getSystemService(Context.CONNECTIVITY_SERVICE);
@@ -500,7 +500,7 @@ public class NetworkController implements IoController.Delegate,
                         "ULX-M is not propagating a link update, the hop count was exceeded (%d/%d) for link %s",
                         hopCount,
                         RoutingTable.MAXIMUM_HOP_COUNT,
-                        link == null ? "(null)" : link.toString()
+                        link
                 );
                 continue;
             }
