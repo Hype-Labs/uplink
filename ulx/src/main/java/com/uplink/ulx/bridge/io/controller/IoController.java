@@ -272,7 +272,10 @@ public class IoController implements InputStream.Delegate,
     public void add(IoPacket ioPacket) {
         final Device device = ioPacket.getDevice();
         if (device == null || device.getOutputStream().getState() != Stream.State.OPEN) {
-            Timber.i("Failed to queue packet [%s]. It does not have an open output stream");
+            Timber.i(
+                    "Failed to queue packet [%s]. It does not have an open output stream",
+                    ioPacket
+            );
             return;
         }
 

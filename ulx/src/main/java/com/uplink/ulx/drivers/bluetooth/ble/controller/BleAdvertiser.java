@@ -1,5 +1,6 @@
 package com.uplink.ulx.drivers.bluetooth.ble.controller;
 
+import android.annotation.SuppressLint;
 import android.annotation.TargetApi;
 import android.bluetooth.BluetoothAdapter;
 import android.bluetooth.BluetoothDevice;
@@ -296,6 +297,7 @@ class BleAdvertiser extends AdvertiserCommons implements
         return deviceRegistry.get(bluetoothDevice);
     }
 
+    @SuppressLint("MissingPermission")
     @Override
     public void requestAdapterToStart() {
 
@@ -303,6 +305,10 @@ class BleAdvertiser extends AdvertiserCommons implements
 
             // Is BLE supported by this device?
             if (getBluetoothLeAdvertiser() == null) {
+                Timber.w(
+                        "Unable to get BLE advertiser. Adapter state: %d",
+                        getBluetoothAdapter().getState()
+                );
                 handleStartUnsupportedTechnology();
                 return;
             }
@@ -713,7 +719,7 @@ class BleAdvertiser extends AdvertiserCommons implements
                 // Register the device
                 deviceRegistry.put(bluetoothDevice, device);
 
-                onDeviceFound(this, device);
+                onDeviceFound(device);
             } // Else the connector has been replaced by another incoming connection. Ignore
         }
     }

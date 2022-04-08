@@ -31,7 +31,6 @@ import androidx.annotation.CallSuper;
 public abstract class AdvertiserCommons implements
         Advertiser,
         Advertiser.StateDelegate,
-        Advertiser.NetworkDelegate,
         Connector.InvalidationCallback {
 
     private final String identifier;
@@ -231,21 +230,11 @@ public abstract class AdvertiserCommons implements
         getStateManager().notifyFailedStart(error);
     }
 
-    @Override
-    public void onDeviceFound(Advertiser advertiser, Device device) {
+    protected void onDeviceFound(Device device) {
         NetworkDelegate networkDelegate = getNetworkDelegate();
         if (networkDelegate != null) {
             networkDelegate.onDeviceFound(this, device);
         }
-    }
-
-    @Override
-    public void onDeviceLost(Advertiser advertiser, Device device, UlxError error) {
-        NetworkDelegate networkDelegate = getNetworkDelegate();
-        if (networkDelegate != null) {
-            networkDelegate.onDeviceLost(this, device, error);
-        }
-
     }
 
     @Override
