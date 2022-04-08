@@ -170,7 +170,7 @@ public class GattClient extends BluetoothGattCallback {
     @GuardedBy("this")
     private Timer connectionTimeout;
 
-    private final WeakReference<Context> context;
+    private final Context context;
 
     public static GattClient newInstance(
             BluetoothDevice bluetoothDevice,
@@ -223,7 +223,7 @@ public class GattClient extends BluetoothGattCallback {
 
         this.domesticService = domesticService;
 
-        this.context = new WeakReference<>(context);
+        this.context = context;
     }
 
     private void initialize() {
@@ -412,7 +412,7 @@ public class GattClient extends BluetoothGattCallback {
      * @return The Android environment Context.
      */
     private Context getContext() {
-        return this.context.get();
+        return this.context;
     }
 
     private synchronized void setConnectionTimeout(BluetoothGatt bluetoothGatt, long timeout) {
