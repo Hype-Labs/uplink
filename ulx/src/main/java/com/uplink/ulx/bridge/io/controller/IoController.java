@@ -270,15 +270,6 @@ public class IoController implements InputStream.Delegate,
      * @param ioPacket The {@link IoPacket} to queue.
      */
     public void add(IoPacket ioPacket) {
-        final Device device = ioPacket.getDevice();
-        if (device == null || device.getOutputStream().getState() != Stream.State.OPEN) {
-            Timber.i(
-                    "Failed to queue packet [%s]. It does not have an open output stream",
-                    ioPacket
-            );
-            return;
-        }
-
         Timber.i("ULX queueing packet %s", ioPacket);
 
         // Queue the packet
@@ -332,7 +323,8 @@ public class IoController implements InputStream.Delegate,
 
                 device = ioPacket.getDevice();
 
-                if (device != null) {
+                if (device != null && device.getOutputStream().getState() == Stream.State.OPEN) {
+                    // Everything's ok, we can leave the loop and proceed with writing
                     break;
                 } else {
                     Timber.e("ULX destination not found");
@@ -354,7 +346,7 @@ public class IoController implements InputStream.Delegate,
         }
 
         // Write to the stream
-        add(ioPacket, device.getOutputStream());
+        write(ioPacket, device.getOutputStream());
     }
 
     /**
@@ -366,7 +358,7 @@ public class IoController implements InputStream.Delegate,
      * @param ioPacket The {@link IoPacket} to encode and send.
      * @param outputStream The {@link OutputStream} to write to.
      */
-    private void add(IoPacket ioPacket, OutputStream outputStream) {
+    private void write(IoPacket ioPacket, OutputStream outputStream) {
 
         Encoder.Result result;
 
