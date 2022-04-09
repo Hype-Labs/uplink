@@ -7,8 +7,8 @@ import com.uplink.ulx.drivers.bluetooth.ble.controller.BleDriver;
 import com.uplink.ulx.drivers.bluetooth.commons.BluetoothPermissionChecker;
 import com.uplink.ulx.utils.StringUtils;
 
-import java.lang.ref.WeakReference;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 
@@ -22,10 +22,8 @@ import java.util.Objects;
  */
 class DriverFactory {
 
-    private List<Driver> allDrivers;
+    private final List<Driver> allDrivers;
     private final Context context;
-    private final WeakReference<Driver.StateDelegate> stateDelegate;
-    private final WeakReference<Driver.NetworkDelegate> networkDelegate;
     private final Compatibility compatibility;
 
     /**
@@ -42,9 +40,48 @@ class DriverFactory {
         Objects.requireNonNull(networkDelegate);
 
         this.context = context;
-        this.stateDelegate = new WeakReference<>(stateDelegate);
-        this.networkDelegate = new WeakReference<>(networkDelegate);
         this.compatibility = new Compatibility(context);
+
+        final List<Driver> driversList = new ArrayList<>();
+
+        int support = TransportType.NONE;
+
+        for (int it = 1; it < TransportType.ALL ; it <<= 1) {
+
+            Driver driver = null;
+
+            // Don't continue if support has already been given
+            if ((it & support) != 0) {
+                continue;
+            }
+
+            // Bluetooth Low Energy
+            if ((it & TransportType.BLUETOOTH_LOW_ENERGY) != 0 && getCompatibility().isCompatible(TransportType.BLUETOOTH_LOW_ENERGY)) {
+                if (BluetoothPermissionChecker.isBleGranted(getContext())) {
+                    driver = BleDriver.newInstance(
+                            StringUtils.generateRandomIdentifier(),
+                            getContext()
+                    );
+                }
+            }
+
+            if (driver != null) {
+
+                // The driver's delegates are propagated to our own
+                driver.setStateDelegate(stateDelegate);
+                driver.setNetworkDelegate(networkDelegate);
+
+                // Keep track of which transport types are already supported
+                // It's notable that a driver may support multiple
+                // transports, in which case driver.getTransportType() will
+                // not equal the "it" iterator
+                support |= driver.getTransportType();
+
+                driversList.add(driver);
+            }
+        }
+
+        allDrivers = Collections.unmodifiableList(driversList);
     }
 
     /**
@@ -68,79 +105,16 @@ class DriverFactory {
     }
 
     /**
-     * Getter for the Driver.StateDelegate instance that will be propagated to
-     * the drivers when those are instantiated. After the drivers are
-     * initialized, this will no longer be used.
-     * @return The Driver.StateDelegate that will be used to initialize drivers.
-     */
-    private Driver.StateDelegate getStateDelegate() {
-        return this.stateDelegate.get();
-    }
-
-    /**
-     * Getter for the Driver.NetworkDelegate instance that will be propagated to
-     * the drivers when those are instantiated. After the drivers are
-     * initialized, this will no longer be used.
-     * @return The NetworkDelegate that will be used to initialize drivers.
-     */
-    private Driver.NetworkDelegate getNetworkDelegate() {
-        return this.networkDelegate.get();
-    }
-
-    /**
      * This method is the main entry point for the factory, since it lazily
      * instantiates and initializes all drivers. It iterates through all
      * transport types and checks whether the each is supported and whether
      * the necessary permissions are in place, in which case a driver will be
      * created for it. These drivers are then stored in the class, preventing
      * any future initializations.
-     * @return A list of supported drivers.
+     * @return An unmodifiable list of supported drivers.
      */
     public List<Driver> getAllDrivers() {
-        if (this.allDrivers == null) {
-            this.allDrivers = new ArrayList<>();
-
-            int support = TransportType.NONE;
-
-            for (int it = 1; it < TransportType.ALL ; it <<= 1) {
-
-                Driver driver = null;
-
-                // Don't continue if support has already been given
-                if ((it & support) != 0) {
-                    continue;
-                }
-
-                // Bluetooth Low Energy
-                if ((it & TransportType.BLUETOOTH_LOW_ENERGY) != 0 && getCompatibility().isCompatible(TransportType.BLUETOOTH_LOW_ENERGY)) {
-                    if (BluetoothPermissionChecker.isBleGranted(getContext())) {
-                        driver = BleDriver.newInstance(
-                                StringUtils.generateRandomIdentifier(),
-                                getContext()
-                        );
-                    }
-                }
-
-                if (driver != null) {
-
-                    Driver.StateDelegate stateDelegate = getStateDelegate();
-                    Driver.NetworkDelegate networkDelegate = getNetworkDelegate();
-
-                    // The driver's delegates are propagated to our own
-                    driver.setStateDelegate(stateDelegate);
-                    driver.setNetworkDelegate(networkDelegate);
-
-                    // Keep track of which transport types are already supported
-                    // It's notable that a driver may support multiple
-                    // transports, in which case driver.getTransportType() will
-                    // not equal the "it" iterator
-                    support |= driver.getTransportType();
-
-                    this.allDrivers.add(driver);
-                }
-            }
-        }
-        return this.allDrivers;
+        return allDrivers;
     }
 
     /**
