@@ -21,6 +21,8 @@ import androidx.annotation.MainThread;
  * as they are found on the network, since all services must match this
  * specification; this is true with BleForeignService, which uses this
  * specification for validation purposes.
+ *
+ * The class is thread-safe
  */
 public class BleDomesticService {
 

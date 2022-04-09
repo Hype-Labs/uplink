@@ -148,13 +148,13 @@ public class GattServer extends BluetoothGattServerCallback {
         );
     }
 
-    private WeakReference<Delegate> delegate;
+    private volatile Delegate delegate;
 
     private final BleDomesticService domesticService;
     private final BluetoothManager bluetoothManager;
     private final WeakReference<Context> context;
 
-    private MtuRegistry mtuRegistry;
+    private final MtuRegistry mtuRegistry;
 
     private BluetoothGattServer bluetoothGattServer;
 
@@ -177,7 +177,7 @@ public class GattServer extends BluetoothGattServerCallback {
         this.bluetoothManager = bluetoothManager;
         this.context = new WeakReference<>(context);
 
-        this.mtuRegistry = null;
+        this.mtuRegistry = new MtuRegistry();
     }
 
     /**
@@ -212,9 +212,6 @@ public class GattServer extends BluetoothGattServerCallback {
      * @return The MTU registry.
      */
     private MtuRegistry getMtuRegistry() {
-        if (this.mtuRegistry == null) {
-            this.mtuRegistry = new MtuRegistry();
-        }
         return this.mtuRegistry;
     }
 
@@ -225,7 +222,7 @@ public class GattServer extends BluetoothGattServerCallback {
      * to listen to GATT server events, as return by getGattServerCallback().
      * @return The BluetoothGatServer GATT server handler instance.
      */
-    private BluetoothGattServer getBluetoothGattServer() {
+    private synchronized BluetoothGattServer getBluetoothGattServer() {
         if (this.bluetoothGattServer == null) {
             this.bluetoothGattServer = getBluetoothManager().openGattServer(
                     getContext(),
@@ -243,7 +240,7 @@ public class GattServer extends BluetoothGattServerCallback {
      * @see Delegate
      */
     public final void setDelegate(Delegate delegate) {
-        this.delegate = new WeakReference<>(delegate);
+        this.delegate = delegate;
     }
 
     /**
@@ -252,7 +249,7 @@ public class GattServer extends BluetoothGattServerCallback {
      * @return The Delegate currently subscribed to GattServer notifications.
      */
     private Delegate getDelegate() {
-        return this.delegate != null ? this.delegate.get() : null;
+        return delegate;
     }
 
     /**
