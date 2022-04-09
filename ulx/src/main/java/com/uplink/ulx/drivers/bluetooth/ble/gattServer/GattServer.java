@@ -17,11 +17,9 @@ import android.os.Looper;
 import com.uplink.ulx.UlxError;
 import com.uplink.ulx.UlxErrorCode;
 import com.uplink.ulx.drivers.bluetooth.ble.model.domestic.BleDomesticService;
-import com.uplink.ulx.drivers.model.Device;
 import com.uplink.ulx.threading.Dispatch;
 
 import java.lang.ref.WeakReference;
-import java.util.HashMap;
 import java.util.Objects;
 
 import timber.log.Timber;
@@ -157,7 +155,6 @@ public class GattServer extends BluetoothGattServerCallback {
     private final WeakReference<Context> context;
 
     private MtuRegistry mtuRegistry;
-    private HashMap<String, Device> deviceRegistry;
 
     private BluetoothGattServer bluetoothGattServer;
 
@@ -219,20 +216,6 @@ public class GattServer extends BluetoothGattServerCallback {
             this.mtuRegistry = new MtuRegistry();
         }
         return this.mtuRegistry;
-    }
-
-    /**
-     * Returns the registry that is used to keep track of devices on the
-     * network. This will map native device addresses to abstract {@link Device}
-     * instances, effectively bridging the native and framework device
-     * abstractions.
-     * @return The registry used to bridge native and abstract devices.
-     */
-    private HashMap<String, Device> getDeviceRegistry() {
-        if (this.deviceRegistry == null) {
-            this.deviceRegistry = new HashMap<>();
-        }
-        return this.deviceRegistry;
     }
 
     /**
