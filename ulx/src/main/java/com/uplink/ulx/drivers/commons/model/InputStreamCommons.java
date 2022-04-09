@@ -3,8 +3,6 @@ package com.uplink.ulx.drivers.commons.model;
 import com.uplink.ulx.drivers.model.InputStream;
 import com.uplink.ulx.drivers.model.IoResult;
 
-import java.lang.ref.WeakReference;
-
 import timber.log.Timber;
 
 /**
@@ -16,8 +14,12 @@ import timber.log.Timber;
  */
 public abstract class InputStreamCommons extends StreamCommons implements InputStream {
 
-    private WeakReference<Delegate> delegate;
-    private Buffer buffer;
+    private volatile Delegate delegate;
+    /**
+     * The buffer that is used by the stream to queue content that is received while it is not read
+     * by the implementation.
+     */
+    private final Buffer buffer;
 
     /**
      * Constructor. Initializes with the given arguments.
@@ -33,19 +35,7 @@ public abstract class InputStreamCommons extends StreamCommons implements InputS
         super(identifier, transportType, reliable);
 
         this.delegate = null;
-        this.buffer = null;
-    }
-
-    /**
-     * Returns the buffer that is used by the stream to queue content that is
-     * received while it is not read by the implementation.
-     * @return The stream's buffer.
-     */
-    private Buffer getBuffer() {
-        if (this.buffer == null) {
-            this.buffer = new Buffer(0);
-        }
-        return this.buffer;
+        this.buffer = new Buffer(0);
     }
 
     /**
@@ -69,9 +59,9 @@ public abstract class InputStreamCommons extends StreamCommons implements InputS
         boolean isDataAvailableNeeded;
 
         // Append the data
-        synchronized (getBuffer().getLock()) {
-            isDataAvailableNeeded = getBuffer().isEmpty();
-            getBuffer().append(data);
+        synchronized (buffer.getLock()) {
+            isDataAvailableNeeded = this.buffer.isEmpty();
+            this.buffer.append(data);
         }
 
         // Propagate the onDataAvailable() event, if needed
@@ -82,12 +72,12 @@ public abstract class InputStreamCommons extends StreamCommons implements InputS
 
     @Override
     public void setDelegate(InputStream.Delegate delegate) {
-        this.delegate = new WeakReference<>(delegate);
+        this.delegate = delegate;
     }
 
     @Override
     public final InputStream.Delegate getDelegate() {
-        return delegate != null ? delegate.get() : null;
+        return delegate;
     }
 
     @Override
@@ -108,8 +98,8 @@ public abstract class InputStreamCommons extends StreamCommons implements InputS
         int byteCount;
 
         // Consume the data
-        synchronized (getBuffer().getLock()) {
-            byteCount = getBuffer().consume(buffer);
+        synchronized (this.buffer.getLock()) {
+            byteCount = this.buffer.consume(buffer);
         }
 
         return new IoResult(byteCount, null);

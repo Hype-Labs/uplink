@@ -1,14 +1,11 @@
 package com.uplink.ulx.drivers.commons.model;
 
-import java.util.concurrent.locks.Lock;
-import java.util.concurrent.locks.ReentrantLock;
-
 public class Buffer {
 
     private final int initialCapacity;
     private int occupiedByteCount;
     private byte[] data;
-    private Lock lock;
+    private Object lock;
 
     /**
      * Constructor. Initializes the buffer by allocating the given initial
@@ -88,9 +85,9 @@ public class Buffer {
      * will guarantee that buffer operations do not overlap.
      * @return The buffer lock.
      */
-    public synchronized final Lock getLock() {
+    public synchronized final Object getLock() {
         if (this.lock == null) {
-            this.lock = new ReentrantLock();
+            this.lock = new Object();
         }
         return this.lock;
     }
