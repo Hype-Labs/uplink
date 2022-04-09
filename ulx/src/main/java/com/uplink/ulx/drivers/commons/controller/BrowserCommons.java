@@ -10,9 +10,7 @@ import com.uplink.ulx.drivers.model.Device;
 import com.uplink.ulx.utils.SetOnceRef;
 
 import java.lang.ref.WeakReference;
-import java.util.List;
 import java.util.Objects;
-import java.util.Vector;
 
 import timber.log.Timber;
 
@@ -42,7 +40,6 @@ public abstract class BrowserCommons implements
     private volatile Browser.Delegate delegate;
     private volatile Browser.StateDelegate stateDelegate;
     private volatile Browser.NetworkDelegate networkDelegate;
-    private final List<Connector> activeConnectors;
 
     /**
      * Constructor. Initializes with the given arguments.
@@ -59,7 +56,6 @@ public abstract class BrowserCommons implements
         this.stateManager = new SetOnceRef<>();
         this.transportType = transportType;
         this.context = new WeakReference<>(context);
-        this.activeConnectors = new Vector<>();
     }
     
     protected void initialize() {
@@ -197,32 +193,6 @@ public abstract class BrowserCommons implements
     @Override
     public final int getTransportType() {
         return this.transportType;
-    }
-
-    private List<Connector> getActiveConnectors() {
-        return this.activeConnectors;
-    }
-
-    @Override
-    public boolean hasActiveConnectors() {
-        return !getActiveConnectors().isEmpty();
-    }
-
-    /**
-     * Adds a {@link Connector} as being active. This will be kept until the
-     * {@link Connector} notifies an invalidation or disconnection.
-     * @param connector The {@link Connector} to add as active.
-     */
-    protected final void addActiveConnector(Connector connector) {
-        getActiveConnectors().add(connector);
-    }
-
-    /**
-     * Removes a {@link Connector} from the list of active connectors.
-     * @param connector The {@link Connector} to remove.
-     */
-    protected final void removeActiveConnector(Connector connector) {
-        getActiveConnectors().remove(connector);
     }
 
     @Override

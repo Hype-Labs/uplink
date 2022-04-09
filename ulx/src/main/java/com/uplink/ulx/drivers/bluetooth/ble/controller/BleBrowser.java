@@ -40,15 +40,14 @@ import com.uplink.ulx.utils.StringUtils;
 
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.Deque;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
-import java.util.Map;
 import java.util.Objects;
 import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedDeque;
+import java.util.concurrent.ConcurrentMap;
 
 import androidx.annotation.MainThread;
 import androidx.annotation.NonNull;
@@ -65,7 +64,7 @@ class BleBrowser extends BrowserCommons implements
     private ScanSettings.Builder bluetoothLeBrowsingSettings;
     private final BleDomesticService domesticService;
 
-    private ArrayList<ScanFilter> scanFilters;
+    private List<ScanFilter> scanFilters;
     private final ScanCallback scanCallback;
 
     /**
@@ -73,13 +72,13 @@ class BleBrowser extends BrowserCommons implements
      * devices that have been found by the implementation. This will prevent devices from being
      * found multiples times.
      */
-    private final Map<String, BluetoothDevice> knownDevices;
+    private final ConcurrentMap<String, BluetoothDevice> knownDevices;
     /**
      * Connector queue, which holds connections that are pending. These connections will be
      * dispatched in sequence, in the same order in which the devices are seen on the network.
      */
     private final Deque<Connector> connectorQueue;
-    private Connector currentConnector;
+    private volatile Connector currentConnector;
 
     /**
      * The BLEScannerCallback implements the Bluetooth LE scan callbacks that
@@ -89,7 +88,7 @@ class BleBrowser extends BrowserCommons implements
 
         @Override
         public void onScanResult(int callbackType, final ScanResult scanResult) {
-            if (BleBrowser.this.knownDevices.get(scanResult.getDevice().getAddress()) != null) {
+            if (knownDevices.containsKey(scanResult.getDevice().getAddress())) {
                 //Log.i(getClass().getCanonicalName(), String.format("ULX BLE browser ignoring device %s because it's already known", scanResult.getDevice().getAddress()));
                 return;
             }
@@ -191,7 +190,7 @@ class BleBrowser extends BrowserCommons implements
 
         this.scanCallback = new BLEScannerCallback();
 
-        this.knownDevices = Collections.synchronizedMap(new HashMap<>());
+        this.knownDevices = new ConcurrentHashMap<>();
 
         this.connectorQueue = new ConcurrentLinkedDeque<>();
         this.currentConnector = null;
@@ -477,16 +476,12 @@ class BleBrowser extends BrowserCommons implements
     private void handleDeviceFound(BluetoothDevice bluetoothDevice, ScanRecord scanRecord) {
         //Log.i(BleBrowser.this.getClass().getCanonicalName(), String.format("ULX BLE browser found native device %s", bluetoothDevice.getAddress()));
 
-        synchronized (knownDevices) {
-            // Was the bluetoothDevice already seen?
-            if (this.knownDevices.get(bluetoothDevice.getAddress()) != null) {
-                //Log.i(getClass().getCanonicalName(), String.format("ULX BLE browser ignoring device %s because it's already known", bluetoothDevice.getAddress()));
-                return;
-            }
-
-            // Add to the registry
-            this.knownDevices.put(bluetoothDevice.getAddress(), bluetoothDevice);
+        // Do not proceed if the address was already registered
+        if (this.knownDevices.putIfAbsent(bluetoothDevice.getAddress(), bluetoothDevice) != null) {
+            //Log.i(getClass().getCanonicalName(), String.format("ULX BLE browser ignoring device %s because it's already known", bluetoothDevice.getAddress()));
+            return;
         }
+
         Timber.d("Device %s added to registry", bluetoothDevice.getAddress());
 
         // Is the record found by the scanner publishing the expected service?
@@ -716,13 +711,14 @@ class BleBrowser extends BrowserCommons implements
     @Override
     public void onInvalidation(Connector connector, UlxError error) {
         connector.removeInvalidationCallback(this);
-        removeActiveConnector(connector);
     }
 
     @Override
     public void onAdapterEnabled(BluetoothStateListener bluetoothStateListener) {
         if (getState() != Browser.State.RUNNING) {
             onReady();
+            // If adapter is restarted, it might have pending connections
+            attemptConnection();
         }
     }
 
@@ -762,9 +758,6 @@ class BleBrowser extends BrowserCommons implements
         );
 
         Dispatch.post(() -> {
-
-            // This connector is now active
-            addActiveConnector(connector);
 
             // Dequeue another connector, in case any is waiting
             setCurrentConnector(null);
@@ -849,9 +842,6 @@ class BleBrowser extends BrowserCommons implements
                 connector.getIdentifier()
         );
 
-        // The connector is no longer active
-        removeActiveConnector(connector);
-
         if (connector instanceof BleForeignConnector) {
             final String address = ((BleForeignConnector) connector).getGattClient().getBluetoothDevice().getAddress();
 
@@ -875,7 +865,6 @@ class BleBrowser extends BrowserCommons implements
         // connection should be retried
         this.knownDevices.remove(bluetoothDevice.getAddress());
         Timber.d("Device %s removed from registry", bluetoothDevice.getAddress());
-        removeActiveConnector(connector);   // Shouldn't matter
 
         // Free the queue
         setCurrentConnector(null);

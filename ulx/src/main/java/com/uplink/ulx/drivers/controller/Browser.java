@@ -3,7 +3,6 @@ package com.uplink.ulx.drivers.controller;
 import android.content.Context;
 
 import com.uplink.ulx.UlxError;
-import com.uplink.ulx.drivers.model.Connector;
 import com.uplink.ulx.drivers.model.Device;
 
 /**
@@ -328,12 +327,4 @@ public interface Browser {
      * having previously started.
      */
     void destroy();
-
-    /**
-     * Checks whether the {@link Browser} has active connector.
-     * An active {@link Connector} is one with state {@link
-     * Connector.State#CONNECTED}.
-     * @return whether the {@link Browser} has active connectors
-     */
-    boolean hasActiveConnectors();
 }
