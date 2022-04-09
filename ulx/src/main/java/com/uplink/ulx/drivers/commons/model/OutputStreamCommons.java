@@ -7,7 +7,7 @@ import com.uplink.ulx.drivers.model.OutputStream;
 import com.uplink.ulx.threading.Dispatch;
 
 import java.util.List;
-import java.util.Vector;
+import java.util.concurrent.CopyOnWriteArrayList;
 
 import androidx.annotation.MainThread;
 import timber.log.Timber;
@@ -21,7 +21,7 @@ import timber.log.Timber;
  */
 public abstract class OutputStreamCommons extends StreamCommons implements OutputStream {
 
-    private List<Callback> callbacks;
+    private final List<Callback> callbacks;
     private Buffer buffer;
 
     /**
@@ -37,7 +37,7 @@ public abstract class OutputStreamCommons extends StreamCommons implements Outpu
     ) {
         super(identifier, transportType, reliable);
 
-        this.callbacks = null;
+        this.callbacks = new CopyOnWriteArrayList<>();
         this.buffer = null;
     }
 
@@ -55,23 +55,12 @@ public abstract class OutputStreamCommons extends StreamCommons implements Outpu
 
     @Override
     public final void addCallback(Callback callback) {
-        synchronized (this) {
-            if (callbacks == null) {
-                callbacks = new Vector<>();
-            }
-        }
         callbacks.add(callback);
     }
 
     @Override
     public void removeCallback(Callback callback) {
-        if (callbacks != null) {
-            callbacks.remove(callback);
-        }
-    }
-
-    private List<Callback> getCallbacks() {
-        return callbacks;
+        callbacks.remove(callback);
     }
 
     protected void onSpaceAvailable() {
@@ -90,11 +79,8 @@ public abstract class OutputStreamCommons extends StreamCommons implements Outpu
     }
 
     private void notifyHasSpaceAvailable() {
-        List<Callback> callbacks = this.getCallbacks();
-        if (callbacks != null) {
-            for (Callback callback : callbacks) {
-                callback.onSpaceAvailable(this);
-            }
+        for (Callback callback : callbacks) {
+            callback.onSpaceAvailable(this);
         }
     }
 
