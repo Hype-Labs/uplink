@@ -4,7 +4,6 @@ import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.IntentFilter;
 
-import java.lang.ref.WeakReference;
 import java.util.Objects;
 
 /**
@@ -16,8 +15,8 @@ import java.util.Objects;
  */
 public abstract class AbstractStateListener {
 
-    private WeakReference<Context> context;
-    private boolean registered;
+    private volatile Context context;
+    private volatile boolean registered;
 
     /**
      * Constructor. Initializes the AbstractStateListener as not having
@@ -34,7 +33,7 @@ public abstract class AbstractStateListener {
      * @return The Android environment Context.
      */
     private Context getContext() {
-        return this.context.get();
+        return this.context;
     }
 
     /**
@@ -64,7 +63,7 @@ public abstract class AbstractStateListener {
         }
 
         this.registered = true;
-        this.context = new WeakReference<>(context);
+        this.context = context;
 
         getContext().registerReceiver(getBroadcastReceiver(), getIntentFilter());
     }
