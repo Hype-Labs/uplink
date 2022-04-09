@@ -13,6 +13,7 @@ import android.content.Context;
 import android.os.Build;
 import android.os.Handler;
 import android.os.Looper;
+import android.os.SystemClock;
 
 import com.uplink.ulx.UlxError;
 import com.uplink.ulx.UlxErrorCode;
@@ -602,11 +603,7 @@ public class GattClient extends BluetoothGattCallback {
             // this sleep is here to avoid TONS of problems in BLE, that occur
             // whenever we start service discovery immediately after the
             // connection is established
-            try {
-                Thread.sleep(600);
-            } catch (InterruptedException e) {
-                e.printStackTrace();
-            }
+            SystemClock.sleep(600);
 
             getStateManager().notifyStart();
         } else { // As per documentation, the other possibility is only BluetoothProfile.STATE_DISCONNECTED
