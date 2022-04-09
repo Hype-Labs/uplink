@@ -6,10 +6,9 @@ import com.uplink.ulx.drivers.model.Stream;
 import com.uplink.ulx.utils.SetOnceRef;
 
 import java.lang.ref.WeakReference;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
-import java.util.Vector;
+import java.util.concurrent.CopyOnWriteArrayList;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
@@ -40,7 +39,7 @@ public abstract class StreamCommons implements
     private final boolean reliable;
     private final SetOnceRef<StateManager> stateManager;
     private WeakReference<StateDelegate> stateDelegate;
-    private List<InvalidationCallback> invalidationCallbacks;
+    private final List<InvalidationCallback> invalidationCallbacks;
 
     /**
      * Constructor. Initializes with the given arguments.
@@ -56,6 +55,7 @@ public abstract class StreamCommons implements
         this.stateManager = new SetOnceRef<>();
         this.transportType = transportType;
         this.reliable = reliable;
+        this.invalidationCallbacks = new CopyOnWriteArrayList<>();
     }
     
     protected void initialize() {
@@ -186,24 +186,17 @@ public abstract class StreamCommons implements
 
     @Nullable
     protected List<InvalidationCallback> getInvalidationCallbacks() {
-        return invalidationCallbacks != null ? new ArrayList<>(invalidationCallbacks) : null;
+        return invalidationCallbacks;
     }
 
     @Override
     public void addInvalidationCallback(InvalidationCallback invalidationCallback) {
-        synchronized (this) {
-            if (invalidationCallbacks == null) {
-                invalidationCallbacks = new Vector<>();
-            }
-        }
         invalidationCallbacks.add(invalidationCallback);
     }
 
     @Override
     public void removeInvalidationCallback(InvalidationCallback invalidationCallback) {
-        if (invalidationCallbacks != null) {
-            invalidationCallbacks.remove(invalidationCallback);
-        }
+        invalidationCallbacks.remove(invalidationCallback);
     }
 
     @Override
