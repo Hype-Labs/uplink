@@ -9,7 +9,6 @@ import com.uplink.ulx.drivers.model.Connector;
 import com.uplink.ulx.drivers.model.Device;
 import com.uplink.ulx.utils.SetOnceRef;
 
-import java.lang.ref.WeakReference;
 import java.util.Objects;
 
 import androidx.annotation.CallSuper;
@@ -36,10 +35,10 @@ public abstract class AdvertiserCommons implements
     private final String identifier;
     private final SetOnceRef<StateManager> stateManager;
     private final int transportType;
-    private final WeakReference<Context> context;
-    private WeakReference<Delegate> delegate;
-    private WeakReference<StateDelegate> stateDelegate;
-    private WeakReference<NetworkDelegate> networkDelegate;
+    private final Context context;
+    private volatile Delegate delegate;
+    private volatile StateDelegate stateDelegate;
+    private volatile NetworkDelegate networkDelegate;
 
     /**
      * Constructor. Initializes with the given arguments.
@@ -55,7 +54,7 @@ public abstract class AdvertiserCommons implements
         this.identifier = identifier;
         this.stateManager = new SetOnceRef<>();
         this.transportType = transportType;
-        this.context = new WeakReference<>(context);
+        this.context = context;
     }
 
     @CallSuper
@@ -162,43 +161,43 @@ public abstract class AdvertiserCommons implements
 
     @Override
     public void setDelegate(Delegate delegate) {
-        this.delegate = new WeakReference<>(delegate);
+        this.delegate = delegate;
     }
 
     @Override
     public Delegate getDelegate() {
-        return this.delegate != null ? this.delegate.get() : null;
+        return this.delegate;
     }
 
     @Override
     public final void setStateDelegate(StateDelegate stateDelegate) {
-        this.stateDelegate = new WeakReference<>(stateDelegate);
+        this.stateDelegate = stateDelegate;
     }
 
     @Override
     public final StateDelegate getStateDelegate() {
         if (this.stateDelegate != null) {
-            return this.stateDelegate.get();
+            return this.stateDelegate;
         }
         return null;
     }
 
     @Override
     public final void setNetworkDelegate(NetworkDelegate networkDelegate) {
-        this.networkDelegate = new WeakReference<>(networkDelegate);
+        this.networkDelegate = networkDelegate;
     }
 
     @Override
     public final NetworkDelegate getNetworkDelegate() {
         if (this.networkDelegate != null) {
-            return this.networkDelegate.get();
+            return this.networkDelegate;
         }
         return null;
     }
 
     @Override
     public final Context getContext() {
-        return this.context.get();
+        return this.context;
     }
 
     @Override
