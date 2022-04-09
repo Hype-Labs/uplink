@@ -99,7 +99,7 @@ public class BluetoothBroadcastReceiver extends BroadcastReceiver {
      * @return The BroadcastReceiverDelegate.
      * @see BroadcastReceiverDelegate
      */
-    public final BroadcastReceiverDelegate getDelegate() {
+    private BroadcastReceiverDelegate getDelegate() {
         return this.delegate.get();
     }
 

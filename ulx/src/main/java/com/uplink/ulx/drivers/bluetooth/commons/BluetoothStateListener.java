@@ -4,13 +4,10 @@ import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.IntentFilter;
 
-import com.uplink.ulx.TransportType;
 import com.uplink.ulx.drivers.commons.AbstractStateListener;
 import com.uplink.ulx.drivers.commons.BroadcastReceiverDelegate;
-import com.uplink.ulx.threading.ExecutorPool;
 
-import java.util.ArrayList;
-import java.util.List;
+import java.util.concurrent.CopyOnWriteArrayList;
 
 /**
  * This class is shared by all Bluetooth implementations (Bluetooth Classic and
@@ -51,11 +48,22 @@ public class BluetoothStateListener extends AbstractStateListener implements Bro
         void onAdapterDisabled(BluetoothStateListener bluetoothStateListener);
     }
 
-    private List<Observer> observers;
-    private static BluetoothStateListener instance;
+    /**
+     * The list of Observers that are currently getting notifications for adapter state change
+     * events from this class.
+     */
+    private final CopyOnWriteArrayList<Observer> observers;
     private BluetoothBroadcastReceiver bluetoothBroadcastReceiver;
 
     private static final String BLUETOOTH_ADAPTER_STATUS_ACTION_STATE_CHANGED = "android.bluetooth.adapter.action.STATE_CHANGED";
+
+    private static class Holder {
+        private static final BluetoothStateListener instance = new BluetoothStateListener();
+    }
+
+    private BluetoothStateListener() {
+        observers = new CopyOnWriteArrayList<>();
+    }
 
     /**
      * Private accessor prevents direct instantiation. This class is to be
@@ -63,22 +71,7 @@ public class BluetoothStateListener extends AbstractStateListener implements Bro
      * @return The singleton instance.
      */
     private static BluetoothStateListener getInstance() {
-        if (instance == null) {
-            instance = new BluetoothStateListener();
-        }
-        return instance;
-    }
-
-    /**
-     * Returns the list of Observers that are currently getting notifications
-     * for adapter state change events from this class.
-     * @return A list of Observers.
-     */
-    private List<Observer> getObservers() {
-        if (this.observers == null) {
-            this.observers = new ArrayList<>();
-        }
-        return this.observers;
+        return Holder.instance;
     }
 
     /**
@@ -109,10 +102,7 @@ public class BluetoothStateListener extends AbstractStateListener implements Bro
      * @see Observer
      */
     public static void addObserver(Observer observer) {
-        if (getInstance().getObservers().contains(observer)) {
-            return;
-        }
-        getInstance().getObservers().add(observer);
+        getInstance().observers.addIfAbsent(observer);
     }
 
     /**
@@ -123,7 +113,7 @@ public class BluetoothStateListener extends AbstractStateListener implements Bro
      * @see Observer
      */
     public static void removeObserver(Observer observer) {
-        getInstance().getObservers().remove(observer);
+        getInstance().observers.remove(observer);
     }
 
     @Override
@@ -141,14 +131,14 @@ public class BluetoothStateListener extends AbstractStateListener implements Bro
 
     @Override
     public void onAdapterEnabled(BroadcastReceiver broadcastReceiver) {
-        for (final Observer observer : getObservers()) {
+        for (final Observer observer : observers) {
             observer.onAdapterEnabled(BluetoothStateListener.this);
         }
     }
 
     @Override
     public void onAdapterDisabled(BroadcastReceiver broadcastReceiver) {
-        for (final Observer observer : getObservers()) {
+        for (final Observer observer : observers) {
             observer.onAdapterDisabled(BluetoothStateListener.this);
         }
     }
