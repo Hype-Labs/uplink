@@ -447,13 +447,9 @@ public class NetworkController implements IoController.Delegate,
             return 0;
         }
 
-        Link link = getRoutingTable().getBestInternetLink(null);
+        final Link link = getRoutingTable().getBestInternetLink(null);
 
-        if (link == null) {
-            return RoutingTable.HOP_COUNT_INFINITY;
-        }
-
-        return link.getHopCount();
+        return link != null ? link.getHopCount() : RoutingTable.HOP_COUNT_INFINITY;
     }
 
     /**
@@ -492,7 +488,7 @@ public class NetworkController implements IoController.Delegate,
             assert !link.getNextHop().getIdentifier().equals(device.getIdentifier());
 
             int hopCount = Math.min(link.getHopCount() + 1, RoutingTable.HOP_COUNT_INFINITY);
-            int internetHopCount = Math.min(link.getInternetHopCount() + 1, RoutingTable.HOP_COUNT_INFINITY);
+            final int internetHopCount = getInternetHopCount() + 1;
 
             // Don't propagate events that reach the maximum number of hops
             if (hopCount >= RoutingTable.MAXIMUM_HOP_COUNT) {
@@ -1183,7 +1179,7 @@ public class NetworkController implements IoController.Delegate,
         assert link != null;
 
         int hopCount = Math.min(link.getHopCount() + 1, RoutingTable.HOP_COUNT_INFINITY);
-        int internetHopCount = Math.min(link.getInternetHopCount() + 1, RoutingTable.HOP_COUNT_INFINITY);
+        int internetHopCount = getInternetHopCount() + 1;
 
         Timber.i("ULX-M is propagating link update %s", link.toString());
 
@@ -1206,22 +1202,20 @@ public class NetworkController implements IoController.Delegate,
             RoutingTable routingTable,
             Device bestLinkDevice,
             Instance destination,
-            int hopCount,
-            int internetHopCount
+            int hopCount
     ) {
         Timber.i(
                 "Sending split-horizon update to %s regarding instance %s. Hop count: %d. Internet hop count: %d",
                 bestLinkDevice.getIdentifier(),
                 destination,
-                hopCount,
-                internetHopCount
+                hopCount
         );
         
         final UpdatePacket updatePacket = new UpdatePacket(
                 getSequenceGenerator().generate(),
                 destination,
                 hopCount,
-                internetHopCount
+                getInternetHopCount() + 1
         );
 
         scheduleUpdatePacketForDevice(updatePacket, bestLinkDevice);

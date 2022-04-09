@@ -95,18 +95,16 @@ public class RoutingTable {
          * cases where a secondBestLink degradation took place. The goal is to notify the
          * bestLinkDevice about how we would reach the given instance and internet otherwise
          *
-         * @param routingTable     The {@link RoutingTable} issuing the notification.
-         * @param bestLinkDevice   The receiver of the update
-         * @param destination      The destination at hand
-         * @param hopCount         Hop count needed to reach the destination
-         * @param internetHopCount Hop count needed to reach the internet
+         * @param routingTable   The {@link RoutingTable} issuing the notification.
+         * @param bestLinkDevice The receiver of the update
+         * @param destination    The destination at hand
+         * @param hopCount       Hop count needed to reach the destination
          */
         void onSplitHorizonLinkUpdate(
                 RoutingTable routingTable,
                 Device bestLinkDevice,
                 Instance destination,
-                int hopCount,
-                int internetHopCount
+                int hopCount
         );
     }
 
@@ -538,13 +536,11 @@ public class RoutingTable {
             // Tell the split horizon about how we would reach the instance without him
             final Device splitHorizon = newBestLink.getNextHop();
             final Link secondBestLink = getBestLink(instance, splitHorizon);
-            final Link bestInternetLink = getBestInternetLink(splitHorizon);
             // TODO skip this step where the update wouldn't actually be an update for the split-horizon
             notifySplitHorizonUpdate(
                     splitHorizon,
                     instance,
-                    secondBestLink != null ? secondBestLink.getHopCount() + 1 : HOP_COUNT_INFINITY,
-                    bestInternetLink != null ? bestInternetLink.getInternetHopCount() + 1 : HOP_COUNT_INFINITY
+                    secondBestLink != null ? secondBestLink.getHopCount() + 1 : HOP_COUNT_INFINITY
             );
         }
     }
@@ -698,23 +694,23 @@ public class RoutingTable {
     /**
      * Propagates a {@link Delegate} notification for the destination's reachability in absence of
      * the split horizon
-     *
-     * @param device           the device with the best link. This is the receiver for the update
+     *  @param device           the device with the best link. This is the receiver for the update
      * @param destination      the subject instance
      * @param hopCount         the minimum hop count to the instance if we can't reach the split
-     *                         horizon
-     * @param internetHopCount the minimum hop count to internet if we can't reach the split
-     *                         horizon
+ *                         horizon
      */
-    private void notifySplitHorizonUpdate(@NonNull Device device, Instance destination, int hopCount, int internetHopCount) {
+    private void notifySplitHorizonUpdate(
+            @NonNull Device device,
+            Instance destination,
+            int hopCount
+    ) {
         final Delegate delegate = getDelegate();
         if (delegate != null) {
             delegate.onSplitHorizonLinkUpdate(
                     this,
                     device,
                     destination,
-                    hopCount,
-                    internetHopCount
+                    hopCount
             );
         }
     }
