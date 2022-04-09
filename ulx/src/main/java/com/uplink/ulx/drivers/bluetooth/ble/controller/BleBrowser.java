@@ -24,10 +24,10 @@ import com.uplink.ulx.drivers.bluetooth.ble.gattClient.GattClient;
 import com.uplink.ulx.drivers.bluetooth.ble.model.BleChannel;
 import com.uplink.ulx.drivers.bluetooth.ble.model.BleDevice;
 import com.uplink.ulx.drivers.bluetooth.ble.model.BleTransport;
-import com.uplink.ulx.drivers.bluetooth.ble.model.domestic.BleDomesticService;
-import com.uplink.ulx.drivers.bluetooth.ble.model.foreign.BleForeignConnector;
-import com.uplink.ulx.drivers.bluetooth.ble.model.foreign.BleForeignInputStream;
-import com.uplink.ulx.drivers.bluetooth.ble.model.foreign.BleForeignOutputStream;
+import com.uplink.ulx.drivers.bluetooth.ble.model.active.BleActiveConnector;
+import com.uplink.ulx.drivers.bluetooth.ble.model.active.BleActiveInputStream;
+import com.uplink.ulx.drivers.bluetooth.ble.model.active.BleActiveOutputStream;
+import com.uplink.ulx.drivers.bluetooth.ble.model.passive.BleDomesticService;
 import com.uplink.ulx.drivers.bluetooth.commons.BluetoothPermissionChecker;
 import com.uplink.ulx.drivers.bluetooth.commons.BluetoothStateListener;
 import com.uplink.ulx.drivers.commons.controller.BrowserCommons;
@@ -614,7 +614,7 @@ class BleBrowser extends BrowserCommons implements
         );
 
         // Create the connector
-        Connector connector = BleForeignConnector.newInstance(
+        Connector connector = BleActiveConnector.newInstance(
                 UUID.randomUUID().toString(),
                 gattClient
         );
@@ -763,7 +763,7 @@ class BleBrowser extends BrowserCommons implements
             setCurrentConnector(null);
             attemptConnection();
 
-            BleDevice device = createDevice((BleForeignConnector)connector);
+            BleDevice device = createDevice((BleActiveConnector)connector);
 
             // Propagate to the delegate
             super.onDeviceFound(this, device);
@@ -772,13 +772,13 @@ class BleBrowser extends BrowserCommons implements
 
     /**
      * This method is a Device factory that creates a BleDevice from a
-     * BleForeignConnector. The connector is expected to already have connected
+     * BleActiveConnector. The connector is expected to already have connected
      * to the remote peer, since that's a precondition to create the streams.
      * @param connector The connector to the remote device.
      * @return An umbrella BleDevice instance corresponds to the given connector.
      */
     @MainThread
-    private BleDevice createDevice(BleForeignConnector connector) {
+    private BleDevice createDevice(BleActiveConnector connector) {
 
         // Common stuff being initialized here...
         String identifier = connector.getIdentifier();
@@ -797,14 +797,14 @@ class BleBrowser extends BrowserCommons implements
         BluetoothGattCharacteristic physicalReliableInputCharacteristic = foreignService.getCharacteristic(reliableInputCharacteristic.getUuid());
 
         // Create the input stream
-        BleForeignInputStream inputStream = BleForeignInputStream.newInstance(
+        BleActiveInputStream inputStream = BleActiveInputStream.newInstance(
                 identifier,
                 gattClient,
                 physicalReliableOutputCharacteristic
         );
 
         // Create the output stream
-        BleForeignOutputStream outputStream = BleForeignOutputStream.newInstance(
+        BleActiveOutputStream outputStream = BleActiveOutputStream.newInstance(
                 identifier,
                 gattClient,
                 physicalReliableInputCharacteristic
@@ -842,8 +842,8 @@ class BleBrowser extends BrowserCommons implements
                 connector.getIdentifier()
         );
 
-        if (connector instanceof BleForeignConnector) {
-            final String address = ((BleForeignConnector) connector).getGattClient().getBluetoothDevice().getAddress();
+        if (connector instanceof BleActiveConnector) {
+            final String address = ((BleActiveConnector) connector).getGattClient().getBluetoothDevice().getAddress();
 
             // Remove the device from the list, so that we can connect to it again in the future
             this.knownDevices.remove(address);
@@ -858,8 +858,8 @@ class BleBrowser extends BrowserCommons implements
                 connector.getState().toString()
         );
 
-        BleForeignConnector bleForeignConnector = (BleForeignConnector)connector;
-        BluetoothDevice bluetoothDevice = bleForeignConnector.getGattClient().getBluetoothDevice();
+        BleActiveConnector bleActiveConnector = (BleActiveConnector)connector;
+        BluetoothDevice bluetoothDevice = bleActiveConnector.getGattClient().getBluetoothDevice();
 
         // Remove from the registry; when the device is seen again, the
         // connection should be retried

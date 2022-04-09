@@ -16,7 +16,7 @@ import android.os.Looper;
 
 import com.uplink.ulx.UlxError;
 import com.uplink.ulx.UlxErrorCode;
-import com.uplink.ulx.drivers.bluetooth.ble.model.domestic.BleDomesticService;
+import com.uplink.ulx.drivers.bluetooth.ble.model.passive.BleDomesticService;
 import com.uplink.ulx.threading.Dispatch;
 
 import java.lang.ref.WeakReference;

@@ -1,4 +1,4 @@
-package com.uplink.ulx.drivers.bluetooth.ble.model.foreign;
+package com.uplink.ulx.drivers.bluetooth.ble.model.active;
 
 import android.bluetooth.BluetoothGattCharacteristic;
 import android.os.Looper;
@@ -10,7 +10,7 @@ import com.uplink.ulx.drivers.commons.model.InputStreamCommons;
 
 import java.util.Objects;
 
-public class BleForeignInputStream extends InputStreamCommons implements GattClient.InputStreamDelegate {
+public class BleActiveInputStream extends InputStreamCommons implements GattClient.InputStreamDelegate {
 
     private final BluetoothGattCharacteristic characteristic;
     private final GattClient gattClient;
@@ -24,12 +24,12 @@ public class BleForeignInputStream extends InputStreamCommons implements GattCli
      * @param inputCharacteristic The reliable input characteristic.
      */
 
-    public static BleForeignInputStream newInstance(
+    public static BleActiveInputStream newInstance(
             String identifier,
             GattClient gattClient,
             BluetoothGattCharacteristic inputCharacteristic
     ) {
-        final BleForeignInputStream instance = new BleForeignInputStream(
+        final BleActiveInputStream instance = new BleActiveInputStream(
                 identifier,
                 gattClient,
                 inputCharacteristic
@@ -38,7 +38,7 @@ public class BleForeignInputStream extends InputStreamCommons implements GattCli
         return instance;
     }
 
-    private BleForeignInputStream(
+    private BleActiveInputStream(
             String identifier,
             GattClient gattClient,
             BluetoothGattCharacteristic inputCharacteristic

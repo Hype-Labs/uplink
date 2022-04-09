@@ -1,4 +1,4 @@
-package com.uplink.ulx.drivers.bluetooth.ble.model.domestic;
+package com.uplink.ulx.drivers.bluetooth.ble.model.passive;
 
 import com.uplink.ulx.TransportType;
 import com.uplink.ulx.drivers.commons.model.InputStreamCommons;
@@ -6,7 +6,7 @@ import com.uplink.ulx.drivers.model.InputStream;
 
 import timber.log.Timber;
 
-public class BleDomesticInputStream extends InputStreamCommons {
+public class BlePassiveInputStream extends InputStreamCommons {
 
     /**
      * Factory method. Initializes with the given arguments. By default, this also
@@ -15,13 +15,13 @@ public class BleDomesticInputStream extends InputStreamCommons {
      * @param identifier An identifier used for JNI bridging and debugging.
      */
 
-    public static BleDomesticInputStream newInstance(String identifier) {
-        final BleDomesticInputStream instance = new BleDomesticInputStream(identifier);
+    public static BlePassiveInputStream newInstance(String identifier) {
+        final BlePassiveInputStream instance = new BlePassiveInputStream(identifier);
         instance.initialize();
         return instance;
     }
 
-    private BleDomesticInputStream(String identifier) {
+    private BlePassiveInputStream(String identifier) {
         super(identifier, TransportType.BLUETOOTH_LOW_ENERGY, true);
     }
 
@@ -30,19 +30,19 @@ public class BleDomesticInputStream extends InputStreamCommons {
 
         // Perhaps it will be enough to wait for the peripheral to connect and
         // manage the streams; we'll see how that plays out.
-        Timber.e("ULX domestic input stream is " +
+        Timber.e("ULX passive input stream is " +
                          "being requested to open, but that is not supported yet");
     }
 
     @Override
     public void requestAdapterToClose() {
-        Timber.e("ULX domestic input stream is " +
+        Timber.e("ULX passive input stream is " +
                          "being requested to close, but that is not supported yet");
     }
 
     /**
      * This method is called when the domestic input stream
-     * ({@link BleDomesticInputStream}) is known to have been open. This means
+     * ({@link BlePassiveInputStream}) is known to have been open. This means
      * that the stream meets all requirements to perform I/O. However, in the
      * case of a domestic input stream this isn't much, since the stream is
      * already open from creation. Regardless, this event must be triggered in

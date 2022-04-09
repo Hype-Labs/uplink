@@ -21,10 +21,10 @@ import com.uplink.ulx.drivers.bluetooth.ble.gattServer.GattServer;
 import com.uplink.ulx.drivers.bluetooth.ble.model.BleChannel;
 import com.uplink.ulx.drivers.bluetooth.ble.model.BleDevice;
 import com.uplink.ulx.drivers.bluetooth.ble.model.BleTransport;
-import com.uplink.ulx.drivers.bluetooth.ble.model.domestic.BleDomesticConnector;
-import com.uplink.ulx.drivers.bluetooth.ble.model.domestic.BleDomesticInputStream;
-import com.uplink.ulx.drivers.bluetooth.ble.model.domestic.BleDomesticOutputStream;
-import com.uplink.ulx.drivers.bluetooth.ble.model.domestic.BleDomesticService;
+import com.uplink.ulx.drivers.bluetooth.ble.model.passive.BleDomesticService;
+import com.uplink.ulx.drivers.bluetooth.ble.model.passive.BlePassiveConnector;
+import com.uplink.ulx.drivers.bluetooth.ble.model.passive.BlePassiveInputStream;
+import com.uplink.ulx.drivers.bluetooth.ble.model.passive.BlePassiveOutputStream;
 import com.uplink.ulx.drivers.bluetooth.commons.BluetoothStateListener;
 import com.uplink.ulx.drivers.commons.controller.AdvertiserCommons;
 import com.uplink.ulx.drivers.commons.model.ConnectorCommons;
@@ -75,7 +75,7 @@ class BleAdvertiser extends AdvertiserCommons implements
      * in {@link #deviceRegistry}
      */
     @GuardedBy("connectorRegistry")
-    private final Map<BluetoothDevice, BleDomesticConnector> connectorRegistry;
+    private final Map<BluetoothDevice, BlePassiveConnector> connectorRegistry;
     /**
      * The device registry that is used to keep mappings of {@link BluetoothDevice}s to {@link
      * Device}s
@@ -389,7 +389,7 @@ class BleAdvertiser extends AdvertiserCommons implements
     @Override
     public void onDeviceConnected(GattServer gattServer, BluetoothDevice bluetoothDevice) {
         Timber.i("ULX bluetooth device connected %s", bluetoothDevice.getAddress());
-        BleDomesticConnector connector;
+        BlePassiveConnector connector;
 
         synchronized (connectorRegistry) {
             // Remove the old connector if the connection from this device is
@@ -409,7 +409,7 @@ class BleAdvertiser extends AdvertiserCommons implements
                 }
             }
 
-            connector = BleDomesticConnector.newInstance(
+            connector = BlePassiveConnector.newInstance(
                     UUID.randomUUID().toString(),
                     gattServer,
                     bluetoothDevice,
@@ -438,7 +438,7 @@ class BleAdvertiser extends AdvertiserCommons implements
 
         synchronized (connectorRegistry) {
             // Connector is no longer in 'connecting' state - unregister it
-            final BleDomesticConnector connector;
+            final BlePassiveConnector connector;
             if ((connector = connectorRegistry.remove(bluetoothDevice)) != null) {
                 detachFromConnector(connector);
             }
@@ -464,7 +464,7 @@ class BleAdvertiser extends AdvertiserCommons implements
 
         synchronized (connectorRegistry) {
             // Unregister connector
-            final BleDomesticConnector connector;
+            final BlePassiveConnector connector;
             if ((connector = connectorRegistry.remove(bluetoothDevice)) != null) {
                 detachFromConnector(connector);
             } else {
@@ -520,8 +520,8 @@ class BleAdvertiser extends AdvertiserCommons implements
             return;
         }
         // Notify the stream that it has been subscribed
-        BleDomesticInputStream inputStream = (BleDomesticInputStream)device.getTransport().getReliableChannel().getInputStream();
-        BleDomesticOutputStream outputStream = (BleDomesticOutputStream)device.getTransport().getReliableChannel().getOutputStream();
+        BlePassiveInputStream inputStream = (BlePassiveInputStream)device.getTransport().getReliableChannel().getInputStream();
+        BlePassiveOutputStream outputStream = (BlePassiveOutputStream)device.getTransport().getReliableChannel().getOutputStream();
 
         // In fact, the InputStream is already open, since nothing needs to
         // happen for that. These two events are being triggered at the same
@@ -544,7 +544,7 @@ class BleAdvertiser extends AdvertiserCommons implements
             return;
         }
         // Notify the output stream that the indication was given
-        BleDomesticOutputStream outputStream = (BleDomesticOutputStream)device.getTransport().getReliableChannel().getOutputStream();
+        BlePassiveOutputStream outputStream = (BlePassiveOutputStream)device.getTransport().getReliableChannel().getOutputStream();
         outputStream.notifySuccessfulIndication();
     }
 
@@ -563,7 +563,7 @@ class BleAdvertiser extends AdvertiserCommons implements
 
 
         // Notify the output stream that the indication was NOT given
-        BleDomesticOutputStream outputStream = (BleDomesticOutputStream)device.getTransport().getReliableChannel().getOutputStream();
+        BlePassiveOutputStream outputStream = (BlePassiveOutputStream)device.getTransport().getReliableChannel().getOutputStream();
         outputStream.notifyFailedIndication(error);
     }
 
@@ -580,7 +580,7 @@ class BleAdvertiser extends AdvertiserCommons implements
         }
 
         // Notify the input stream of incoming data
-        BleDomesticInputStream inputStream = (BleDomesticInputStream)device.getTransport().getReliableChannel().getInputStream();
+        BlePassiveInputStream inputStream = (BlePassiveInputStream)device.getTransport().getReliableChannel().getInputStream();
         inputStream.notifyDataAvailable(data);
     }
 
@@ -684,13 +684,13 @@ class BleAdvertiser extends AdvertiserCommons implements
     @Override
     public void onConnected(@NonNull Connector connector) {
 
-        BleDomesticConnector domesticConnector = (BleDomesticConnector)connector;
+        BlePassiveConnector domesticConnector = (BlePassiveConnector)connector;
 
-        InputStream inputStream = BleDomesticInputStream.newInstance(connector.getIdentifier());
+        InputStream inputStream = BlePassiveInputStream.newInstance(connector.getIdentifier());
 
         final BluetoothDevice bluetoothDevice = domesticConnector.getBluetoothDevice();
 
-        OutputStream outputStream = BleDomesticOutputStream.newInstance(
+        OutputStream outputStream = BlePassiveOutputStream.newInstance(
                 connector.getIdentifier(),
                 getGattServer(),
                 bluetoothDevice,
@@ -757,13 +757,13 @@ class BleAdvertiser extends AdvertiserCommons implements
      * @return whether the given connector was found and removed
      */
     private boolean removeIfRegistered(@NonNull Connector connector) {
-        if (connector instanceof BleDomesticConnector) {
+        if (connector instanceof BlePassiveConnector) {
 
             final BluetoothDevice bluetoothDevice =
-                    ((BleDomesticConnector) connector).getBluetoothDevice();
+                    ((BlePassiveConnector) connector).getBluetoothDevice();
 
             synchronized (connectorRegistry) {
-                final BleDomesticConnector existingConnector = connectorRegistry.get(bluetoothDevice);
+                final BlePassiveConnector existingConnector = connectorRegistry.get(bluetoothDevice);
                 if (existingConnector != null && existingConnector.equals(connector)) {
                     connectorRegistry.remove(bluetoothDevice);
                     return true;

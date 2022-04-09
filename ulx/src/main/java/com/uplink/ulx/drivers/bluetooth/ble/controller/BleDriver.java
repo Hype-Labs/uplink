@@ -4,7 +4,7 @@ import android.bluetooth.BluetoothManager;
 import android.content.Context;
 
 import com.uplink.ulx.TransportType;
-import com.uplink.ulx.drivers.bluetooth.ble.model.domestic.BleDomesticService;
+import com.uplink.ulx.drivers.bluetooth.ble.model.passive.BleDomesticService;
 import com.uplink.ulx.drivers.bluetooth.commons.BluetoothStateListener;
 import com.uplink.ulx.drivers.commons.controller.DriverCommons;
 import com.uplink.ulx.drivers.controller.Advertiser;

@@ -8,9 +8,9 @@ import androidx.annotation.NonNull;
 
 /**
  * A Connector is an abstract entity that manages connections. Connectors may
- * further be divided into two subtypes: domestic and foreign. A domestic
+ * further be divided into two subtypes: active and passive. An active
  * connector is one that is capable of initiating the connection with another
- * device, while a foreign connector is one that passively waits for the other
+ * device, while a passive connector is one that passively waits for the other
  * peer to be the initiator. This is common in technologies where devices can't
  * always be the initiators, such as Bluetooth Low Energy; in that case, one of
  * the devices (the central) waits passively for the other (the peripheral) to

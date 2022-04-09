@@ -1,4 +1,4 @@
-package com.uplink.ulx.drivers.bluetooth.ble.model.domestic;
+package com.uplink.ulx.drivers.bluetooth.ble.model.passive;
 
 import android.bluetooth.BluetoothDevice;
 import android.bluetooth.BluetoothGattCharacteristic;
@@ -13,7 +13,7 @@ import com.uplink.ulx.drivers.model.IoResult;
 
 import timber.log.Timber;
 
-public class BleDomesticOutputStream extends OutputStreamCommons {
+public class BlePassiveOutputStream extends OutputStreamCommons {
 
     private final GattServer gattServer;
     private final BluetoothDevice bluetoothDevice;
@@ -27,13 +27,13 @@ public class BleDomesticOutputStream extends OutputStreamCommons {
      * @param characteristic The characteristic used by the stream for output.
      */
 
-    public static BleDomesticOutputStream newInstance(
+    public static BlePassiveOutputStream newInstance(
             String identifier,
             GattServer gattServer,
             BluetoothDevice bluetoothDevice,
             BluetoothGattCharacteristic characteristic
     ) {
-        final BleDomesticOutputStream instance = new BleDomesticOutputStream(
+        final BlePassiveOutputStream instance = new BlePassiveOutputStream(
                 identifier,
                 gattServer,
                 bluetoothDevice,
@@ -43,7 +43,7 @@ public class BleDomesticOutputStream extends OutputStreamCommons {
         return instance;
     }
 
-    private BleDomesticOutputStream(
+    private BlePassiveOutputStream(
             String identifier,
             GattServer gattServer,
             BluetoothDevice bluetoothDevice,
@@ -91,13 +91,13 @@ public class BleDomesticOutputStream extends OutputStreamCommons {
 
         // Perhaps it will be enough to wait for the peripheral to connect and
         // manage the streams; we'll see how that plays out.
-        Timber.e("ULX domestic output stream is " +
+        Timber.e("ULX passive output stream is " +
                          "being requested to open, but that is not supported yet");
     }
 
     @Override
     public void requestAdapterToClose() {
-        Timber.e("ULX domestic output stream is " +
+        Timber.e("ULX passive output stream is " +
                          "being requested to close, but that is not supported yet");
     }
 

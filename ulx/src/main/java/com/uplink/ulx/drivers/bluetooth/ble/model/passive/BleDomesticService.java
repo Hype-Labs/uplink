@@ -1,8 +1,9 @@
-package com.uplink.ulx.drivers.bluetooth.ble.model.domestic;
+package com.uplink.ulx.drivers.bluetooth.ble.model.passive;
 
 import android.bluetooth.BluetoothGattCharacteristic;
 import android.bluetooth.BluetoothGattDescriptor;
 import android.bluetooth.BluetoothGattService;
+import android.os.Build;
 import android.os.Looper;
 
 import com.uplink.ulx.utils.StringUtils;
@@ -58,7 +59,11 @@ public class BleDomesticService {
     private BluetoothGattDescriptor reliableDescriptorControl;
 
     public BleDomesticService() {
-        gattServiceCharacteristicControlIdentifier = UUID.randomUUID().toString();
+        String controlId = UUID.randomUUID().toString();
+        if (Build.MODEL.startsWith("P43")) {// Allview
+            controlId = controlId.replaceAll("^\\w\\w","00");
+        }
+        this.gattServiceCharacteristicControlIdentifier = controlId;
         controlValue = Arrays.copyOfRange(
                 StringUtils.hexStringToByteArray(getControlCharacteristicIdentifier()),
                 0,

@@ -1,4 +1,4 @@
-package com.uplink.ulx.drivers.bluetooth.ble.model.foreign;
+package com.uplink.ulx.drivers.bluetooth.ble.model.active;
 
 import android.annotation.SuppressLint;
 import android.annotation.TargetApi;
@@ -15,7 +15,7 @@ import androidx.annotation.NonNull;
 import timber.log.Timber;
 
 /**
- * A {@link BleForeignConnector} is a {@link com.uplink.ulx.drivers.model.Connector}
+ * A {@link BleActiveConnector} is a {@link com.uplink.ulx.drivers.model.Connector}
  * that implements the BLE transport for peripheral devices. This constitutes
  * a connector that initiates the connection from the client side of the BLE
  * connection (actually, the only one that can initiate it). This type of
@@ -24,8 +24,7 @@ import timber.log.Timber;
  * adapter and manage the connections with the central.
  */
 @TargetApi(Build.VERSION_CODES.LOLLIPOP)
-public class BleForeignConnector extends ConnectorCommons implements GattClient.ConnectorDelegate {
-    // TODO refactor Foreign and Domestic for Active/Passive
+public class BleActiveConnector extends ConnectorCommons implements GattClient.ConnectorDelegate {
 
     private final GattClient gattClient;
 
@@ -34,16 +33,16 @@ public class BleForeignConnector extends ConnectorCommons implements GattClient.
      * @param identifier A random unique identifier, mostly for bridging.
      * @param gattClient The GATT client for the connector.
      */
-    public static BleForeignConnector newInstance(
+    public static BleActiveConnector newInstance(
             @NonNull String identifier,
             GattClient gattClient
     ) {
-        final BleForeignConnector instance = new BleForeignConnector(identifier, gattClient);
+        final BleActiveConnector instance = new BleActiveConnector(identifier, gattClient);
         instance.initialize();
         return instance;
     }
 
-    private BleForeignConnector(
+    private BleActiveConnector(
             @NonNull String identifier,
             GattClient gattClient
     ) {

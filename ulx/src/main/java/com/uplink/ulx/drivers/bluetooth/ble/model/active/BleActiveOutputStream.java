@@ -1,4 +1,4 @@
-package com.uplink.ulx.drivers.bluetooth.ble.model.foreign;
+package com.uplink.ulx.drivers.bluetooth.ble.model.active;
 
 import android.bluetooth.BluetoothGattCharacteristic;
 import android.os.Looper;
@@ -18,7 +18,7 @@ import androidx.annotation.MainThread;
 import timber.log.Timber;
 
 /**
- * A {@link BleForeignOutputStream} implements the output logic for streams on
+ * A {@link BleActiveOutputStream} implements the output logic for streams on
  * the client side of the connection. This implementation interacts with the
  * {@link GattClient} by setting the characteristic's value on the remote
  * central, through calls to {@link BluetoothGattCharacteristic#setValue(byte[])}
@@ -26,11 +26,11 @@ import timber.log.Timber;
  * {@link #onCharacteristicWritten(GattClient)} and {@link
  * #onCharacteristicWriteFailure(GattClient, UlxError)} to receive the results
  * for a write operation. The actual logic is implemented by the {@link
- * GattClient}, although the {@link BleForeignOutputStream} implements the
+ * GattClient}, although the {@link BleActiveOutputStream} implements the
  * abstraction for the {@link com.uplink.ulx.drivers.model.OutputStream} (by
  * extending {@link OutputStreamCommons}).
  */
-public class BleForeignOutputStream extends OutputStreamCommons implements GattClient.OutputStreamDelegate {
+public class BleActiveOutputStream extends OutputStreamCommons implements GattClient.OutputStreamDelegate {
 
     private final BluetoothGattCharacteristic outputCharacteristic;
     private final GattClient gattClient;
@@ -43,12 +43,12 @@ public class BleForeignOutputStream extends OutputStreamCommons implements GattC
      * @param outputCharacteristic The reliable output characteristic.
      */
 
-    public static BleForeignOutputStream newInstance(
+    public static BleActiveOutputStream newInstance(
             String identifier,
             GattClient gattClient,
             BluetoothGattCharacteristic outputCharacteristic
     ) {
-        final BleForeignOutputStream instance = new BleForeignOutputStream(
+        final BleActiveOutputStream instance = new BleActiveOutputStream(
                 identifier,
                 gattClient,
                 outputCharacteristic
@@ -57,7 +57,7 @@ public class BleForeignOutputStream extends OutputStreamCommons implements GattC
         return instance;
     }
 
-    private BleForeignOutputStream(
+    private BleActiveOutputStream(
             String identifier,
             GattClient gattClient,
             BluetoothGattCharacteristic outputCharacteristic

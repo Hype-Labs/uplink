@@ -1,10 +1,10 @@
-package com.uplink.ulx.drivers.bluetooth.ble.model.foreign;
+package com.uplink.ulx.drivers.bluetooth.ble.model.active;
 
 import android.bluetooth.BluetoothGattCharacteristic;
 import android.bluetooth.BluetoothGattDescriptor;
 import android.bluetooth.BluetoothGattService;
 
-import com.uplink.ulx.drivers.bluetooth.ble.model.domestic.BleDomesticService;
+import com.uplink.ulx.drivers.bluetooth.ble.model.passive.BleDomesticService;
 
 import java.util.UUID;
 

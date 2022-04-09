@@ -1,4 +1,4 @@
-package com.uplink.ulx.drivers.bluetooth.ble.model.domestic;
+package com.uplink.ulx.drivers.bluetooth.ble.model.passive;
 
 import android.bluetooth.BluetoothDevice;
 
@@ -13,19 +13,19 @@ import androidx.annotation.NonNull;
 /**
  *
  */
-public class BleDomesticConnector extends ConnectorCommons {
+public class BlePassiveConnector extends ConnectorCommons {
 
     private final BluetoothDevice bluetoothDevice;
     private final BleDomesticService domesticService;
     private final GattServer gattServer;
 
-    public static BleDomesticConnector newInstance(
+    public static BlePassiveConnector newInstance(
             @NonNull String identifier,
             GattServer gattServer,
             BluetoothDevice bluetoothDevice,
             BleDomesticService domesticService
     ) {
-        final BleDomesticConnector instance = new BleDomesticConnector(
+        final BlePassiveConnector instance = new BlePassiveConnector(
                 identifier,
                 gattServer,
                 bluetoothDevice,
@@ -35,7 +35,7 @@ public class BleDomesticConnector extends ConnectorCommons {
         return instance;
     }
 
-    private BleDomesticConnector(
+    private BlePassiveConnector(
             @NonNull String identifier,
             GattServer gattServer,
             BluetoothDevice bluetoothDevice,
@@ -71,7 +71,7 @@ public class BleDomesticConnector extends ConnectorCommons {
 
     @Override
     public void requestAdapterToDisconnect() {
-        throw new RuntimeException("Can't request a domestic connector to " +
+        throw new RuntimeException("Can't request a passive connector to " +
                 "disconnect because the protocol to request activity from the " +
                 "central is not implemented yet.");
     }
