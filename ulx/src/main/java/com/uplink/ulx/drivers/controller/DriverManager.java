@@ -10,7 +10,6 @@ import com.uplink.ulx.drivers.model.Device;
 import com.uplink.ulx.threading.ExecutorPool;
 import com.uplink.ulx.utils.SetOnceRef;
 
-import java.lang.ref.WeakReference;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Objects;
@@ -34,12 +33,12 @@ public class DriverManager implements Driver, Driver.NetworkDelegate, Driver.Sta
 
     private final SetOnceRef<StateManager> stateManager;
     private final String identifier;
-    private DriverFactory driverFactory;
-    private WeakReference<Driver.NetworkDelegate> networkDelegate;
-    private WeakReference<StateDelegate> stateDelegate;
+    private final SetOnceRef<DriverFactory> driverFactory = new SetOnceRef<>();
+    private volatile Driver.NetworkDelegate networkDelegate;
+    private volatile StateDelegate stateDelegate;
     private int transportType;
     private HashMap<String, Driver> failedDrivers;
-    private final WeakReference<Context> context;
+    private final Context context;
 
     // TODO this boolean flag appears to be a workaround for duplicate
     //  notifications when the adapter becomes ready. This can be motivated by
@@ -94,9 +93,9 @@ public class DriverManager implements Driver, Driver.NetworkDelegate, Driver.Sta
         this.identifier = identifier;
         this.transportType = TransportType.NONE;
         this.stateManager = new SetOnceRef<>();
-        this.networkDelegate = new WeakReference<>(networkDelegate);
-        this.stateDelegate = new WeakReference<>(stateDelegate);
-        this.context = new WeakReference<>(context);
+        this.networkDelegate = networkDelegate;
+        this.stateDelegate = stateDelegate;
+        this.context = context;
         this.ready = false;
     }
     
@@ -145,6 +144,8 @@ public class DriverManager implements Driver, Driver.NetworkDelegate, Driver.Sta
                         requestAllDriversToStop();
                     }
                 }));
+
+        driverFactory.setRef(new DriverFactory(getContext(), this, this));
     }
 
     @Override
@@ -164,7 +165,7 @@ public class DriverManager implements Driver, Driver.NetworkDelegate, Driver.Sta
 
     @Override
     public Context getContext() {
-        return this.context.get();
+        return this.context;
     }
 
     @Override
@@ -174,22 +175,22 @@ public class DriverManager implements Driver, Driver.NetworkDelegate, Driver.Sta
 
     @Override
     public void setStateDelegate(StateDelegate driverStateDelegate) {
-        this.stateDelegate = new WeakReference<>(driverStateDelegate);
+        this.stateDelegate = driverStateDelegate;
     }
 
     @Override
     public StateDelegate getStateDelegate() {
-        return this.stateDelegate.get();
+        return this.stateDelegate;
     }
 
     @Override
     public void setNetworkDelegate(NetworkDelegate driverNetworkDelegate) {
-        this.networkDelegate = new WeakReference<>(driverNetworkDelegate);
+        this.networkDelegate = driverNetworkDelegate;
     }
 
     @Override
     public Driver.NetworkDelegate getNetworkDelegate() {
-        return networkDelegate.get();
+        return networkDelegate;
     }
 
     /**
@@ -199,10 +200,7 @@ public class DriverManager implements Driver, Driver.NetworkDelegate, Driver.Sta
      * @return The DriverFactory.
      */
     private DriverFactory getDriverFactory() {
-        if (this.driverFactory == null) {
-            this.driverFactory = new DriverFactory(getContext(), this, this);
-        }
-        return this.driverFactory;
+        return this.driverFactory.getRef();
     }
 
     /**
