@@ -52,10 +52,9 @@ public class ByteUtils {
      * byte array.
      * @param uuid UUID to convert.
      * @param bytes Array of bytes.
-     * @param off Offset in {@code bytes} array.
-     * @return Number of bytes overwritten in {@code bytes} array.
+     * @param off Offset in {@code bytes} array
      */
-    public static int uuidToBytes(UUID uuid, byte[] bytes, int off) {
+    public static void uuidToBytes(UUID uuid, byte[] bytes, int off) {
 
         ByteBuffer byteBuffer = ByteBuffer.wrap(bytes, off, 16);
 
@@ -68,8 +67,6 @@ public class ByteUtils {
             byteBuffer.putLong(0);
             byteBuffer.putLong(0);
         }
-
-        return 16;
     }
 
     /**
