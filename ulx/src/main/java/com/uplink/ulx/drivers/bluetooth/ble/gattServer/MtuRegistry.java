@@ -2,7 +2,8 @@ package com.uplink.ulx.drivers.bluetooth.ble.gattServer;
 
 import android.bluetooth.BluetoothDevice;
 
-import java.util.HashMap;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
 
 /**
  * This is a registry that is used by the GATT server to keep track of the MTU
@@ -27,26 +28,16 @@ public class MtuRegistry {
 
     public static final long MTU_REQUEST_TIMEOUT_MS = 20000;
 
-    private HashMap<String, Integer> registry;
+    /**
+     * Data structure for the MTU table. Maps device addresses with their respective MTU values.
+     */
+    private final ConcurrentMap<String, Integer> registry;
 
     /**
      * Constructor.
      */
     public MtuRegistry() {
-        this.registry = null;
-    }
-
-    /**
-     * Returns the underlying supporting data structure for the MTU table. This
-     * consists of an hash map that maps device addresses with their respective
-     * MTU values.
-     * @return The registry.
-     */
-    protected final HashMap<String, Integer> getRegistry() {
-        if (this.registry == null) {
-            this.registry = new HashMap<>();
-        }
-        return this.registry;
+        this.registry = new ConcurrentHashMap<>();
     }
 
     /**
@@ -64,7 +55,7 @@ public class MtuRegistry {
      * @param mtu The MTU.
      */
     public void set(String address, int mtu) {
-        getRegistry().put(address, mtu);
+        registry.put(address, mtu);
     }
 
     /**
@@ -85,7 +76,7 @@ public class MtuRegistry {
      * @return The MTU or zero.
      */
     public int get(String address) {
-        Integer mtu = getRegistry().get(address);
+        Integer mtu = registry.get(address);
         return mtu != null ? mtu : DEFAULT_MTU;
     }
 }
