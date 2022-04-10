@@ -17,7 +17,7 @@ import java.util.Objects;
  * state changes are detected, this notifies a BroadcastReceiverDelegate. All
  * events that do not refer to the adapter's state being toggled are ignored.
  */
-public class BluetoothBroadcastReceiver extends BroadcastReceiver {
+class BluetoothBroadcastReceiver extends BroadcastReceiver {
 
     /**
      * This enumeration is used to track the previously known state of the
