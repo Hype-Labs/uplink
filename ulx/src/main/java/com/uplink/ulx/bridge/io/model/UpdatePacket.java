@@ -20,21 +20,17 @@ public class UpdatePacket extends AbstractPacket {
 
     private final Instance instance;
     private final int hopCount;
-    private final int internetHopCount;
 
     /**
      * Constructor. Initializes with given arguments.
      * @param sequenceIdentifier Packet sequence identifier.
      * @param instance Destination {@link Instance} (the one being updated).
      * @param hopCount Number of hops to the {@link Instance}.
-     * @param internetHopCount Number of hops to reach to the Internet, if a
-     *                         request is made through this instance.
      */
     public UpdatePacket(
             int sequenceIdentifier,
             Instance instance,
-            int hopCount,
-            int internetHopCount
+            int hopCount
     ) {
         super(sequenceIdentifier, PacketType.UPDATE);
 
@@ -43,7 +39,6 @@ public class UpdatePacket extends AbstractPacket {
 
         this.instance = Objects.requireNonNull(instance);
         this.hopCount = hopCount;
-        this.internetHopCount = internetHopCount;
     }
 
     /**
@@ -62,23 +57,13 @@ public class UpdatePacket extends AbstractPacket {
         return this.hopCount;
     }
 
-    /**
-     * The number of hops that it would take to reach the Internet if an
-     * Internet request was to be made through this {@link Instance}.
-     * @return The number of hops to reach the Internet.
-     */
-    public final int getInternetHopCount() {
-        return this.internetHopCount;
-    }
-
     @Override
     public String toString() {
-        return String.format(Locale.ENGLISH,"%s(seq: %d, i: %s, hops: %s, i-hops: %d)",
+        return String.format(Locale.ENGLISH,"%s(seq: %d, i: %s, hops: %s)",
                 getClass().getSimpleName(),
                 getSequenceIdentifier(),
                 getInstance().getStringIdentifier(),
-                getHopCount(),
-                getInternetHopCount()
+                getHopCount()
         );
     }
 }
