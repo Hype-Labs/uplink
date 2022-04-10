@@ -378,7 +378,7 @@ public class Bridge implements
 
                 // Instantiate the network controller, which will hold the host
                 // instance.
-                this.networkController = new NetworkController(hostInstance, getContext());
+                this.networkController = NetworkController.newInstance(hostInstance, getContext());
                 this.networkController.setDelegate(this);
                 this.networkController.setInternetRequestDelegate(this);
 
@@ -826,5 +826,12 @@ public class Bridge implements
 
     public void sendInternet(URL url, JSONObject jsonObject, int test) {
         getNetworkController().sendInternet(url, jsonObject, test);
+    }
+
+    /**
+     * Cleans up allocated resources
+     */
+    public void destroy() {
+        getNetworkController().destroy();
     }
 }

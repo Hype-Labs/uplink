@@ -1,8 +1,6 @@
 package com.uplink.ulx.bridge.network.controller;
 
 import android.content.Context;
-import android.net.ConnectivityManager;
-import android.net.NetworkInfo;
 
 import com.uplink.ulx.UlxError;
 import com.uplink.ulx.bridge.SequenceGenerator;
@@ -12,11 +10,13 @@ import com.uplink.ulx.bridge.io.model.DataPacket;
 import com.uplink.ulx.bridge.io.model.HandshakePacket;
 import com.uplink.ulx.bridge.io.model.InternetPacket;
 import com.uplink.ulx.bridge.io.model.InternetResponsePacket;
+import com.uplink.ulx.bridge.io.model.InternetUpdatePacket;
 import com.uplink.ulx.bridge.io.model.Packet;
 import com.uplink.ulx.bridge.io.model.UpdatePacket;
 import com.uplink.ulx.bridge.network.model.Link;
 import com.uplink.ulx.bridge.network.model.RoutingTable;
 import com.uplink.ulx.bridge.network.model.Ticket;
+import com.uplink.ulx.drivers.commons.NetworkStateListener;
 import com.uplink.ulx.drivers.model.Channel;
 import com.uplink.ulx.drivers.model.Device;
 import com.uplink.ulx.drivers.model.InputStream;
@@ -24,6 +24,7 @@ import com.uplink.ulx.drivers.model.OutputStream;
 import com.uplink.ulx.model.Instance;
 import com.uplink.ulx.threading.Dispatch;
 import com.uplink.ulx.threading.ExecutorPool;
+import com.uplink.ulx.utils.NetworkUtils;
 
 import org.json.JSONObject;
 
@@ -46,7 +47,8 @@ import timber.log.Timber;
  * #send(byte[], Instance)}) and negotiating ({@link #negotiate(Device)}).
  */
 public class NetworkController implements IoController.Delegate,
-                                          RoutingTable.Delegate {
+                                          RoutingTable.Delegate,
+                                          NetworkStateListener.Observer {
 
     private static final int INTERNET_CONNECT_TIMEOUT_MS = 10_000;
     private static final int INTERNET_READ_TIMEOUT_MS = 10_000;
@@ -201,10 +203,25 @@ public class NetworkController implements IoController.Delegate,
     // being dispatched. The sequence begins in 0 and resets at 65535.
     private SequenceGenerator sequenceGenerator;
 
+    private NetworkStateListener networkStateListener;
+
+    public static NetworkController newInstance(Instance hostInstance, Context context) {
+        final NetworkController instance = new NetworkController(hostInstance, context);
+
+        final NetworkStateListener networkStateListener = new NetworkStateListener(
+                context,
+                instance
+        );
+        instance.setNetworkStateListener(networkStateListener);
+        networkStateListener.register();
+
+        return instance;
+    }
+
     /**
      * Constructor.
      */
-    public NetworkController(Instance hostInstance, Context context) {
+    private NetworkController(Instance hostInstance, Context context) {
 
         Objects.requireNonNull(hostInstance);
         Objects.requireNonNull(context);
@@ -219,6 +236,10 @@ public class NetworkController implements IoController.Delegate,
         this.sequenceGenerator = null;
 
         this.context = context;
+    }
+
+    private void setNetworkStateListener(NetworkStateListener networkStateListener) {
+        this.networkStateListener = networkStateListener;
     }
 
     /**
@@ -337,16 +358,9 @@ public class NetworkController implements IoController.Delegate,
 
             // This call may make requests to the Internet, which is why we're
             // using a different thread
-            int internetHopCount = getInternetHopCount();
+            final int internetHopCount = getIncrementedInternetHopCount();
 
-            // Increment the hop count, since it's being propagated as an HS
-            if (internetHopCount < RoutingTable.HOP_COUNT_INFINITY) {
-                internetHopCount += 1;
-            }
-
-            final int iHops = internetHopCount;
-
-            Timber.e("ULX handshake packet with i-hops %d", iHops);
+            Timber.e("ULX handshake packet with i-hops %d", internetHopCount);
 
             // Switch back to the main thread
             Dispatch.post(() -> {
@@ -355,7 +369,7 @@ public class NetworkController implements IoController.Delegate,
                 HandshakePacket packet = new HandshakePacket(
                         getSequenceGenerator().generate(),
                         getHostInstance(),
-                        iHops
+                        internetHopCount
                 );
 
                 // Instantiate the IoPacket with the Device as lookup
@@ -388,68 +402,27 @@ public class NetworkController implements IoController.Delegate,
     }
 
     /**
-     * Pings google.com on multiple interfaces in order to check if that server
-     * is reachable. This will indicate that the host device is directly
-     * connected to the Internet. Future versions should avoid pinging Google,
-     * but rather a server within the application's ecosystem or some other
-     * method.
-     * @param context The Android environment context.
-     * @return Whether the device is connected to the Internet.
-     */
-    private static boolean isNetworkAvailable(@NonNull Context context) {
-        Timber.d("Checking network availability");
-
-        ConnectivityManager cm = (ConnectivityManager)context.getSystemService(Context.CONNECTIVITY_SERVICE);
-
-        NetworkInfo activeNetwork = cm.getActiveNetworkInfo();
-
-        if (activeNetwork != null && activeNetwork.isConnected()) {
-            HttpURLConnection connection = null;
-            try {
-                URL url = new URL("https://www.google.com/");
-                connection = (HttpURLConnection)url.openConnection();
-                connection.setRequestProperty("User-Agent", "test");
-                connection.setRequestProperty("Connection", "close");
-                connection.setConnectTimeout(5000);
-                connection.connect();
-                connection.getResponseCode();
-
-                // Any status code is OK
-                return true;
-
-            } catch (IOException e) {
-                Timber.e("ULX Internet not directly available");
-                return false;
-            } finally {
-                if (connection != null) {
-                    connection.disconnect();
-                }
-            }
-        }
-
-        return false;
-    }
-
-    /**
      * Returns the number of hops that takes for this device to reach the
-     * Internet, relying on either a direct connection or the mesh. If a direct
+     * Internet, relying on either a direct connection or the mesh, incremented by 1 (for sending updates.) If a direct
      * connection exists, this method returns {@code 0} (zero). If it cannot
      * connect directly, then it checks for the availability of a mesh link
      * that is connected; if one exists, the number of hops for the best scored
      * link will be returned, otherwise {@link RoutingTable#HOP_COUNT_INFINITY}
      * is returned instead.
      * @return The number of hops that it takes for the device to reach the
-     * Internet.
+     * Internet, incremented by 1 or {@link RoutingTable#HOP_COUNT_INFINITY}
      */
-    private int getInternetHopCount() {
+    private int getIncrementedInternetHopCount() {
 
-        if (isNetworkAvailable(getContext())) {
-            return 0;
+        if (NetworkUtils.isNetworkAvailable(getContext())) {
+            return 1;
         }
 
         final Link link = getRoutingTable().getBestInternetLink(null);
 
-        return link != null ? link.getHopCount() : RoutingTable.HOP_COUNT_INFINITY;
+        return link != null
+                ? Math.min(link.getHopCount() + 1, RoutingTable.HOP_COUNT_INFINITY)
+                : RoutingTable.HOP_COUNT_INFINITY;
     }
 
     /**
@@ -488,7 +461,7 @@ public class NetworkController implements IoController.Delegate,
             assert !link.getNextHop().getIdentifier().equals(device.getIdentifier());
 
             int hopCount = Math.min(link.getHopCount() + 1, RoutingTable.HOP_COUNT_INFINITY);
-            final int internetHopCount = getInternetHopCount() + 1;
+            final int internetHopCount = getIncrementedInternetHopCount();
 
             // Don't propagate events that reach the maximum number of hops
             if (hopCount >= RoutingTable.MAXIMUM_HOP_COUNT) {
@@ -1170,6 +1143,24 @@ public class NetworkController implements IoController.Delegate,
     }
 
     @Override
+    public void onConnectivityChanged(boolean isInternetAvailable) {
+        final int internetHopCount;
+        if (isInternetAvailable) {
+            internetHopCount = 1;
+        } else {
+            final Link link = getRoutingTable().getBestInternetLink(null);
+            internetHopCount = link != null
+                    ? Math.min(link.getHopCount() + 1, RoutingTable.HOP_COUNT_INFINITY)
+                    : RoutingTable.HOP_COUNT_INFINITY;
+        }
+
+        final InternetUpdatePacket packet = new InternetUpdatePacket(
+                getSequenceGenerator().generate(),
+                internetHopCount
+        );
+    }
+
+    @Override
     public void onLinkUpdate(RoutingTable routingTable, Link link) {
         update(link);
     }
@@ -1179,7 +1170,7 @@ public class NetworkController implements IoController.Delegate,
         assert link != null;
 
         int hopCount = Math.min(link.getHopCount() + 1, RoutingTable.HOP_COUNT_INFINITY);
-        int internetHopCount = getInternetHopCount() + 1;
+        int internetHopCount = getIncrementedInternetHopCount();
 
         Timber.i("ULX-M is propagating link update %s", link.toString());
 
@@ -1210,12 +1201,12 @@ public class NetworkController implements IoController.Delegate,
                 destination,
                 hopCount
         );
-        
+
         final UpdatePacket updatePacket = new UpdatePacket(
                 getSequenceGenerator().generate(),
                 destination,
                 hopCount,
-                getInternetHopCount() + 1
+                getIncrementedInternetHopCount()
         );
 
         scheduleUpdatePacketForDevice(updatePacket, bestLinkDevice);
@@ -1470,5 +1461,12 @@ public class NetworkController implements IoController.Delegate,
         if (internetRequestDelegate != null) {
             internetRequestDelegate.onInternetRequestFailure(this, sequence);
         }
+    }
+
+    /**
+     * Cleans up allocated resources
+     */
+    public void destroy() {
+        networkStateListener.destroy();
     }
 }

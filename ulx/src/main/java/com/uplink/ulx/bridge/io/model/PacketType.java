@@ -45,7 +45,12 @@ public enum PacketType {
     /**
      * This type represents a response to an Internet request.
      */
-    INTERNET_RESPONSE(5)
+    INTERNET_RESPONSE(5),
+
+    /**
+     * This type represents update in internet connectivity
+     */
+    INTERNET_UPDATE(6),
     ;
 
     private final int id;

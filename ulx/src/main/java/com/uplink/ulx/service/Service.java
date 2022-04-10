@@ -368,6 +368,7 @@ public class Service extends android.app.Service implements
      * call to all underlying drivers.
      */
     public void stop() {
+        Bridge.getInstance().destroy();
         getDriverManager().stop();
     }
 
