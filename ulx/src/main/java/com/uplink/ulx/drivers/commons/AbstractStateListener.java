@@ -6,6 +6,8 @@ import android.content.IntentFilter;
 
 import java.util.Objects;
 
+import androidx.annotation.NonNull;
+
 /**
  * An AbstractStateListener is a class that manages the subscription of the
  * BroadcastReceiver implemented by child classes. Those need to implement the
@@ -81,6 +83,7 @@ public abstract class AbstractStateListener {
      * events.
      * @return The BroadcastReceiver to subscribe.
      */
+    @NonNull
     protected abstract BroadcastReceiver getBroadcastReceiver();
 
     /**

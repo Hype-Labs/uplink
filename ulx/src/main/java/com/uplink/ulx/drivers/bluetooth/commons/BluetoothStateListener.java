@@ -1,5 +1,6 @@
 package com.uplink.ulx.drivers.bluetooth.commons;
 
+import android.bluetooth.BluetoothAdapter;
 import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.IntentFilter;
@@ -8,6 +9,8 @@ import com.uplink.ulx.drivers.commons.AbstractStateListener;
 import com.uplink.ulx.drivers.commons.BroadcastReceiverDelegate;
 
 import java.util.concurrent.CopyOnWriteArrayList;
+
+import androidx.annotation.NonNull;
 
 /**
  * This class is shared by all Bluetooth implementations (Bluetooth Classic and
@@ -54,8 +57,6 @@ public class BluetoothStateListener extends AbstractStateListener implements Bro
      */
     private final CopyOnWriteArrayList<Observer> observers;
     private BluetoothBroadcastReceiver bluetoothBroadcastReceiver;
-
-    private static final String BLUETOOTH_ADAPTER_STATUS_ACTION_STATE_CHANGED = "android.bluetooth.adapter.action.STATE_CHANGED";
 
     private static class Holder {
         private static final BluetoothStateListener instance = new BluetoothStateListener();
@@ -118,6 +119,7 @@ public class BluetoothStateListener extends AbstractStateListener implements Bro
         getInstance().observers.remove(observer);
     }
 
+    @NonNull
     @Override
     protected BroadcastReceiver getBroadcastReceiver() {
         if (this.bluetoothBroadcastReceiver == null) {
@@ -128,7 +130,7 @@ public class BluetoothStateListener extends AbstractStateListener implements Bro
 
     @Override
     protected IntentFilter getIntentFilter() {
-        return new IntentFilter(BLUETOOTH_ADAPTER_STATUS_ACTION_STATE_CHANGED);
+        return new IntentFilter(BluetoothAdapter.ACTION_STATE_CHANGED);
     }
 
     @Override
