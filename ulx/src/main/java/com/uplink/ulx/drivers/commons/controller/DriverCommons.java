@@ -17,6 +17,7 @@ import java.lang.ref.WeakReference;
 import java.util.Objects;
 import java.util.concurrent.ExecutorService;
 
+import androidx.annotation.CallSuper;
 import timber.log.Timber;
 
 /**
@@ -307,6 +308,7 @@ public abstract class DriverCommons implements
     }
 
     @Override
+    @CallSuper
     public void destroy() {
         getAdvertiser().destroy();
         getBrowser().destroy();

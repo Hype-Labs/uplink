@@ -125,4 +125,10 @@ public class BleDriver extends DriverCommons implements Driver {
 
         getBluetoothManager().getAdapter().disable();
     }
+
+    @Override
+    public void destroy() {
+        BluetoothStateListener.unregister(getContext());
+        super.destroy();
+    }
 }

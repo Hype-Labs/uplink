@@ -15,7 +15,6 @@ import java.util.Objects;
  */
 public abstract class AbstractStateListener {
 
-    private volatile Context context;
     private volatile boolean registered;
 
     /**
@@ -23,17 +22,7 @@ public abstract class AbstractStateListener {
      * registered the BroadcastReceiver.
      */
     public AbstractStateListener() {
-        this.context = null;
         this.registered = false;
-    }
-
-    /**
-     * Returns the Android environment Context that was set with the last call
-     * to registerBroadcastReceiver.
-     * @return The Android environment Context.
-     */
-    private Context getContext() {
-        return this.context;
     }
 
     /**
@@ -63,27 +52,27 @@ public abstract class AbstractStateListener {
         }
 
         this.registered = true;
-        this.context = context;
 
-        getContext().registerReceiver(getBroadcastReceiver(), getIntentFilter());
+        context.registerReceiver(getBroadcastReceiver(), getIntentFilter());
     }
 
     /**
-     * This method should be called by the concrete implementations when there
-     * is no more intent of listening to adapter state changes, in which case
-     * the BroadcastReceiver will be unregistered from the Android environment
-     * Context and not receive any more notifications.
+     * This method should be called by the concrete implementations when there is no more intent of
+     * listening to adapter state changes, in which case the BroadcastReceiver will be unregistered
+     * from the Android environment Context and not receive any more notifications.
+     *
+     * @param context The Android environment Context. Must be the same context, which was passed to
+     *                {@link #registerBroadcastReceiver(Context)}
      */
-    public synchronized void unregisterBroadcastReceiver() {
+    public synchronized void unregisterBroadcastReceiver(Context context) {
 
         if (!isRegistered()) {
             return;
         }
 
-        getContext().unregisterReceiver(getBroadcastReceiver());
+        context.unregisterReceiver(getBroadcastReceiver());
 
         this.registered = false;
-        this.context = null;            // No longer needed
     }
 
     /**

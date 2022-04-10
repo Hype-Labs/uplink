@@ -86,13 +86,15 @@ public class BluetoothStateListener extends AbstractStateListener implements Bro
     }
 
     /**
-     * Undoes a previous registration of the BroadcastReceiver within the
-     * Android environment Context used at the time of registration. After this
-     * method is called, the observers will no longer get notifications from the
-     * class, and adapter state changes will not be tracked.
+     * Undoes a previous registration of the BroadcastReceiver within the Android environment
+     * Context used at the time of registration. After this method is called, the observers will no
+     * longer get notifications from the class, and adapter state changes will not be tracked.
+     *
+     * @param context The Android environment Context. Must be the same context, which was passed to
+     *                {@link #register(Context)}
      */
-    public static void unregister() {
-        getInstance().unregisterBroadcastReceiver();
+    public static void unregister(Context context) {
+        getInstance().unregisterBroadcastReceiver(context);
     }
 
     /**
