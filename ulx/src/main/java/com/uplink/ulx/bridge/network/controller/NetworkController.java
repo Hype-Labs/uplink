@@ -38,6 +38,7 @@ import java.net.URL;
 import java.util.Objects;
 
 import androidx.annotation.NonNull;
+import androidx.annotation.WorkerThread;
 import timber.log.Timber;
 
 /**
@@ -412,6 +413,7 @@ public class NetworkController implements IoController.Delegate,
      * @return The number of hops that it takes for the device to reach the
      * Internet, incremented by 1 or {@link RoutingTable#HOP_COUNT_INFINITY}
      */
+    @WorkerThread
     private int getIncrementedInternetHopCount() {
 
         if (NetworkUtils.isNetworkAvailable(getContext())) {
@@ -461,7 +463,6 @@ public class NetworkController implements IoController.Delegate,
             assert !link.getNextHop().getIdentifier().equals(device.getIdentifier());
 
             int hopCount = Math.min(link.getHopCount() + 1, RoutingTable.HOP_COUNT_INFINITY);
-            final int internetHopCount = getIncrementedInternetHopCount();
 
             // Don't propagate events that reach the maximum number of hops
             if (hopCount >= RoutingTable.MAXIMUM_HOP_COUNT) {
@@ -483,8 +484,7 @@ public class NetworkController implements IoController.Delegate,
             UpdatePacket updatePacket = new UpdatePacket(
                     getSequenceGenerator().generate(),
                     link.getDestination(),
-                    hopCount,
-                    internetHopCount
+                    hopCount
             );
 
             getIoController().add(new NetworkPacket(updatePacket) {
@@ -822,13 +822,15 @@ public class NetworkController implements IoController.Delegate,
             return;
         }
 
+        final Link directLink = getRoutingTable().getBestLink(packet.getInstance(), null);
+
         // This should correspond to an update, since we haven't proceeded with
         // new registrations above
         getRoutingTable().registerOrUpdate(
                 device,
                 packet.getInstance(),
                 packet.getHopCount(),
-                packet.getInternetHopCount()
+                directLink != null ? directLink.getInternetHopCount() : RoutingTable.HOP_COUNT_INFINITY
         );
 
         getRoutingTable().log();
@@ -1134,7 +1136,6 @@ public class NetworkController implements IoController.Delegate,
         final UpdatePacket updatePacket = new UpdatePacket(
                 getSequenceGenerator().generate(),
                 instance,
-                RoutingTable.HOP_COUNT_INFINITY,
                 RoutingTable.HOP_COUNT_INFINITY
         );
         scheduleUpdatePacket(updatePacket, lastDevice);
@@ -1170,7 +1171,6 @@ public class NetworkController implements IoController.Delegate,
         assert link != null;
 
         int hopCount = Math.min(link.getHopCount() + 1, RoutingTable.HOP_COUNT_INFINITY);
-        int internetHopCount = getIncrementedInternetHopCount();
 
         Timber.i("ULX-M is propagating link update %s", link.toString());
 
@@ -1180,8 +1180,7 @@ public class NetworkController implements IoController.Delegate,
         UpdatePacket updatePacket = new UpdatePacket(
                 getSequenceGenerator().generate(),
                 link.getDestination(),
-                hopCount,
-                internetHopCount
+                hopCount
         );
 
         // Schedule the update packet to be sent
@@ -1205,8 +1204,7 @@ public class NetworkController implements IoController.Delegate,
         final UpdatePacket updatePacket = new UpdatePacket(
                 getSequenceGenerator().generate(),
                 destination,
-                hopCount,
-                getIncrementedInternetHopCount()
+                hopCount
         );
 
         scheduleUpdatePacketForDevice(updatePacket, bestLinkDevice);
