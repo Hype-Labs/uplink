@@ -35,6 +35,8 @@ import java.io.OutputStreamWriter;
 import java.net.HttpURLConnection;
 import java.net.URL;
 import java.util.Objects;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
 
 import androidx.annotation.GuardedBy;
 import androidx.annotation.NonNull;
@@ -212,6 +214,11 @@ public class NetworkController implements IoController.Delegate,
     @Nullable
     private volatile Boolean isInternetReachable;
 
+    /**
+     * Maps devices to the last i-hops value sent to them
+     */
+    private final ConcurrentMap<Device, Integer> sentIHops;
+
     private NetworkStateListener networkStateListener;
 
     public static NetworkController newInstance(Instance hostInstance, Context context) {
@@ -245,6 +252,8 @@ public class NetworkController implements IoController.Delegate,
         this.sequenceGenerator = null;
 
         this.context = context;
+
+        sentIHops = new ConcurrentHashMap<>();
     }
 
     private void setNetworkStateListener(NetworkStateListener networkStateListener) {
@@ -377,6 +386,8 @@ public class NetworkController implements IoController.Delegate,
             }
 
             final int finalIHopsCount = internetHopCount;
+
+            sentIHops.put(device, finalIHopsCount);
 
             Timber.e("ULX handshake packet with i-hops %d", internetHopCount);
 
@@ -1104,48 +1115,25 @@ public class NetworkController implements IoController.Delegate,
                 final RoutingTable.InternetLink newBestLink = getRoutingTable()
                         .getBestInternetLink(null);
 
-                final RoutingTable.InternetLink secondBestLink = newBestLink != null
-                        ? getRoutingTable().getBestInternetLink(newBestLink.first)
-                        : null;
 
-                if (!Objects.equals(oldBestLink, newBestLink)) {
-                    if (newBestLink != null) {
-                        // Send updated i-hops count to everyone except through which
-                        // internet is to be accessed
-                        scheduleInternetUpdatePacket(newBestLink.second, newBestLink.first);
+                if (newBestLink != null) {
+                    // Send updated i-hops count to everyone except through which
+                    // internet is to be accessed
+                    scheduleInternetUpdatePacket(newBestLink.second, newBestLink.first);
 
-                        if (oldBestLink == null || !oldBestLink.first.equals(newBestLink.first)) {
-                            // Tell our 'internet provider' device about our alternative i-hops
-                            scheduleInternetUpdatePacketForDevice(
-                                    createInternetUpdatePacket(
-                                            secondBestLink != null ? secondBestLink.second : RoutingTable.HOP_COUNT_INFINITY
-                                    ),
-                                    newBestLink.first
-                            );
-                        } // Else our 'internet provider' is the same and knows about our alternative i-hops
-                    } else {
-                        // Tell everyone except our old 'internet provider' device
-                        // that we don't have access to internet anymore
-                        scheduleInternetUpdatePacket(
-                                RoutingTable.HOP_COUNT_INFINITY,
-                                oldBestLink.first
-                        );
-                    }
+                    final RoutingTable.InternetLink secondBestLink = getRoutingTable()
+                            .getBestInternetLink(newBestLink.first);
 
+                    // Tell our 'internet provider' device about our alternative i-hops
+                    scheduleInternetUpdatePacketForDevice(
+                            createInternetUpdatePacket(
+                                    secondBestLink != null ? secondBestLink.second : RoutingTable.HOP_COUNT_INFINITY
+                            ),
+                            newBestLink.first
+                    );
                 } else {
-                    if (!Objects.equals(
-                            oldSecondBestLink != null ? oldBestLink.second : null,
-                            secondBestLink != null ? secondBestLink.second : null
-                    )) {
-                        // Our best link is the same, but the second best i-hops count
-                        // has changed, so we need to update our 'internet provider' device
-                        scheduleInternetUpdatePacketForDevice(
-                                createInternetUpdatePacket(
-                                        secondBestLink != null ? secondBestLink.second : RoutingTable.HOP_COUNT_INFINITY
-                                ),
-                                oldBestLink.first
-                        );
-                    }
+                    // Tell everyone that we don't have internet access anymore
+                    scheduleInternetUpdatePacket(RoutingTable.HOP_COUNT_INFINITY, null);
                 }
             }
         }
@@ -1332,6 +1320,17 @@ public class NetworkController implements IoController.Delegate,
      * @param device device to notify
      */
     private void scheduleInternetUpdatePacketForDevice(InternetUpdatePacket packet, Device device) {
+        if (Integer.valueOf(packet.getHopCount())
+                .equals(sentIHops.put(device, packet.getHopCount()))) {
+            Timber.v(
+                    "InternetUpdate packet with i-hops count %d won't be sent to [%s], because it is already up-to-date",
+                    packet.getHopCount(),
+                    device
+            );
+            return;
+        }
+
+
         Timber.d("Scheduling packet [%s] for device [%s]", packet, device.getIdentifier());
 
         getIoController().add(new NetworkPacket(packet) {
