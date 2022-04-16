@@ -1087,11 +1087,6 @@ public class NetworkController implements IoController.Delegate,
     private void handleIHopsUpdate(Device device, Instance instance, int iHopsCount) {
 
         synchronized (getRoutingTable()) {
-            final RoutingTable.InternetLink oldBestLink = getRoutingTable().getBestInternetLink(null);
-            final RoutingTable.InternetLink oldSecondBestLink = oldBestLink != null
-                    ? getRoutingTable().getBestInternetLink(oldBestLink.first)
-                    : null;
-
             getRoutingTable().updateInternetHopsCount(
                     device,
                     instance,
@@ -1119,7 +1114,7 @@ public class NetworkController implements IoController.Delegate,
                 if (newBestLink != null) {
                     // Send updated i-hops count to everyone except through which
                     // internet is to be accessed
-                    scheduleInternetUpdatePacket(newBestLink.second, newBestLink.first);
+                    scheduleInternetUpdatePacket(newBestLink.second + 1, newBestLink.first);
 
                     final RoutingTable.InternetLink secondBestLink = getRoutingTable()
                             .getBestInternetLink(newBestLink.first);
@@ -1127,7 +1122,7 @@ public class NetworkController implements IoController.Delegate,
                     // Tell our 'internet provider' device about our alternative i-hops
                     scheduleInternetUpdatePacketForDevice(
                             createInternetUpdatePacket(
-                                    secondBestLink != null ? secondBestLink.second : RoutingTable.HOP_COUNT_INFINITY
+                                    secondBestLink != null ? secondBestLink.second + 1 : RoutingTable.HOP_COUNT_INFINITY
                             ),
                             newBestLink.first
                     );
