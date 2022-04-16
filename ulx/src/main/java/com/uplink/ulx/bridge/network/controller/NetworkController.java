@@ -1384,7 +1384,7 @@ public class NetworkController implements IoController.Delegate,
             int hopCount
     ) {
         Timber.i(
-                "Sending split-horizon update to %s regarding instance %s. Hop count: %d. Internet hop count: %d",
+                "Sending split-horizon update to %s regarding instance %s. Hop count: %d",
                 bestLinkDevice.getIdentifier(),
                 destination,
                 hopCount

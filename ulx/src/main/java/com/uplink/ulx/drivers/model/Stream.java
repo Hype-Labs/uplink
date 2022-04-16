@@ -119,7 +119,7 @@ public interface Stream {
          * @param stream The stream issuing the notification.
          * @param error An error, indicating the cause for the closure.
          */
-        void onClose(Stream stream, UlxError error);
+        void onClose(Stream stream, @Nullable UlxError error);
 
         /**
          * The stream failed to activate, meaning that any I/O performed on it

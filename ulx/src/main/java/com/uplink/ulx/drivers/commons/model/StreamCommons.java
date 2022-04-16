@@ -79,7 +79,7 @@ public abstract class StreamCommons implements
             }
 
             @Override
-            public void onStop(StateManager stateManager, UlxError error) {
+            public void onStop(StateManager stateManager, @Nullable UlxError error) {
                 onClose(error);
             }
 
@@ -155,7 +155,7 @@ public abstract class StreamCommons implements
     }
 
     @Override
-    public void close(UlxError error) {
+    public void close(@Nullable UlxError error) {
         Timber.i("ULX stream %s is being requested close", getIdentifier());
         getStateManager().notifyStop(error);
     }
@@ -217,11 +217,11 @@ public abstract class StreamCommons implements
      * Clean up used resources and notify state delegate
      * @param error reason for closing
      */
-    protected void onClose(UlxError error) {
+    protected void onClose(@Nullable UlxError error) {
         Timber.e(
                 "ULX stream %s stopped with error %s",
                 getIdentifier(),
-                error.toString()
+                error
         );
         StateDelegate stateDelegate = getStateDelegate();
         if (stateDelegate != null) {

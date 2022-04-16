@@ -556,7 +556,7 @@ public class Bridge implements
     }
 
     @Override
-    public void onClose(Stream stream, UlxError error) {
+    public void onClose(Stream stream, @Nullable UlxError error) {
         // A non-null error means the stream closed unexpectedly.
         // If it was a reliable stream, we need to invalidate the device
         if (error != null && stream.isReliable()) {

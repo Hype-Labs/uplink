@@ -72,7 +72,7 @@ public class StateManager {
          * @param error An error, indicating a probable cause for a failure, if
          *              one exists.
          */
-        void onStop(StateManager stateManager, UlxError error);
+        void onStop(StateManager stateManager, @Nullable UlxError error);
 
         /**
          * This notification is issued by the state manager after the stateful
