@@ -26,6 +26,7 @@ import timber.log.Timber;
  * about internet connectivity state changes
  */
 public class NetworkStateListener {
+    private static final int NETWORK_CHECK_RETRY_DELAY_MS = 60_000;
 
     private volatile ConnectivityManager connectivityManager;
 
@@ -73,6 +74,8 @@ public class NetworkStateListener {
      * HashMap}
      */
     private final Map<Network, Boolean> networksState = new HashMap<>();
+
+    private final Runnable updaterRunnable = this::updateState;
 
     /**
      * Constructor. The callbacks will not be invoked until {@link #register()} is called
@@ -142,12 +145,25 @@ public class NetworkStateListener {
      */
     @WorkerThread
     private void updateState() {
+        // Remove any pending explicit network checks
+        handler.removeCallbacks(updaterRunnable);
+
         @Nullable final Boolean oldState = isInternetReachable;
 
         boolean newState = isNetworkAvailable();
 
-        // Let's verify if we can use the network
-        newState &= NetworkUtils.isNetworkAvailable(context);
+        if (newState) {
+            // Let's verify if we can use the network
+            newState = NetworkUtils.isNetworkAvailable(context);
+
+            if (!newState) {
+                Timber.d(
+                        "Internet connection should be available, but we couldn't reach google. We'll retry in %d ms",
+                        NETWORK_CHECK_RETRY_DELAY_MS
+                );
+                handler.postDelayed(updaterRunnable, NETWORK_CHECK_RETRY_DELAY_MS);
+            }
+        }
 
         isInternetReachable = newState;
 
