@@ -1114,13 +1114,15 @@ public class NetworkController implements IoController.Delegate,
                         // internet is to be accessed
                         scheduleInternetUpdatePacket(newBestLink.second, newBestLink.first);
 
-                        // Tell our 'internet provider' device about our alternative i-hops
-                        scheduleInternetUpdatePacketForDevice(
-                                createInternetUpdatePacket(
-                                        secondBestLink != null ? secondBestLink.second : RoutingTable.HOP_COUNT_INFINITY
-                                ),
-                                newBestLink.first
-                        );
+                        if (oldBestLink == null || !oldBestLink.first.equals(newBestLink.first)) {
+                            // Tell our 'internet provider' device about our alternative i-hops
+                            scheduleInternetUpdatePacketForDevice(
+                                    createInternetUpdatePacket(
+                                            secondBestLink != null ? secondBestLink.second : RoutingTable.HOP_COUNT_INFINITY
+                                    ),
+                                    newBestLink.first
+                            );
+                        } // Else our 'internet provider' is the same and knows about our alternative i-hops
                     } else {
                         // Tell everyone except our old 'internet provider' device
                         // that we don't have access to internet anymore
