@@ -607,23 +607,21 @@ public class RoutingTable {
                     final int iHopsDiff = Integer.signum(o1.getInternetHopCount() - o2.getInternetHopCount());
                     if (iHopsDiff != 0) {
                         return iHopsDiff;
+                    } else if (o1.getInternetHopCount() < HOP_COUNT_INFINITY) {
+                        final Link mostRecentLink1 = o1.getMostRecentLink();
+                        final Link mostRecentLink2 = o2.getMostRecentLink();
+
+                        // If internet hop count is set, there must be at least one link
+                        assert mostRecentLink1 != null && mostRecentLink2 != null;
+
+                        return Long.compare(
+                                mostRecentLink1.getStability(),
+                                mostRecentLink2.getStability()
+                        );
+
                     } else {
-                        if (o1.getInternetHopCount() < HOP_COUNT_INFINITY) {
-                            final Link mostRecentLink1 = o1.getMostRecentLink();
-                            final Link mostRecentLink2 = o2.getMostRecentLink();
-
-                            // If internet hop count is set, there must be at least one link
-                            assert mostRecentLink1 != null && mostRecentLink2 != null;
-
-                            return Long.compare(
-                                    mostRecentLink1.getStability(),
-                                    mostRecentLink2.getStability()
-                            );
-
-                        } else {
-                            // Entries without internet won't be considered anyway
-                            return 0;
-                        }
+                        // Entries without internet won't be considered anyway
+                        return 0;
                     }
                 }
         );
