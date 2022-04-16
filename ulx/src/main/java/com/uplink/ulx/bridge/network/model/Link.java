@@ -26,7 +26,6 @@ public class Link implements Comparable<Link> {
     private final Device nextHop;
     private final Instance destination;
     private volatile int hopCount;
-    private volatile int internetHopCount;
     private final long timestamp;
 
     /**
@@ -34,10 +33,8 @@ public class Link implements Comparable<Link> {
      * @param nextHop The device in LoS that makes the {@link Instance} reachable.
      * @param destination The final destination {@link Instance}.
      * @param hopCount The number of hops to the final destination.
-     * @param internetHopCount The number of hops that it takes for this link
-     *                         to reach the Internet.
      */
-    public Link(@NonNull Device nextHop, Instance destination, int hopCount, int internetHopCount)  {
+    public Link(@NonNull Device nextHop, Instance destination, int hopCount)  {
 
         Objects.requireNonNull(nextHop);
         Objects.requireNonNull(destination);
@@ -45,7 +42,6 @@ public class Link implements Comparable<Link> {
         this.nextHop = nextHop;
         this.destination = destination;
         this.hopCount = hopCount;
-        this.internetHopCount = internetHopCount;
         this.timestamp = System.currentTimeMillis();
     }
 
@@ -87,26 +83,6 @@ public class Link implements Comparable<Link> {
      */
     public final int getHopCount() {
         return this.hopCount;
-    }
-
-    /**
-     * Setter for the number of hops that it takes for this {@link Link} to
-     * reach the Internet. A value of {@link RoutingTable#HOP_COUNT_INFINITY}
-     * means that the Internet is not reachable at all.
-     * @param internetHopCount The number of hops to reach the Internet.
-     */
-    public final void setInternetHopCount(int internetHopCount) {
-        this.internetHopCount = internetHopCount;
-    }
-
-    /**
-     * Getter for the number of hops that it takes for this {@link Link} to
-     * reach the Internet. A value of {@link RoutingTable#HOP_COUNT_INFINITY}
-     * means that the Internet is not reachable at all.
-     * @return The number of hops to reach the Internet.
-     */
-    public final int getInternetHopCount() {
-        return this.internetHopCount;
     }
 
     /**
@@ -178,12 +154,11 @@ public class Link implements Comparable<Link> {
     @NonNull
     @Override
     public String toString() {
-        return String.format(Locale.ENGLISH, "%s(hop: %s, dst: %s, hops: %d, i-hops: %d, s: %d)",
+        return String.format(Locale.ENGLISH, "%s(hop: %s, dst: %s, hops: %d, s: %d)",
                 getClass().getSimpleName(),
                 getNextHop().getIdentifier(),
                 getDestination().getStringIdentifier(),
                 getHopCount(),
-                getInternetHopCount(),
                 getStability()
         );
     }

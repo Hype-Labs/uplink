@@ -17,6 +17,9 @@ import com.uplink.ulx.bridge.io.model.InternetPacketEncoder;
 import com.uplink.ulx.bridge.io.model.InternetResponsePacket;
 import com.uplink.ulx.bridge.io.model.InternetResponsePacketDecoder;
 import com.uplink.ulx.bridge.io.model.InternetResponsePacketEncoder;
+import com.uplink.ulx.bridge.io.model.InternetUpdatePacket;
+import com.uplink.ulx.bridge.io.model.InternetUpdatePacketDecoder;
+import com.uplink.ulx.bridge.io.model.InternetUpdatePacketEncoder;
 import com.uplink.ulx.bridge.io.model.Packet;
 import com.uplink.ulx.bridge.io.model.UpdatePacket;
 import com.uplink.ulx.bridge.io.model.UpdatePacketDecoder;
@@ -222,16 +225,17 @@ public class IoController implements InputStream.Delegate,
      * @return The {@link Serializer} used by the bridge.
      */
     private Serializer getSerializer() {
-        if (this.serializer == null) {
-            this.serializer = new Serializer();
-            this.serializer.register(HandshakePacket.class, new HandshakePacketEncoder(), new HandshakePacketDecoder());
-            this.serializer.register(UpdatePacket.class, new UpdatePacketEncoder(), new UpdatePacketDecoder());
-            this.serializer.register(DataPacket.class, new DataPacketEncoder(), new DataPacketDecoder());
-            this.serializer.register(AcknowledgementPacket.class, new AcknowledgementPacketEncoder(), new AcknowledgementPacketDecoder());
-            this.serializer.register(InternetPacket.class, new InternetPacketEncoder(), new InternetPacketDecoder());
-            this.serializer.register(InternetResponsePacket.class, new InternetResponsePacketEncoder(), new InternetResponsePacketDecoder());
+        if (serializer == null) {
+            serializer = new Serializer();
+            serializer.register(HandshakePacket.class, new HandshakePacketEncoder(), new HandshakePacketDecoder());
+            serializer.register(UpdatePacket.class, new UpdatePacketEncoder(), new UpdatePacketDecoder());
+            serializer.register(DataPacket.class, new DataPacketEncoder(), new DataPacketDecoder());
+            serializer.register(AcknowledgementPacket.class, new AcknowledgementPacketEncoder(), new AcknowledgementPacketDecoder());
+            serializer.register(InternetPacket.class, new InternetPacketEncoder(), new InternetPacketDecoder());
+            serializer.register(InternetResponsePacket.class, new InternetResponsePacketEncoder(), new InternetResponsePacketDecoder());
+            serializer.register(InternetUpdatePacket.class, new InternetUpdatePacketEncoder(), new InternetUpdatePacketDecoder());
         }
-        return this.serializer;
+        return serializer;
     }
 
     /**

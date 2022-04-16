@@ -111,4 +111,12 @@ public class Instance {
     public int hashCode() {
         return Arrays.hashCode(identifier);
     }
+
+    @NonNull
+    @Override
+    public String toString() {
+        return "Instance{" +
+                "identifier=" + getStringIdentifier() +
+                '}';
+    }
 }

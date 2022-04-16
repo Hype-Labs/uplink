@@ -18,6 +18,7 @@ import java.util.concurrent.CopyOnWriteArrayList;
 import androidx.annotation.GuardedBy;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
+import androidx.core.util.Pair;
 import timber.log.Timber;
 
 public class RoutingTable {
@@ -93,7 +94,7 @@ public class RoutingTable {
         /**
          * This {@link Delegate} call happens after {@link #onLinkUpdate(RoutingTable, Link)} in
          * cases where a secondBestLink degradation took place. The goal is to notify the
-         * bestLinkDevice about how we would reach the given instance and internet otherwise
+         * bestLinkDevice about how we would reach the given instance otherwise
          *
          * @param routingTable   The {@link RoutingTable} issuing the notification.
          * @param bestLinkDevice The receiver of the update
@@ -118,7 +119,9 @@ public class RoutingTable {
 
         @NonNull
         private final Device device;
+        private int internetHopCount;
         private List<Link> links;
+        private InternetLink internetLink;
 
         /**
          * Constructor.
@@ -128,6 +131,7 @@ public class RoutingTable {
         Entry(@NonNull Device device) {
             this.device = device;
             this.links = null;
+            this.internetHopCount = HOP_COUNT_INFINITY;
         }
 
         /**
@@ -147,6 +151,7 @@ public class RoutingTable {
          * known {@link Link}s.
          * @return The {@link List} that is used.
          */
+        @NonNull
         protected final List<Link> getLinks() {
             if (this.links == null) {
                 this.links = new CopyOnWriteArrayList<>();
@@ -162,24 +167,25 @@ public class RoutingTable {
          * updated with the given metadata.
          * @param instance The {@link Instance} to register as reachable.
          * @param hopCount The minimum known number of hops.
-         * @param internetHopCount The number of hops that it takes for the
-         *                         {@link Link} to reach the Internet.
          * @return The {@link Link} that was created or updated.
          */
-        public Link add(Instance instance, int hopCount, int internetHopCount) {
+        private Link add(Instance instance, int hopCount) {
 
             Link link = get(instance);
 
             if (link == null) {
 
                 // Register a new link
-                link = new Link(getDevice(), instance, hopCount, internetHopCount);
+                link = new Link(
+                        getDevice(),
+                        instance,
+                        hopCount
+                );
                 getLinks().add(link);
             } else {
 
                 // If the link is already known, we'll consider this an update
                 link.setHopCount(hopCount);
-                link.setInternetHopCount(internetHopCount);
             }
 
             return link;
@@ -229,43 +235,48 @@ public class RoutingTable {
         }
 
         /**
-         * Returns the Internet-connected {@link Link} that compares the best
-         * against all others, also known to have {@link #getDevice()} as the
-         * next hop.
-         * @return The best known Internet connection for this {@link Entry}.
+         * Setter for the number of hops that it takes for the {@link #device} to reach the
+         * Internet. A value of {@link RoutingTable#HOP_COUNT_INFINITY} means that the Internet is
+         * not reachable at all.
+         *
+         * @param hopCount The number of hops to reach the Internet.
          */
-        public Link getBestInternetLink() {
-
-            List<Link> internetLinks = compileInternetLinks();
-
-            // Sorting the links will compare them over stability and number of
-            // hops. This will yield the best links at the top. However, this
-            // are not necessarily the best Internet links, but rather overall
-            // links. Still, we known that the links provide Internet
-            // reachability, even if not ideally.
-            Collections.sort(internetLinks, (o1, o2) ->
-                    Integer.signum(o1.getInternetHopCount() - o2.getInternetHopCount()));
-
-            return internetLinks.size() > 0 ? internetLinks.get(0) : null;
+        public void setInternetHopCount(int hopCount) {
+            internetHopCount = hopCount;
+            // Reset the invalidated internetLink
+            internetLink = null;
         }
 
         /**
-         * Compiles a {@link List} of {@link Link}s that are known to be
-         * connected to the Internet over the next-hop that corresponds to
-         * this table entry. If there are no known links to be connected, the
-         * implementation will return an empty {@link List}.
-         * @return A list of Internet-connected {@link Link}s.
+         * Getter for the number of hops that it takes for the {@link #device} to reach the
+         * Internet. A value of {@link RoutingTable#HOP_COUNT_INFINITY} means that the Internet is
+         * not reachable at all.
+         *
+         * @return The number of hops to reach the Internet.
          */
-        private List<Link> compileInternetLinks() {
-            List<Link> linkList = new ArrayList<>();
+        public int getInternetHopCount() {
+            return internetHopCount;
+        }
 
-            for (Link link : getLinks()) {
-                if (link.getInternetHopCount() < RoutingTable.HOP_COUNT_INFINITY) {
-                    linkList.add(link);
-                }
+        /**
+         * @return the most fresh link
+         */
+        @Nullable
+        public Link getMostRecentLink() {
+            final List<Link> links = getLinks();
+            // Since links are added to the end of the list at the time of their creation,
+            // the most recent one is always the last
+            return links.isEmpty() ? null : links.get(links.size() - 1);
+        }
+
+        /**
+         * @return {@link InternetLink} for this {@link Entry}
+         */
+        public InternetLink getInternetLink() {
+            if (internetLink == null) {
+                internetLink = new InternetLink(device, getInternetHopCount());
             }
-
-            return linkList;
+            return internetLink;
         }
     }
 
@@ -394,16 +405,17 @@ public class RoutingTable {
      * @param device The next-hop {@link Device}.
      * @param instance The {@link Instance} that is (or was) reachable through the device.
      * @param hopCount The minimum known hop count.
-     * @param internetHopCount The number of hops that it takes for the instance
-     *                         to reach the Internet.
      */
-    public synchronized void registerOrUpdate(Device device, Instance instance, int hopCount, int internetHopCount) {
+    public synchronized void registerOrUpdate(
+            Device device,
+            Instance instance,
+            int hopCount
+    ) {
         Timber.i(
-                "ULX-M registering an update: %s %s %d %d",
+                "ULX-M registering an update: %s %s %d",
                 device.getIdentifier(),
                 instance.getStringIdentifier(),
-                hopCount,
-                internetHopCount
+                hopCount
         );
 
 
@@ -435,7 +447,7 @@ public class RoutingTable {
         final Link oldBestLink = getBestLink(instance, null);
 
         // Register the link
-        Link newLink = getLinkMapEntry(device).add(instance, hopCount, internetHopCount);
+        Link newLink = getLinkMapEntry(device).add(instance, hopCount);
 
         // If the link did not previously exist, then it's new, which results
         // in two events (found and update). If it's not new, then it's an
@@ -466,6 +478,34 @@ public class RoutingTable {
                 );
             }
         }
+    }
+
+    /**
+     * Updates information about i-hops count for the given instance
+     *
+     * @param device   The next-hop {@link Device}.
+     * @param instance The {@link Instance} that is hosted by the device.
+     * @param hopCount The number of hops that it takes for the instance to reach the Internet.
+     */
+    public synchronized void updateInternetHopsCount(Device device, Instance instance, int hopCount) {
+        final Entry entry = linkMap.get(device);
+
+        if (entry == null) {
+            Timber.w(
+                    "Unable to update i-hops count. Device [%s] was not found in routing table",
+                    device
+            );
+            return;
+        }
+
+        if (hopCount < MAXIMUM_HOP_COUNT) {
+            entry.setInternetHopCount(hopCount);
+        } else {
+            Timber.d("Internet hop count is higher than maximum. Considering it as unavailable");
+            entry.setInternetHopCount(HOP_COUNT_INFINITY);
+        }
+
+        Timber.d("Updated i-hops count for instance [%s]", instance);
     }
 
     /**
@@ -546,28 +586,57 @@ public class RoutingTable {
     }
 
     /**
-     * Returns the best known mesh link to the Internet. The factor of quality
-     * is determined by comparing the links using the {@link Link#compareTo(Link)}
-     * method, which accounts for stability and number of hops. The {@code
-     * splitHorizon} argument is not used yet, but will be in future versions
-     * to prevent determining paths that loop on some previous hop. If the
-     * split horizon is {@code null}, the implementation should perform the
-     * calculation without having the previous hop in consideration.
+     * Returns the best known mesh link to the Internet. The factor of quality is determined by
+     * comparing the entries by {@link Entry#internetHopCount} and the most fresh timestamp among
+     * their links. The {@code splitHorizon} argument is used to prevent determining paths that loop
+     * on some previous hop. If the split horizon is {@code null}, the implementation should perform
+     * the calculation without having the previous hop in consideration.
+     *
      * @param splitHorizon the device to exclude from search
-     * @return The best known mesh link to the Internet.
+     * @return The best known mesh link to the Internet or {@code null}, if such doesn't exist
      */
-    public Link getBestInternetLink(@Nullable Device splitHorizon) {
+    @Nullable
+    public synchronized InternetLink getBestInternetLink(@Nullable Device splitHorizon) {
 
-        final List<Link> links = compileInternetLinks();
+        final List<Entry> entries = new ArrayList<>(this.linkMap.values());
 
-        // Sorting the list will yield the best links at the top
-        Collections.sort(links, (o1, o2)
-                -> Integer.signum(o1.getInternetHopCount() - o2.getInternetHopCount()));
+        // Sorting the list will yield the best entries at the top
+        Collections.sort(
+                entries,
+                (o1, o2) -> {
+                    final int iHopsDiff = Integer.signum(o1.getInternetHopCount() - o2.getInternetHopCount());
+                    if (iHopsDiff != 0) {
+                        return iHopsDiff;
+                    } else {
+                        if (o1.getInternetHopCount() < HOP_COUNT_INFINITY) {
+                            final Link mostRecentLink1 = o1.getMostRecentLink();
+                            final Link mostRecentLink2 = o2.getMostRecentLink();
+
+                            // If internet hop count is set, there must be at least one link
+                            assert mostRecentLink1 != null && mostRecentLink2 != null;
+
+                            return Long.compare(
+                                    mostRecentLink1.getStability(),
+                                    mostRecentLink2.getStability()
+                            );
+
+                        } else {
+                            // Entries without internet won't be considered anyway
+                            return 0;
+                        }
+                    }
+                }
+        );
 
 
-        for (Link link : links) {
-            if (!link.getNextHop().equals(splitHorizon)) {
-                return link;
+        for (Entry entry : entries) {
+            if (!entry.getDevice().equals(splitHorizon)) {
+                if (entry.getInternetHopCount() < HOP_COUNT_INFINITY) {
+                    return entry.getInternetLink();
+                } else {
+                    // No need to continue traversing the sorted list - there's no link to internet
+                    return null;
+                }
             }
         }
 
@@ -617,30 +686,6 @@ public class RoutingTable {
             Link link = entry.get(instance);
 
             if (link != null && !link.getNextHop().equals(splitHorizon)) {
-                linkList.add(link);
-            }
-        }
-
-        return linkList;
-    }
-
-    /**
-     * Compiles a {@link List} of Internet links known to the {@link
-     * RoutingTable}. This includes all links that are known, and the list is
-     * created on the fly with each call. The list will include only one {@link
-     * Link} per connected {@link Device}, corresponding to the best known link
-     * going through that device.
-     * @return A {@link List} of known Internet {@link Link}s.
-     */
-    @NonNull
-    private synchronized List<Link> compileInternetLinks() {
-
-        final List<Link> linkList = new ArrayList<>();
-
-        for (Entry entry : linkMap.values()) {
-            Link link = entry.getBestInternetLink();
-
-            if (link != null) {
                 linkList.add(link);
             }
         }
@@ -751,6 +796,21 @@ public class RoutingTable {
             for (Link link : entry.getLinks()) {
                 Timber.e("ULX-M RTR %s", link.toString());
             }
+        }
+    }
+
+    /**
+     * A {@link Pair}, representing a device and hops count needed to reach internet by using it
+     */
+    public static class InternetLink extends Pair<Device, Integer> {
+        /**
+         * Constructor for a Pair.
+         *
+         * @param device            the device
+         * @param internetHopsCount hops count needed to reach internet via the device
+         */
+        public InternetLink(Device device, int internetHopsCount) {
+            super(device, internetHopsCount);
         }
     }
 }

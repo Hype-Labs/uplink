@@ -13,6 +13,7 @@ import com.uplink.ulx.utils.NetworkUtils;
 
 import java.util.HashMap;
 import java.util.Map;
+import java.util.concurrent.CountDownLatch;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
@@ -58,7 +59,7 @@ public class NetworkStateListener {
     /**
      * Network availability flag. {@code null} means "unknown"
      */
-    private Boolean isNetworkAvailable;
+    private Boolean isInternetReachable;
 
     /**
      * Maps {@link Network}s to their reachability states. All networks present as keys are
@@ -110,7 +111,7 @@ public class NetworkStateListener {
         public void onAvailable(@NonNull Network network) {
             handler.post(() -> {
                 if (!networksState.containsKey(network)) {
-                    networksState.put(network, false);
+                    networksState.put(network, true);
                     updateState();
                 }
             });
@@ -136,33 +137,71 @@ public class NetworkStateListener {
     };
 
     /**
-     * Updates {@link #isNetworkAvailable} flag and notifies {@link #observer} if network's state
+     * Updates {@link #isInternetReachable} flag and notifies {@link #observer} if network's state
      * has changed
      */
     @WorkerThread
     private void updateState() {
-        @Nullable final Boolean oldState = isNetworkAvailable;
+        @Nullable final Boolean oldState = isInternetReachable;
 
-        @NonNull
-        Boolean newState = Boolean.FALSE;
+        boolean newState = isNetworkAvailable();
+
+        // Let's verify if we can use the network
+        newState &= NetworkUtils.isNetworkAvailable(context);
+
+        isInternetReachable = newState;
+
+        if (!Boolean.valueOf(newState).equals(oldState)) {
+            Timber.i("Network availability has changed to [%s]. Notifying the observer", newState);
+            observer.onConnectivityChanged(newState);
+        } else {
+            Timber.i("Network availability has not changed");
+        }
+    }
+
+    /**
+     * @return whether Android has notified us that there is a network with internet connection
+     * available
+     */
+    private boolean isNetworkAvailable() {
+        boolean newState = Boolean.FALSE;
         for (boolean isAvailable : networksState.values()) {
             if (isAvailable) {
                 newState = Boolean.TRUE;
                 break;
             }
         }
+        return newState;
+    }
 
-        // Let's verify if we can use the network
-        newState &= NetworkUtils.isNetworkAvailable(context);
+    /**
+     * Checks if internet connection is currently available. If no callbacks have been received from
+     * the system after registration, the method will try to connect to google.com. In any case,
+     * it will not notify the observer
+     *
+     * @return whether internet connection is available
+     */
+    @WorkerThread
+    public boolean isInternetAvailable() throws InterruptedException {
+        final CountDownLatch latch = new CountDownLatch(1);
 
-        isNetworkAvailable = newState;
+        // Defer to the handler's thread to maintain thread-confinement for the mutable state
+        // Maybe a more natural approach would be to use FutureTask, but it would require
+        // more boilerplate code to handle exceptions
+        handler.post(() -> {
+            if (isInternetReachable == null) {
+                // Either we do not know anything about internet reachability yet, or it should
+                // be available as per Android, but the last request to google.com has failed.
+                // Let's request it now
+                isInternetReachable = NetworkUtils.isNetworkAvailable(context);
+            }
+            // Let the caller thread continue
+            latch.countDown();
+        });
+        // Wait for the handler thread to determine internet availability
+        latch.await();
 
-        if (oldState != newState) {
-            Timber.i("Network availability has changed to [%s]. Notifying the observer");
-            observer.onConnectivityChanged(newState);
-        } else {
-            Timber.i("Network availability has not changed");
-        }
+        return isInternetReachable;
     }
 
     /**

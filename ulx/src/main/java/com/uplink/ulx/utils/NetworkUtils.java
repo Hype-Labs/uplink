@@ -36,6 +36,7 @@ public class NetworkUtils {
                 connection.setRequestProperty("User-Agent", "test");
                 connection.setRequestProperty("Connection", "close");
                 connection.setConnectTimeout(5000);
+                connection.setReadTimeout(5000);
                 connection.connect();
                 connection.getResponseCode();
 

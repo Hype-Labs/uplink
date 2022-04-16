@@ -24,7 +24,6 @@ import com.uplink.ulx.drivers.model.OutputStream;
 import com.uplink.ulx.model.Instance;
 import com.uplink.ulx.threading.Dispatch;
 import com.uplink.ulx.threading.ExecutorPool;
-import com.uplink.ulx.utils.NetworkUtils;
 
 import org.json.JSONObject;
 
@@ -37,7 +36,9 @@ import java.net.HttpURLConnection;
 import java.net.URL;
 import java.util.Objects;
 
+import androidx.annotation.GuardedBy;
 import androidx.annotation.NonNull;
+import androidx.annotation.Nullable;
 import androidx.annotation.WorkerThread;
 import timber.log.Timber;
 
@@ -204,6 +205,13 @@ public class NetworkController implements IoController.Delegate,
     // being dispatched. The sequence begins in 0 and resets at 65535.
     private SequenceGenerator sequenceGenerator;
 
+    /**
+     * Stores last internet reachability flag sent by {@link NetworkStateListener}.
+     * {@code null} means that we haven't received such yet
+     */
+    @Nullable
+    private volatile Boolean isInternetReachable;
+
     private NetworkStateListener networkStateListener;
 
     public static NetworkController newInstance(Instance hostInstance, Context context) {
@@ -357,9 +365,18 @@ public class NetworkController implements IoController.Delegate,
         ExecutorPool.getInternetExecutor().execute(() -> {
             Timber.d("ULX calculating hop count");
 
-            // This call may make requests to the Internet, which is why we're
-            // using a different thread
-            final int internetHopCount = getIncrementedInternetHopCount();
+            int internetHopCount = RoutingTable.HOP_COUNT_INFINITY;
+            try {
+                // This call may make requests to the Internet, which is why we're
+                // using a different thread
+                internetHopCount = getIncrementedInternetHopCount(device);
+            } catch (InterruptedException e) {
+                Timber.i(e, "Thread interrupted while determining internet availability");
+                // Reset the interruption flag
+                Thread.currentThread().interrupt();
+            }
+
+            final int finalIHopsCount = internetHopCount;
 
             Timber.e("ULX handshake packet with i-hops %d", internetHopCount);
 
@@ -370,7 +387,7 @@ public class NetworkController implements IoController.Delegate,
                 HandshakePacket packet = new HandshakePacket(
                         getSequenceGenerator().generate(),
                         getHostInstance(),
-                        internetHopCount
+                        finalIHopsCount
                 );
 
                 // Instantiate the IoPacket with the Device as lookup
@@ -403,27 +420,30 @@ public class NetworkController implements IoController.Delegate,
     }
 
     /**
-     * Returns the number of hops that takes for this device to reach the
-     * Internet, relying on either a direct connection or the mesh, incremented by 1 (for sending updates.) If a direct
-     * connection exists, this method returns {@code 0} (zero). If it cannot
-     * connect directly, then it checks for the availability of a mesh link
-     * that is connected; if one exists, the number of hops for the best scored
-     * link will be returned, otherwise {@link RoutingTable#HOP_COUNT_INFINITY}
-     * is returned instead.
-     * @return The number of hops that it takes for the device to reach the
-     * Internet, incremented by 1 or {@link RoutingTable#HOP_COUNT_INFINITY}
+     * Returns the number of hops that takes for this device to reach the Internet, relying on
+     * either a direct connection or the mesh, incremented by 1 (for sending updates.) If a direct
+     * connection exists, this method returns {@code 1}. If it cannot connect directly, then it
+     * checks for the availability of a mesh link that is connected; if one exists, the number of
+     * hops for the best scored link will be returned, otherwise {@link
+     * RoutingTable#HOP_COUNT_INFINITY} is returned instead.
+     *
+     * @param splitHorizon the device which will receive the result and should, therefore, not be
+     *                     considered
+     * @return The number of hops that it takes for the device to reach the Internet, incremented by
+     * 1 or {@link RoutingTable#HOP_COUNT_INFINITY}
      */
     @WorkerThread
-    private int getIncrementedInternetHopCount() {
+    private int getIncrementedInternetHopCount(Device splitHorizon) throws InterruptedException {
 
-        if (NetworkUtils.isNetworkAvailable(getContext())) {
+        //noinspection ConstantConditions there's no way for the field to be set to null
+        if (isInternetReachable = networkStateListener.isInternetAvailable()) {
             return 1;
         }
 
-        final Link link = getRoutingTable().getBestInternetLink(null);
+        final RoutingTable.InternetLink link = getRoutingTable().getBestInternetLink(splitHorizon);
 
         return link != null
-                ? Math.min(link.getHopCount() + 1, RoutingTable.HOP_COUNT_INFINITY)
+                ? Math.min(link.second + 1, RoutingTable.HOP_COUNT_INFINITY)
                 : RoutingTable.HOP_COUNT_INFINITY;
     }
 
@@ -670,8 +690,8 @@ public class NetworkController implements IoController.Delegate,
     }
 
     private Device getBestInternetLinkNextHopDevice(Device previousHop) {
-        Link link = getRoutingTable().getBestInternetLink(previousHop);
-        return link != null ? link.getNextHop() : null;
+        final RoutingTable.InternetLink link = getRoutingTable().getBestInternetLink(previousHop);
+        return link != null ? link.first : null;
     }
 
     @Override
@@ -710,6 +730,14 @@ public class NetworkController implements IoController.Delegate,
 
                 case INTERNET_RESPONSE:
                     handleInternetResponsePacketReceived(device, (InternetResponsePacket) packet);
+                    break;
+
+                case INTERNET_UPDATE:
+                    handleIHopsUpdate(
+                            device,
+                            ((InternetUpdatePacket) packet).getOriginator(),
+                            ((InternetUpdatePacket) packet).getHopCount()
+                    );
                     break;
             }
         }
@@ -753,10 +781,12 @@ public class NetworkController implements IoController.Delegate,
             return;
         }
 
+        final Instance instance = packet.getOriginator();
+
         Timber.i(
                 "ULX-M device %s is instance %s",
                 device.getIdentifier(),
-                packet.getOriginator().getStringIdentifier()
+                instance.getStringIdentifier()
         );
 
         // Create a link to the negotiated Instance, having the device has
@@ -764,10 +794,11 @@ public class NetworkController implements IoController.Delegate,
         // 1, and the device is in direct link
         getRoutingTable().registerOrUpdate(
                 device,
-                packet.getOriginator(),
-                1,
-                packet.getInternetHops()
+                instance,
+                1
         );
+
+        handleIHopsUpdate(device, instance, packet.getInternetHops());
 
         getRoutingTable().log();
     }
@@ -822,15 +853,12 @@ public class NetworkController implements IoController.Delegate,
             return;
         }
 
-        final Link directLink = getRoutingTable().getBestLink(packet.getInstance(), null);
-
         // This should correspond to an update, since we haven't proceeded with
         // new registrations above
         getRoutingTable().registerOrUpdate(
                 device,
                 packet.getInstance(),
-                packet.getHopCount(),
-                directLink != null ? directLink.getInternetHopCount() : RoutingTable.HOP_COUNT_INFINITY
+                packet.getHopCount()
         );
 
         getRoutingTable().log();
@@ -1038,6 +1066,90 @@ public class NetworkController implements IoController.Delegate,
     }
 
     /**
+     * Handles an update from a peer device regarding its internet reachability. Updates {@link
+     * RoutingTable} and notifies other devices about i-hops count update if necessary
+     *
+     * @param device     the device which has its i-hops count updated
+     * @param instance   the instance hosted by the device
+     * @param iHopsCount new i-hops count for the instance
+     */
+    private void handleIHopsUpdate(Device device, Instance instance, int iHopsCount) {
+
+        synchronized (getRoutingTable()) {
+            final RoutingTable.InternetLink oldBestLink = getRoutingTable().getBestInternetLink(null);
+            final RoutingTable.InternetLink oldSecondBestLink = oldBestLink != null
+                    ? getRoutingTable().getBestInternetLink(oldBestLink.first)
+                    : null;
+
+            getRoutingTable().updateInternetHopsCount(
+                    device,
+                    instance,
+                    iHopsCount
+            );
+
+            if (isInternetReachable == null) {
+                // This should not happen normally. If we receive iHops update from a device,
+                // we should have negotiated with it by now, which includes setting
+                // isInternetReachable flag
+                return;
+            }
+
+            //noinspection ConstantConditions once non-null, the field is never set to null
+            if (isInternetReachable) {
+                Timber.v(
+                        "We have our own internet. " +
+                                "No need to propagate i-hops update from another device"
+                );
+            } else {
+                final RoutingTable.InternetLink newBestLink = getRoutingTable()
+                        .getBestInternetLink(null);
+
+                final RoutingTable.InternetLink secondBestLink = newBestLink != null
+                        ? getRoutingTable().getBestInternetLink(newBestLink.first)
+                        : null;
+
+                if (!Objects.equals(oldBestLink, newBestLink)) {
+                    if (newBestLink != null) {
+                        // Send updated i-hops count to everyone except through which
+                        // internet is to be accessed
+                        scheduleInternetUpdatePacket(newBestLink.second, newBestLink.first);
+
+                        // Tell our 'internet provider' device about our alternative i-hops
+                        scheduleInternetUpdatePacketForDevice(
+                                createInternetUpdatePacket(
+                                        secondBestLink != null ? secondBestLink.second : RoutingTable.HOP_COUNT_INFINITY
+                                ),
+                                newBestLink.first
+                        );
+                    } else {
+                        // Tell everyone except our old 'internet provider' device
+                        // that we don't have access to internet anymore
+                        scheduleInternetUpdatePacket(
+                                RoutingTable.HOP_COUNT_INFINITY,
+                                oldBestLink.first
+                        );
+                    }
+
+                } else {
+                    if (!Objects.equals(
+                            oldSecondBestLink != null ? oldBestLink.second : null,
+                            secondBestLink != null ? secondBestLink.second : null
+                    )) {
+                        // Our best link is the same, but the second best i-hops count
+                        // has changed, so we need to update our 'internet provider' device
+                        scheduleInternetUpdatePacketForDevice(
+                                createInternetUpdatePacket(
+                                        secondBestLink != null ? secondBestLink.second : RoutingTable.HOP_COUNT_INFINITY
+                                ),
+                                oldBestLink.first
+                        );
+                    }
+                }
+            }
+        }
+    }
+
+    /**
      * Handles an {@link AcknowledgementPacket} being received, which consists
      * of propagating a {@link Delegate} notification for {@link
      * Delegate#onAcknowledgement(NetworkController, Ticket)}.
@@ -1145,20 +1257,97 @@ public class NetworkController implements IoController.Delegate,
 
     @Override
     public void onConnectivityChanged(boolean isInternetAvailable) {
+        Timber.v("Connectivity changed. Internet available: %s", isInternetAvailable);
+
         final int internetHopCount;
+        final RoutingTable.InternetLink bestInternetLink;
+
+        isInternetReachable = isInternetAvailable;
+
         if (isInternetAvailable) {
             internetHopCount = 1;
+            // We don't need any link to reach internet
+            bestInternetLink = null;
         } else {
-            final Link link = getRoutingTable().getBestInternetLink(null);
-            internetHopCount = link != null
-                    ? Math.min(link.getHopCount() + 1, RoutingTable.HOP_COUNT_INFINITY)
+            bestInternetLink = getRoutingTable().getBestInternetLink(null);
+            internetHopCount = bestInternetLink != null
+                    ? Math.min(bestInternetLink.second + 1, RoutingTable.HOP_COUNT_INFINITY)
                     : RoutingTable.HOP_COUNT_INFINITY;
         }
 
-        final InternetUpdatePacket packet = new InternetUpdatePacket(
+        scheduleInternetUpdatePacket(
+                internetHopCount,
+                bestInternetLink != null ? bestInternetLink.first : null
+        );
+
+        if (bestInternetLink != null) {
+            final RoutingTable.InternetLink secondBestLink = getRoutingTable()
+                    .getBestInternetLink(bestInternetLink.first);
+            final int secondHopCount = secondBestLink != null
+                    ? Math.min(secondBestLink.second + 1, RoutingTable.HOP_COUNT_INFINITY)
+                    : RoutingTable.HOP_COUNT_INFINITY;
+            scheduleInternetUpdatePacketForDevice(
+                    createInternetUpdatePacket(secondHopCount),
+                    bestInternetLink.first
+            );
+        }
+    }
+
+    /**
+     * Send notification to all of the known instances except splitHorizon about internet
+     * availability change
+     *
+     * @param internetHopCount new i-hops count (from the recipients' perspective)
+     * @param splitHorizon     device to skip
+     */
+    @GuardedBy("iHopsLock")
+    private void scheduleInternetUpdatePacket(
+            int internetHopCount,
+            Device splitHorizon
+    ) {
+        final InternetUpdatePacket packet = createInternetUpdatePacket(internetHopCount);
+
+        for (Device device : getRoutingTable().getDeviceList()) {
+            if (!device.equals(splitHorizon)) {
+                scheduleInternetUpdatePacketForDevice(packet, device);
+            }
+        }
+    }
+
+    @NonNull
+    private InternetUpdatePacket createInternetUpdatePacket(int internetHopCount) {
+        return new InternetUpdatePacket(
                 getSequenceGenerator().generate(),
+                getHostInstance(),
                 internetHopCount
         );
+    }
+
+    /**
+     * Sends notification to the given device about internet availability change
+     *
+     * @param packet packet to send
+     * @param device device to notify
+     */
+    private void scheduleInternetUpdatePacketForDevice(InternetUpdatePacket packet, Device device) {
+        Timber.d("Scheduling packet [%s] for device [%s]", packet, device.getIdentifier());
+
+        getIoController().add(new NetworkPacket(packet) {
+            @Override
+            public void handleOnWritten() {
+                Timber.d("Internet update packet sent");
+            }
+
+            @Override
+            public void handleOnWriteFailure(UlxError error) {
+                Timber.w("Failed to send internet update packet: %s", error.getReason());
+            }
+
+            @Override
+            public Device getDevice() {
+                return device;
+            }
+        });
     }
 
     @Override
