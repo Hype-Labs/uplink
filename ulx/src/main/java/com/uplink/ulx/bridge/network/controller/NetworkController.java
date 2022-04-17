@@ -163,14 +163,17 @@ public class NetworkController implements IoController.Delegate,
         void onInternetResponse(NetworkController networkController, int code, String message);
 
         /**
-         * This {@link Delegate} notification gives indicating that an Internet
-         * request failed to complete. This means that the request could not be
-         * performed locally, but also that the host device failed to propagate
-         * the request on the network.
+         * This {@link Delegate} notification gives indicating that an Internet request failed to
+         * complete. This means that the request could not be performed locally, but also that the
+         * host device failed to propagate the request on the network.
+         *
          * @param networkController The {@link NetworkController}.
-         * @param sequence A sequence number for the original packet.
+         * @param errorMessage      message describing the reason of the failure
          */
-        void onInternetRequestFailure(NetworkController networkController, int sequence);
+        void onInternetRequestFailure(
+                NetworkController networkController,
+                String errorMessage
+        );
     }
 
     /**
@@ -690,7 +693,7 @@ public class NetworkController implements IoController.Delegate,
         getIoController().add(ioPacket);
     }
 
-    private Device getBestLinkNextHopDevice(Instance destination, Device previousHop) {
+    private Device getBestLinkNextHopDevice(Instance destination, @Nullable Device previousHop) {
         Link link = getRoutingTable().getBestLink(destination, previousHop);
 
         if (link == null) {
@@ -919,20 +922,31 @@ public class NetworkController implements IoController.Delegate,
     }
 
     private void handleInternetPacketReceived(Device device, InternetPacket packet) {
-
+        Instance originator = packet.getOriginator();
+        final URL url = packet.getUrl();
+        final String data = packet.getData();
+        final int test = packet.getTest();
+        int hopCount = packet.getHopCount() + 1;
         // I'm not a fan of the pattern of passing the InternetRequestDelegate
         // through the stack, but this will work as a work around for now.
-        makeInternetRequest(packet.getOriginator(), packet.getSequenceIdentifier(), packet.getUrl(), packet.getData(), packet.getTest(), packet.getHopCount() + 1, new InternetRequestDelegate() {
+        makeInternetRequest(
+                originator,
+                packet.getSequenceIdentifier(),
+                url,
+                data,
+                test,
+                hopCount,
+                new InternetRequestDelegate() {
 
             @Override
             public void onInternetResponse(NetworkController networkController, int code, String message) {
                 Timber.i("ULX is redirecting an Internet response packet");
 
-                InternetResponsePacket responsePacket = new InternetResponsePacket(
+                final InternetResponsePacket responsePacket = new InternetResponsePacket(
                         getSequenceGenerator().generate(),
                         code,
                         message,
-                        packet.getOriginator()
+                        originator
                 );
 
                 // We're here because we received an Internet request and
@@ -955,17 +969,8 @@ public class NetworkController implements IoController.Delegate,
 
                     @Override
                     public Device getDevice() {
-                        // We're simply relaying to the device that forwarded
-                        // us the packet in the first place. This is not ideal
-                        // or correct because there might have been changes to
-                        // the network. However, the current implementation is
-                        // apparently not capable of forming a full mesh, and
-                        // thus sometimes the proxy can't figure out a path to
-                        // the originator. This should solve the problem for
-                        // the POC, but the topology must be fixed later. e.g.:
-                        // if the originator finds a path to the proxy, then
-                        // the proxy must also find a path to the originator.
-                        return device;
+                        final Link link = getRoutingTable().getBestLink(originator, null);
+                        return link != null ? link.getNextHop() : null;
                     }
                 };
 
@@ -974,9 +979,34 @@ public class NetworkController implements IoController.Delegate,
             }
 
             @Override
-            public void onInternetRequestFailure(NetworkController networkController, int sequence) {
-                // TODO Should we send back a failure notification?
+            public void onInternetRequestFailure(
+                    NetworkController networkController,
+                    String errorMessage
+            ) {
                 Timber.e("ULX failed to relay an Internet packet");
+                // We might end up here for several reasons, all of indicating
+                // that the request may not proceed. The request proceeds by
+                // relying on the mesh.
+                final Device nextHop = getBestInternetLinkNextHopDevice(device);
+                if (nextHop != null && hopCount < RoutingTable.MAXIMUM_HOP_COUNT) {
+                    makeMeshInternetRequest(
+                            getSequenceGenerator().generate(),
+                            originator,
+                            url,
+                            data,
+                            test,
+                            hopCount
+                    );
+                } else {
+                    // Forward the failure to the originator
+                    final InternetResponsePacket responsePacket = new InternetResponsePacket(
+                            getSequenceGenerator().generate(),
+                            InternetResponsePacket.CODE_IO_GENERIC_FAILURE,
+                            errorMessage,
+                            originator
+                    );
+                    forwardInternetResponsePacket(responsePacket, null);
+                }
             }
         });
     }
@@ -990,13 +1020,21 @@ public class NetworkController implements IoController.Delegate,
      */
     private void handleInternetResponsePacketReceived(Device device, InternetResponsePacket packet) {
 
-        // Packets that are meant for the host device raise on the stack
         if (getHostInstance().equals(packet.getOriginator())) {
-            notifyOnInternetResponse(getInternetRequestDelegate(), packet.getCode(), packet.getData());
-        }
+            // It was our request that failed
 
-        // Packets for other instances are forwarded on the network
-        else {
+            if (packet.getCode() != InternetResponsePacket.CODE_IO_GENERIC_FAILURE) {
+                notifyOnInternetResponse(
+                        getInternetRequestDelegate(),
+                        packet.getCode(),
+                        packet.getData()
+                );
+            } else {
+                // The request has failed
+                notifyOnInternetRequestFailure(getInternetRequestDelegate(), packet.getData());
+            }
+        } else {
+            // Forward the response
             forwardInternetResponsePacket(packet, device);
         }
     }
@@ -1046,7 +1084,10 @@ public class NetworkController implements IoController.Delegate,
         getIoController().add(ioPacket);
     }
 
-    private void forwardInternetResponsePacket(InternetResponsePacket packet, Device splitHorizon) {
+    private void forwardInternetResponsePacket(
+            InternetResponsePacket packet,
+            @Nullable Device splitHorizon
+    ) {
         Timber.i("ULX is forwarding an Internet response packet");
 
         // Instantiate the IoPacket with the proper next-hop lookup
@@ -1054,9 +1095,7 @@ public class NetworkController implements IoController.Delegate,
 
             @Override
             public Device getDevice() {
-                Device device = getBestLinkNextHopDevice(packet.getOriginator(), splitHorizon);
-                assert device != null;
-                return device;
+                return getBestLinkNextHopDevice(packet.getOriginator(), splitHorizon);
             }
 
             @Override
@@ -1486,10 +1525,53 @@ public class NetworkController implements IoController.Delegate,
      * @param url The server URL.
      * @param jsonObject The JSON object to send.
      * @param test The test identifier.
-     * @return A sequence identifier for the request.
      */
-    public int sendInternet(URL url, JSONObject jsonObject, int test) {
-        return makeInternetRequest(getHostInstance(), getSequenceGenerator().generate(), url, jsonObject.toString(), test, 0, getInternetRequestDelegate());
+    public void sendInternet(URL url, JSONObject jsonObject, int test) {
+        final Instance originator = getHostInstance();
+        final String data = jsonObject.toString();
+        // I'm not a fan of the pattern of passing the InternetRequestDelegate
+        // through the stack, but this will work as a work around for now.
+        makeInternetRequest(
+                originator,
+                getSequenceGenerator().generate(),
+                url,
+                data,
+                test,
+                0,
+                new InternetRequestDelegate() {
+
+            @Override
+            public void onInternetResponse(NetworkController networkController, int code, String message) {
+                final InternetRequestDelegate requestDelegate = getInternetRequestDelegate();
+                if (requestDelegate != null) {
+                    requestDelegate.onInternetResponse(networkController, code, message);
+                }
+            }
+
+            @Override
+            public void onInternetRequestFailure(
+                    NetworkController networkController,
+                    String errorMessage
+            ) {
+                Timber.e("ULX failed to send an Internet request");
+                // We might end up here for several reasons, all of indicating
+                // that the request may not proceed. The request proceeds by
+                // relying on the mesh.
+                final Device nextHop = getBestInternetLinkNextHopDevice(null);
+                if (nextHop != null && 0 < RoutingTable.MAXIMUM_HOP_COUNT) {
+                    makeMeshInternetRequest(
+                            getSequenceGenerator().generate(),
+                            originator,
+                            url,
+                            data,
+                            test,
+                            0 // will be incremented by the next hop
+                    );
+                } else {
+                    notifyOnInternetRequestFailure(getInternetRequestDelegate(), errorMessage);
+                }
+            }
+        });
     }
 
     /**
@@ -1561,10 +1643,10 @@ public class NetworkController implements IoController.Delegate,
 
             } catch (IOException e) {
                 Timber.w(e, "Failed to send internet request");
-                // We might end up here for several reasons, all of indicating
-                // that the request may not proceed. The request proceeds by
-                // relying on the mesh.
-                makeMeshInternetRequest(sequenceIdentifier, originator, url, data, test);
+                notifyOnInternetRequestFailure(
+                        internetRequestDelegate,
+                        e.getMessage()
+                );
 
             } finally {
 
@@ -1579,15 +1661,23 @@ public class NetworkController implements IoController.Delegate,
     }
 
     /**
-     * This method creates an {@link InternetPacket} and registers it with the
-     * {@link IoController} to be sent over the network. The next-hop device
-     * will be computed when the packet is being, according to the result of
-     * calling {@link #getBestInternetLinkNextHopDevice(Device)}.
-     * @param url The destination {@link URL}.
-     * @param data The data to send to the server.
-     * @param test The test ID.
+     * This method creates an {@link InternetPacket} and registers it with the {@link IoController}
+     * to be sent over the network. The next-hop device will be computed when the packet is being,
+     * according to the result of calling {@link #getBestInternetLinkNextHopDevice(Device)}.
+     *
+     * @param url      The destination {@link URL}.
+     * @param data     The data to send to the server.
+     * @param test     The test ID.
+     * @param hopCount hop count between the hosting instance and the originator
      */
-    private void makeMeshInternetRequest(int sequence, Instance originator, URL url, String data, int test) {
+    private void makeMeshInternetRequest(
+            int sequence,
+            Instance originator,
+            URL url,
+            String data,
+            int test,
+            int hopCount
+    ) {
         Timber.i("ULX attempting a mesh request to the Internet");
 
         InternetPacket internetPacket = new InternetPacket(
@@ -1595,7 +1685,8 @@ public class NetworkController implements IoController.Delegate,
                 url,
                 data,
                 test,
-                originator
+                originator,
+                hopCount
         );
 
         NetworkPacket networkPacket = new NetworkPacket(internetPacket) {
@@ -1608,7 +1699,23 @@ public class NetworkController implements IoController.Delegate,
 
             @Override
             public void handleOnWriteFailure(UlxError error) {
-                notifyOnInternetRequestFailure(getInternetRequestDelegate(), internetPacket.getSequenceIdentifier());
+                String errorMessage = error.getDescription();
+                if (originator.equals(getHostInstance())) {
+                    // It was our request that failed
+                    notifyOnInternetRequestFailure(
+                            getInternetRequestDelegate(),
+                            errorMessage
+                    );
+                } else {
+                    // Forward the failure to the originator
+                    final InternetResponsePacket responsePacket = new InternetResponsePacket(
+                            getSequenceGenerator().generate(),
+                            InternetResponsePacket.CODE_IO_GENERIC_FAILURE,
+                            errorMessage,
+                            originator
+                    );
+                    forwardInternetResponsePacket(responsePacket, null);
+                }
             }
 
             @Override
@@ -1635,14 +1742,18 @@ public class NetworkController implements IoController.Delegate,
     }
 
     /**
-     * Propagates a notification to the {@link Delegate} indicating that an
-     * Internet request failed. This means that the request could not be
-     * completed locally nor could the device request it be sent remotely.
-     * @param sequence The original packet's sequence number.
+     * Propagates a notification to the {@link Delegate} indicating that an Internet request failed.
+     * This means that the request could not be completed locally nor could the device request it be
+     * sent remotely.
+     *
+     * @param errorMessage message describing the reason of the failure
      */
-    private void notifyOnInternetRequestFailure(InternetRequestDelegate internetRequestDelegate, int sequence) {
+    private void notifyOnInternetRequestFailure(
+            InternetRequestDelegate internetRequestDelegate,
+            String errorMessage
+    ) {
         if (internetRequestDelegate != null) {
-            internetRequestDelegate.onInternetRequestFailure(this, sequence);
+            internetRequestDelegate.onInternetRequestFailure(this, errorMessage);
         }
     }
 

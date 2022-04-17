@@ -735,13 +735,13 @@ public class Bridge implements
     }
 
     @Override
-    public void onInternetRequestFailure(NetworkController networkController, int sequence) {
-        Timber.e("ULX internet request failure");
+    public void onInternetRequestFailure(NetworkController networkController, String errorMessage) {
+        Timber.e("ULX internet request failure. Reason: [%s]", errorMessage);
 
         UlxError error = new UlxError(
                 UlxErrorCode.UNKNOWN,
                 "Could not complete a request to the Internet.",
-                "No known path to the server exists or is visible.",
+                errorMessage,
                 "Try enabling WiFi, bringing the devices closer to a " +
                         "connected network, or installing a SIM card."
         );

@@ -20,18 +20,6 @@ public class InternetPacket extends AbstractPacket {
     private final int test;
 
     /**
-     * Constructor. Initializes the hop count to zero.
-     * @param url The {@link URL} server to query.
-     * @param data The data to send to the server, as {@code application/json}.
-     * @param test The test ID.
-     * @param originator The {@link Instance} that originated the request, and
-     *                   to which the response will be forwarded.
-     */
-    public InternetPacket(int sequenceIdentifier, URL url, String data, int test, Instance originator) {
-        this(sequenceIdentifier, url, data, test, originator, 0);
-    }
-
-    /**
      * Constructor.
      * @param url The {@link URL} server to query.
      * @param data The data to send to the server, as {@code application/json}.

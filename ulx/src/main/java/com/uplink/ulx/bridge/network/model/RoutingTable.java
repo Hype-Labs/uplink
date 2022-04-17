@@ -654,7 +654,7 @@ public class RoutingTable {
      * @return A {@link Link} to the given {@link Instance}, if one exists.
      */
     @Nullable
-    public Link getBestLink(Instance instance, Device splitHorizon) {
+    public Link getBestLink(Instance instance, @Nullable Device splitHorizon) {
 
         List<Link> links = compileLinksTo(instance, splitHorizon);
 

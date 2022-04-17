@@ -3,6 +3,7 @@ package com.uplink.ulx;
 import android.annotation.SuppressLint;
 
 import androidx.annotation.NonNull;
+import androidx.annotation.Nullable;
 
 /**
  * This class works as a container for error information. This class is
@@ -50,6 +51,7 @@ public class UlxError {
      * wrong. An example could be "Could not send a message".
      * @return The error description.
      */
+    @Nullable
     public final String getDescription() {
         return this.description;
     }
