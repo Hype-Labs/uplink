@@ -143,7 +143,7 @@ public abstract class BrowserCommons implements
      * overlap. When done, the implementation should notify the state manager
      * with respect to the outcome of the operation.
      */
-    public abstract void requestAdapterToStopBrowsing();
+    protected abstract void requestAdapterToStopBrowsing();
 
     @Override
     public final String getIdentifier() {
@@ -212,7 +212,7 @@ public abstract class BrowserCommons implements
         getStateManager().notifyStart();
     }
 
-    public void onStop(UlxError error) {
+    protected void onStop(UlxError error) {
         Timber.i("ULX browser stopped");
         getStateManager().notifyStop(error);
     }

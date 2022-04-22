@@ -437,7 +437,7 @@ class BleBrowser extends BrowserCommons implements
 
     @SuppressLint("MissingPermission")
     @Override
-    public void requestAdapterToStopBrowsing() {
+    protected void requestAdapterToStopBrowsing() {
         Timber.i("ULX BLE browser requesting the adapter to stop");
 
         // Is the adapter enabled?
@@ -486,7 +486,10 @@ class BleBrowser extends BrowserCommons implements
 
         // Is the record found by the scanner publishing the expected service?
         if (!isCoreServiceScanRecord(scanRecord)) {
-            //Log.i(getClass().getCanonicalName(), String.format("ULX BLE browser ignoring device %s because it doesn't publish a core service", bluetoothDevice.getAddress()));
+            Timber.i(
+                    "ULX BLE browser ignoring device %s because it doesn't publish a core service",
+                    bluetoothDevice.getAddress()
+            );
             return;
         }
 

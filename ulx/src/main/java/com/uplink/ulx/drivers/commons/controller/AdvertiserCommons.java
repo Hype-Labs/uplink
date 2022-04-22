@@ -29,7 +29,6 @@ import androidx.annotation.CallSuper;
  */
 public abstract class AdvertiserCommons implements
         Advertiser,
-        Advertiser.StateDelegate,
         Connector.InvalidationCallback {
 
     private final String identifier;
@@ -215,13 +214,11 @@ public abstract class AdvertiserCommons implements
         getStateManager().stop();
     }
 
-    @Override
-    public void onStart(Advertiser advertiser) {
+    protected void onStart() {
         getStateManager().notifyStart();
     }
 
-    @Override
-    public void onStop(Advertiser advertiser, UlxError error) {
+    protected void onStop(UlxError error) {
         getStateManager().notifyStop(error);
     }
 
@@ -236,8 +233,7 @@ public abstract class AdvertiserCommons implements
         }
     }
 
-    @Override
-    public void onReady(Advertiser advertiser) {
+    protected void onReady() {
         StateDelegate stateDelegate = this.getStateDelegate();
         if (stateDelegate != null) {
             stateDelegate.onReady(this);

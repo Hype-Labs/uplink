@@ -95,7 +95,7 @@ class BleAdvertiser extends AdvertiserCommons implements
             Timber.i("ULX advertiser started");
 
             // This is propagated to the AdvertiserCommons
-            onStart(BleAdvertiser.this);
+            onStart();
         }
 
         @Override
@@ -355,13 +355,13 @@ class BleAdvertiser extends AdvertiserCommons implements
         getBluetoothLeAdvertiser().stopAdvertising(getAdvertiseCallback());
 
         // Notify the delegate (the stoppage is synchronous)
-        onStop(this, null);
+        onStop(null);
     }
 
     @Override
     public void onAdapterEnabled(BluetoothStateListener bluetoothStateListener) {
         if (getState() != Advertiser.State.RUNNING) {
-            onReady(this);
+            onReady();
         }
     }
 
@@ -377,7 +377,7 @@ class BleAdvertiser extends AdvertiserCommons implements
                     "Turn the Bluetooth adapter on."
             );
 
-            onStop(this, error);
+            onStop(error);
         }
     }
 

@@ -22,6 +22,7 @@ import com.uplink.ulx.threading.Dispatch;
 import java.lang.ref.WeakReference;
 import java.util.Objects;
 
+import androidx.annotation.Nullable;
 import timber.log.Timber;
 
 /**
@@ -222,6 +223,7 @@ public class GattServer extends BluetoothGattServerCallback {
      * to listen to GATT server events, as return by getGattServerCallback().
      * @return The BluetoothGatServer GATT server handler instance.
      */
+    @Nullable
     private synchronized BluetoothGattServer getBluetoothGattServer() {
         if (this.bluetoothGattServer == null) {
             this.bluetoothGattServer = getBluetoothManager().openGattServer(
@@ -269,7 +271,8 @@ public class GattServer extends BluetoothGattServerCallback {
         // Try adding the service, or fail. This will result in either
         // serviceAdded() or serviceFailedToAdd() to be called, in both of
         // which cases the lock must be released.
-        if (!getBluetoothGattServer().addService(coreService)) {
+        final BluetoothGattServer bluetoothGattServer = getBluetoothGattServer();
+        if (bluetoothGattServer == null || !bluetoothGattServer.addService(coreService)) {
 
             // We should check the service status for better error info
             UlxError error = new UlxError(
