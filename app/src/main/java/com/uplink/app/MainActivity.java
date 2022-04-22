@@ -4,6 +4,7 @@ import android.Manifest;
 import android.os.Bundle;
 import android.util.Log;
 import android.view.View;
+import android.widget.TextView;
 
 import com.uplink.ulx.ULX;
 import com.uplink.ulx.UlxError;
@@ -91,6 +92,7 @@ public class MainActivity extends AppCompatActivity implements StateObserver, Ne
     @Override
     public void onUlxStart() {
         Log.i(getClass().getCanonicalName(), "ULX[APP] has started");
+        runOnUiThread(() -> this.<TextView>findViewById(R.id.my_id).setText(ULX.getHostInstance().getStringIdentifier()));
     }
 
     private URL makeUrl() throws MalformedURLException {
@@ -98,9 +100,7 @@ public class MainActivity extends AppCompatActivity implements StateObserver, Ne
     }
 
     private JSONObject makeObject() throws JSONException {
-
-        JSONObject obj = new JSONObject();
-        return obj;
+        return new JSONObject();
     }
 
     @Override
@@ -228,7 +228,7 @@ public class MainActivity extends AppCompatActivity implements StateObserver, Ne
         Log.i(getClass().getCanonicalName(), "ULX[APP] Sending transaction");
 
         try {
-            ULX.sendInternet(makeUrl(), makeObject(), 1);
+            ULX.sendInternet(makeUrl(), makeObject(), 2);
         } catch (MalformedURLException | JSONException e) {
             throw new RuntimeException("Malformed URL or JSON exception");
         }
