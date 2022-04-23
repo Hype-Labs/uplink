@@ -105,7 +105,7 @@ class BleAdvertiser extends AdvertiserCommons implements
             final UlxError error = makeError(errorCode);
 
             // This is propagated to the AdvertiserCommons
-            onFailedStart(BleAdvertiser.this, error);
+            onFailedStart(error);
         }
 
         /**
@@ -251,6 +251,7 @@ class BleAdvertiser extends AdvertiserCommons implements
      * @return The BluetoothLeAdvertiser.
      */
     @SuppressWarnings("MissingPermission")
+    @Nullable
     private BluetoothLeAdvertiser getBluetoothLeAdvertiser() {
         if (this.bluetoothLeAdvertiser == null) {
             this.bluetoothLeAdvertiser = getBluetoothAdapter().getBluetoothLeAdvertiser();
@@ -303,13 +304,14 @@ class BleAdvertiser extends AdvertiserCommons implements
 
         Dispatch.post(() -> {
 
-            // Is BLE supported by this device?
-            if (getBluetoothLeAdvertiser() == null) {
+            // Is BLE advertiser available?
+            final BluetoothLeAdvertiser advertiser = getBluetoothAdapter().getBluetoothLeAdvertiser();
+            if (advertiser == null) {
                 Timber.w(
                         "Unable to get BLE advertiser. Adapter state: %d",
                         getBluetoothAdapter().getState()
                 );
-                handleStartUnsupportedTechnology();
+                handleStartAdvertiserUnavailable();
                 return;
             }
 
@@ -319,20 +321,19 @@ class BleAdvertiser extends AdvertiserCommons implements
     }
 
     /**
-     * This method handles the situation of a failed start due to the lack of
-     * support for BLE on the host device. It generates an error message and
-     * notifies the delegate.
+     * This method handles the situation of a failed start due to advertiser unavailability. It
+     * generates an error message and notifies the delegate.
      */
-    private void handleStartUnsupportedTechnology() {
+    private void handleStartAdvertiserUnavailable() {
 
         UlxError error = new UlxError(
-                UlxErrorCode.ADAPTER_NOT_SUPPORTED,
-                "Could not start Bluetooth Low Energy.",
-                "The Bluetooth Low Energy technology is not supported by this device.",
-                "Try a system update or contacting the manufacturer."
+                UlxErrorCode.ADAPTER_DISABLED,
+                "Could not start Bluetooth Low Energy advertiser.",
+                "Either BT adapter is off or BLE is not supported.",
+                "Try turning BT adapter on."
         );
 
-        onFailedStart(this, error);
+        onFailedStart(error);
     }
 
     /**
@@ -352,10 +353,22 @@ class BleAdvertiser extends AdvertiserCommons implements
     public void requestAdapterToStop() {
 
         // Request the stoppage
-        getBluetoothLeAdvertiser().stopAdvertising(getAdvertiseCallback());
+        final BluetoothLeAdvertiser advertiser = getBluetoothLeAdvertiser();
+        final UlxError error;
+        if (advertiser != null) {
+            advertiser.stopAdvertising(getAdvertiseCallback());
+            error = null;
+        } else {
+            error = new UlxError(
+                    UlxErrorCode.ADAPTER_DISABLED,
+                    "Could not stop advertising",
+                    "Bluetooth is turned off",
+                    "No need to do anything. Advertising is off"
+            );
+        }
 
         // Notify the delegate (the stoppage is synchronous)
-        onStop(null);
+        onStop(error);
     }
 
     @Override
@@ -621,11 +634,23 @@ class BleAdvertiser extends AdvertiserCommons implements
     private void startAdvertising() {
         Timber.i("ULX advertiser is starting");
 
-        Dispatch.post(() -> getBluetoothLeAdvertiser().startAdvertising(
-                getAdvertiseSettings(),
-                getAdvertiseData(),
-                getAdvertiseCallback()
-        ));
+        final BluetoothLeAdvertiser advertiser = getBluetoothLeAdvertiser();
+        if (advertiser != null) {
+            Dispatch.post(() -> advertiser.startAdvertising(
+                    getAdvertiseSettings(),
+                    getAdvertiseData(),
+                    getAdvertiseCallback()
+            ));
+        } else {
+            onFailedStart(
+                    new UlxError(
+                            UlxErrorCode.ADAPTER_DISABLED,
+                            "Could not start advertising",
+                            "Bluetooth is turned off",
+                            "Turn Bluetooth adapter on"
+                    )
+            );
+        }
     }
 
     /**
@@ -678,7 +703,7 @@ class BleAdvertiser extends AdvertiserCommons implements
 
     @Override
     public void onServiceAdditionFailed(GattServer gattServer, UlxError error) {
-        onFailedStart(this, error);
+        onFailedStart(error);
     }
 
     @Override

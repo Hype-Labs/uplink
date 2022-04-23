@@ -12,6 +12,8 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 
+import androidx.annotation.NonNull;
+
 /**
  * A DriverFactory is a helper class that instantiates drivers. It iterates
  * through all transport types and initializes the drivers that correspond to
@@ -33,7 +35,11 @@ class DriverFactory {
      * @param stateDelegate The Driver.StateDelegate for all drivers.
      * @param networkDelegate The Driver.NetworkDelegate for all drivers.
      */
-    public DriverFactory(Context context, Driver.StateDelegate stateDelegate, Driver.NetworkDelegate networkDelegate) {
+    public DriverFactory(
+            @NonNull Context context,
+            Driver.StateDelegate stateDelegate,
+            Driver.NetworkDelegate networkDelegate
+    ) {
 
         Objects.requireNonNull(context);
         Objects.requireNonNull(stateDelegate);

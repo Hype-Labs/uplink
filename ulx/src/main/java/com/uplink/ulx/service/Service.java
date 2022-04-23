@@ -21,6 +21,7 @@ import java.lang.ref.WeakReference;
 import java.net.URL;
 import java.util.UUID;
 
+import androidx.annotation.NonNull;
 import timber.log.Timber;
 
 /**
@@ -306,6 +307,7 @@ public class Service extends android.app.Service implements
      * an exception if it wasn't set before.
      * @return The Android application context.
      */
+    @NonNull
     public final Context getContext() {
         if (this.context == null) {
             throw new RuntimeException("The Android application context was not set on the service");

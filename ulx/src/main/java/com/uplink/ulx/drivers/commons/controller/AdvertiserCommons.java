@@ -222,7 +222,7 @@ public abstract class AdvertiserCommons implements
         getStateManager().notifyStop(error);
     }
 
-    public void onFailedStart(Advertiser advertiser, UlxError error) {
+    protected void onFailedStart(UlxError error) {
         getStateManager().notifyFailedStart(error);
     }
 

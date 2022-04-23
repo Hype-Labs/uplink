@@ -18,6 +18,7 @@ import java.util.Objects;
 import java.util.concurrent.ExecutorService;
 
 import androidx.annotation.CallSuper;
+import androidx.annotation.NonNull;
 import timber.log.Timber;
 
 /**
@@ -50,7 +51,7 @@ public abstract class DriverCommons implements
     private final String identifier;
     private final int transportType;
     private final SetOnceRef<StateManager> stateManager;
-    private final WeakReference<Context> context;
+    private final Context context;
     private WeakReference<StateDelegate> statusDelegate;
     private WeakReference<Driver.NetworkDelegate> networkDelegate;
     private ExecutorService executorService;
@@ -64,14 +65,14 @@ public abstract class DriverCommons implements
      * @param transportType The Driver's transport type.
      * @param context The Android environment Context.
      */
-    public DriverCommons(String identifier, int transportType, Context context) {
+    public DriverCommons(String identifier, int transportType, @NonNull Context context) {
 
         Objects.requireNonNull(identifier);
         Objects.requireNonNull(context);
 
         this.identifier = identifier;
         this.transportType = transportType;
-        this.context = new WeakReference<>(context);
+        this.context = context;
         this.stateManager = new SetOnceRef<>();
         this.browserError = null;
         this.advertiserError = null;
@@ -262,8 +263,9 @@ public abstract class DriverCommons implements
     }
 
     @Override
+    @NonNull
     public final Context getContext() {
-        return this.context.get();
+        return this.context;
     }
 
     @Override

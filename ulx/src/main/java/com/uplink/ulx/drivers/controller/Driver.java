@@ -5,6 +5,8 @@ import android.content.Context;
 import com.uplink.ulx.UlxError;
 import com.uplink.ulx.drivers.model.Device;
 
+import androidx.annotation.NonNull;
+
 /**
  * A Driver is an entity that manages a given type of transport. This class
  * works as an abstraction for that transport, usually consisting of a specific
@@ -223,6 +225,7 @@ public interface Driver {
      * @return The Android environment context.
      * @see Context
      */
+    @NonNull
     Context getContext();
 
     /**

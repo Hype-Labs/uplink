@@ -15,6 +15,8 @@ import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.TimeUnit;
 
+import androidx.annotation.NonNull;
+
 /**
  * A DriverManager is a collection of drivers that also behaves as a driver
  * itself. For example, when the driver manager is requested to start, all of
@@ -66,7 +68,7 @@ public class DriverManager implements Driver, Driver.NetworkDelegate, Driver.Sta
             String identifier,
             Driver.NetworkDelegate networkDelegate,
             StateDelegate stateDelegate,
-            Context context
+            @NonNull Context context
     ) {
         final DriverManager instance = new DriverManager(
                 identifier,
@@ -82,7 +84,7 @@ public class DriverManager implements Driver, Driver.NetworkDelegate, Driver.Sta
             String identifier,
             Driver.NetworkDelegate networkDelegate,
             StateDelegate stateDelegate,
-            Context context
+            @NonNull Context context
     ) {
 
         Objects.requireNonNull(identifier);
@@ -163,6 +165,7 @@ public class DriverManager implements Driver, Driver.NetworkDelegate, Driver.Sta
         return this.transportType;
     }
 
+    @NonNull
     @Override
     public Context getContext() {
         return this.context;

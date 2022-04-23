@@ -2,8 +2,11 @@ package com.uplink.ulx.drivers.bluetooth.ble.controller;
 
 import android.bluetooth.BluetoothManager;
 import android.content.Context;
+import android.content.pm.PackageManager;
 
 import com.uplink.ulx.TransportType;
+import com.uplink.ulx.UlxError;
+import com.uplink.ulx.UlxErrorCode;
 import com.uplink.ulx.drivers.bluetooth.ble.model.passive.BleDomesticService;
 import com.uplink.ulx.drivers.bluetooth.commons.BluetoothStateListener;
 import com.uplink.ulx.drivers.commons.controller.DriverCommons;
@@ -11,6 +14,7 @@ import com.uplink.ulx.drivers.controller.Advertiser;
 import com.uplink.ulx.drivers.controller.Browser;
 import com.uplink.ulx.drivers.controller.Driver;
 
+import androidx.annotation.NonNull;
 import timber.log.Timber;
 
 /**
@@ -35,15 +39,34 @@ public class BleDriver extends DriverCommons implements Driver {
      * @param identifier The Driver's identifier to use.
      * @param context The Android environment context.
      */
-    public static BleDriver newInstance(String identifier, Context context) {
+    public static BleDriver newInstance(String identifier, @NonNull Context context) {
         final BleDriver instance = new BleDriver(identifier, context);
         instance.initialize();
         return instance;
     }
 
-    private BleDriver(String identifier, Context context) {
+    private BleDriver(String identifier, @NonNull Context context) {
         super(identifier, TransportType.BLUETOOTH_LOW_ENERGY, context);
         BluetoothStateListener.register(context);
+    }
+
+    @Override
+    public void start() {
+        // Check if BLE is supported
+        if (getContext().getPackageManager().hasSystemFeature(PackageManager.FEATURE_BLUETOOTH_LE)) {
+            super.start();
+        } else {
+            final UlxError error = new UlxError(
+                    UlxErrorCode.ADAPTER_NOT_SUPPORTED,
+                    "Failed to start BLE driver",
+                    "BLE is not supported by the device",
+                    "Contact the device manufacturer"
+            );
+            // As per DriverCommons implementation, the driver fails to start only if both
+            // advertiser and browser fail
+            onFailedStart(getBrowser(), error);
+            onFailedStart(getAdvertiser(), error);
+        }
     }
 
     /**
