@@ -540,7 +540,7 @@ public class GattClient extends BluetoothGattCallback {
                         getBluetoothDevice().getAddress()
                 );
 
-                // Set a timeout for 3s
+                // Set a timeout for 30 s
                 setConnectionTimeout(bluetoothGatt, 30000);
             } else {
                 Timber.e(
