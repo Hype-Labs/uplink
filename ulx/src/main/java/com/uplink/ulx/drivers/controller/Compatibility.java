@@ -1,9 +1,8 @@
 package com.uplink.ulx.drivers.controller;
 
-import android.annotation.SuppressLint;
 import android.bluetooth.BluetoothManager;
 import android.content.Context;
-import android.os.Build;
+import android.content.pm.PackageManager;
 
 import com.uplink.ulx.TransportType;
 
@@ -53,7 +52,8 @@ public class Compatibility {
      * @return Whether BLE is supported by the host system.
      */
     private boolean isBLESupported() {
-        return (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) && isBluetoothSupported();
+        return isBluetoothSupported()
+                && getContext().getPackageManager().hasSystemFeature(PackageManager.FEATURE_BLUETOOTH_LE);
     }
 
     /**
@@ -61,14 +61,8 @@ public class Compatibility {
      * instantiate a BluetoothManager service.
      * @return Whether Bluetooth is supporterd by the host system.
      */
-    @SuppressLint("ObsoleteSdkInt")
     private boolean isBluetoothSupported() {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.JELLY_BEAN_MR2) {
-            BluetoothManager blm = (BluetoothManager) getContext().getSystemService(Context.BLUETOOTH_SERVICE);
-            if (blm.getAdapter() != null) {
-                return true;
-            }
-        }
-        return false;
+        BluetoothManager blm = (BluetoothManager) getContext().getSystemService(Context.BLUETOOTH_SERVICE);
+        return blm.getAdapter() != null;
     }
 }

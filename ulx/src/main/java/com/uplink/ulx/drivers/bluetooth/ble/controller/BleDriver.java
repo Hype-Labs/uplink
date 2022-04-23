@@ -2,11 +2,8 @@ package com.uplink.ulx.drivers.bluetooth.ble.controller;
 
 import android.bluetooth.BluetoothManager;
 import android.content.Context;
-import android.content.pm.PackageManager;
 
 import com.uplink.ulx.TransportType;
-import com.uplink.ulx.UlxError;
-import com.uplink.ulx.UlxErrorCode;
 import com.uplink.ulx.drivers.bluetooth.ble.model.passive.BleDomesticService;
 import com.uplink.ulx.drivers.bluetooth.commons.BluetoothStateListener;
 import com.uplink.ulx.drivers.commons.controller.DriverCommons;
@@ -48,25 +45,6 @@ public class BleDriver extends DriverCommons implements Driver {
     private BleDriver(String identifier, @NonNull Context context) {
         super(identifier, TransportType.BLUETOOTH_LOW_ENERGY, context);
         BluetoothStateListener.register(context);
-    }
-
-    @Override
-    public void start() {
-        // Check if BLE is supported
-        if (getContext().getPackageManager().hasSystemFeature(PackageManager.FEATURE_BLUETOOTH_LE)) {
-            super.start();
-        } else {
-            final UlxError error = new UlxError(
-                    UlxErrorCode.ADAPTER_NOT_SUPPORTED,
-                    "Failed to start BLE driver",
-                    "BLE is not supported by the device",
-                    "Contact the device manufacturer"
-            );
-            // As per DriverCommons implementation, the driver fails to start only if both
-            // advertiser and browser fail
-            onFailedStart(getBrowser(), error);
-            onFailedStart(getAdvertiser(), error);
-        }
     }
 
     /**
