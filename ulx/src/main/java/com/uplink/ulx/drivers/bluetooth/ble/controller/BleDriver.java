@@ -2,6 +2,8 @@ package com.uplink.ulx.drivers.bluetooth.ble.controller;
 
 import android.bluetooth.BluetoothManager;
 import android.content.Context;
+import android.os.Handler;
+import android.os.Looper;
 
 import com.uplink.ulx.TransportType;
 import com.uplink.ulx.drivers.bluetooth.ble.model.passive.BleDomesticService;
@@ -10,6 +12,8 @@ import com.uplink.ulx.drivers.commons.controller.DriverCommons;
 import com.uplink.ulx.drivers.controller.Advertiser;
 import com.uplink.ulx.drivers.controller.Browser;
 import com.uplink.ulx.drivers.controller.Driver;
+import com.uplink.ulx.threading.HandlerExecutor;
+import com.uplink.ulx.utils.SerialOperationsManager;
 
 import androidx.annotation.NonNull;
 import timber.log.Timber;
@@ -27,6 +31,7 @@ public class BleDriver extends DriverCommons implements Driver {
     private BleDomesticService bleDomesticService;
     private Advertiser advertiser;
     private Browser browser;
+    private final SerialOperationsManager operationsManager;
 
     /**
      * Factory method. Initializes with the given parameters. It also makes sure
@@ -45,6 +50,11 @@ public class BleDriver extends DriverCommons implements Driver {
     private BleDriver(String identifier, @NonNull Context context) {
         super(identifier, TransportType.BLUETOOTH_LOW_ENERGY, context);
         BluetoothStateListener.register(context);
+
+        // All BLE operations will be executed serially in the main thread
+        operationsManager = new SerialOperationsManager(
+                new HandlerExecutor(new Handler(Looper.getMainLooper()))
+        );
     }
 
     /**
@@ -99,6 +109,7 @@ public class BleDriver extends DriverCommons implements Driver {
                     getIdentifier(),
                     getBluetoothManager(),
                     getDomesticService(),
+                    operationsManager,
                     getContext()
             );
             this.browser.setDelegate(this);
@@ -130,6 +141,8 @@ public class BleDriver extends DriverCommons implements Driver {
     @Override
     public void destroy() {
         BluetoothStateListener.unregister(getContext());
+        operationsManager.destroy();
+
         super.destroy();
     }
 }

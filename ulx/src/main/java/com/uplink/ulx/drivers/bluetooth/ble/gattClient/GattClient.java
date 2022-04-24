@@ -23,13 +23,13 @@ import com.uplink.ulx.drivers.bluetooth.ble.model.passive.BleDomesticService;
 import com.uplink.ulx.drivers.commons.StateManager;
 import com.uplink.ulx.model.State;
 import com.uplink.ulx.threading.Dispatch;
+import com.uplink.ulx.utils.Completable;
+import com.uplink.ulx.utils.SerialOperationsManager;
 import com.uplink.ulx.utils.SetOnceRef;
 
 import java.lang.ref.WeakReference;
 import java.util.List;
 import java.util.Objects;
-import java.util.Timer;
-import java.util.TimerTask;
 import java.util.UUID;
 
 import androidx.annotation.GuardedBy;
@@ -168,21 +168,23 @@ public class GattClient extends BluetoothGattCallback {
     private final Object mtuLock = new Object();
     private final Runnable mtuRequestTimeoutRunnable = this::onMtuRequestTimeout;
 
-    @GuardedBy("this")
-    private Timer connectionTimeout;
-
     private final Context context;
+
+    private final SerialOperationsManager operationsManager;
+    private volatile Completable completableOperation;
 
     public static GattClient newInstance(
             BluetoothDevice bluetoothDevice,
             BluetoothManager bluetoothManager,
             BleDomesticService domesticService,
+            SerialOperationsManager operationsManager,
             Context context
     ) {
         final GattClient instance = new GattClient(
                 bluetoothDevice,
                 bluetoothManager,
                 domesticService,
+                operationsManager,
                 context
         );
         instance.initialize();
@@ -192,16 +194,17 @@ public class GattClient extends BluetoothGattCallback {
     /**
      * Constructor. Initializes with the given parameters.
      *
-     * @param bluetoothDevice  The BluetoothDevice being abstracted.
-     * @param bluetoothManager An abstraction to perform high level Bluetooth
-     *                         management.
-     * @param domesticService  The BLE service description.
-     * @param context          The Android environment context.
+     * @param bluetoothDevice   The BluetoothDevice being abstracted.
+     * @param bluetoothManager  An abstraction to perform high level Bluetooth management.
+     * @param domesticService   The BLE service description.
+     * @param operationsManager operations manager to serialize BLE operations
+     * @param context           The Android environment context.
      */
     private GattClient(
             BluetoothDevice bluetoothDevice,
             BluetoothManager bluetoothManager,
             BleDomesticService domesticService,
+            SerialOperationsManager operationsManager,
             Context context
     ) {
         Objects.requireNonNull(bluetoothDevice);
@@ -220,9 +223,9 @@ public class GattClient extends BluetoothGattCallback {
         this.bluetoothAdapter = null;
         this.bluetoothGatt = null;
         this.mtu = MtuRegistry.DEFAULT_MTU;
-        this.connectionTimeout = null;
 
         this.domesticService = domesticService;
+        this.operationsManager = operationsManager;
 
         this.context = context;
     }
@@ -416,70 +419,6 @@ public class GattClient extends BluetoothGattCallback {
         return this.context;
     }
 
-    private synchronized void setConnectionTimeout(BluetoothGatt bluetoothGatt, long timeout) {
-        Timber.i(
-                "ULX is setting connection timeout %d for %s",
-                timeout,
-                bluetoothGatt.getDevice().getAddress()
-        );
-
-        if (this.connectionTimeout != null) {
-            throw new RuntimeException("The implementation is trying to reset " +
-                    "a timer that did not yet complete. This overlap shouldn't " +
-                    "occur, since it nullifies the first timeout.");
-        }
-
-        this.connectionTimeout = new Timer();
-        this.connectionTimeout.schedule(new TimerTask() {
-
-            @Override
-            public void run() {
-
-                Timber.e(
-                        "ULX is canceling connection %s",
-                        bluetoothGatt.getDevice().getAddress()
-                );
-
-                final UlxError error = new UlxError(
-                        UlxErrorCode.CONNECTION_TIMEOUT,
-                        "Could not connect to the remote device.",
-                        "The connection timed out.",
-                        "Please try reconnecting or restarting the Bluetooth adapter."
-                );
-
-                synchronized (GattClient.this) {
-                    if (connectionTimeout != null) {
-                        getStateManager().notifyFailedStart(error);
-
-                        GattClient.this.connectionTimeout = null;
-                    } // else the connection event occurred and the timeout has been cancelled in parallel thread
-                }
-            }
-        }, timeout);
-    }
-
-    /**
-     * Cancels a connection timeout. The timeout will no longer occur. If the
-     * event has already happened or the timeout has already been canceled, this
-     * method will have no effect.
-     */
-    private synchronized void cancelConnectionTimeout() {
-        Timber.i(
-                "ULX connection timeout being canceled for native device %s",
-                getBluetoothDevice().getAddress()
-        );
-
-        if (this.connectionTimeout != null) {
-            this.connectionTimeout.cancel();
-        }
-
-        this.connectionTimeout = null;
-    }
-
-    private synchronized boolean isConnectionTimeoutSet() {
-        return this.connectionTimeout != null;
-    }
-
     /**
      * Connects to the GATT server on this device and returns the BluetoothGatt
      * handler for the Bluetooth GATT profile.
@@ -530,35 +469,61 @@ public class GattClient extends BluetoothGattCallback {
 
     public void doConnect() {
 
-        Dispatch.post(() -> {
+        completableOperation = operationsManager.enqueue(
+                new SerialOperationsManager.Task() {
+                    @Override
+                    public void run(Completable completable) {
+                        BluetoothGatt bluetoothGatt = GattClient.this.getBluetoothGatt();
 
-            BluetoothGatt bluetoothGatt = getBluetoothGatt();
+                        if (bluetoothGatt.connect()) {
+                            Timber.i(
+                                    "ULX connection request for native device %s accepted",
+                                    GattClient.this.getBluetoothDevice().getAddress()
+                            );
+                        } else {
+                            completable.markAsComplete();
 
-            if (bluetoothGatt.connect()) {
-                Timber.i(
-                        "ULX connection request for native device %s accepted",
-                        getBluetoothDevice().getAddress()
-                );
+                            Timber.e(
+                                    "ULX connection request for native device %s rejected",
+                                    GattClient.this.getBluetoothDevice().getAddress()
+                            );
 
+                            // We should try to figure out a better error message
+                            UlxError error = new UlxError(
+                                    UlxErrorCode.UNKNOWN,
+                                    "Could not connect to the device.",
+                                    "The connection could not be initiated.",
+                                    "Please try connecting again."
+                            );
+
+                            GattClient.this.getStateManager().notifyFailedStart(error);
+                        }
+                    }
+
+                    @Override
+                    public void onComplete(boolean isTimeout) {
+                        if (!isTimeout) {
+                            // this sleep is here to avoid TONS of problems in BLE, that occur
+                            // whenever we start service discovery immediately after the
+                            // connection is established
+                            // TODO remove the sleep after a delay is added to SerialOperationsManager
+                            SystemClock.sleep(600);
+
+                            getStateManager().notifyStart();
+                        } else {
+                            final UlxError error = new UlxError(
+                                    UlxErrorCode.CONNECTION_TIMEOUT,
+                                    "Could not connect to the remote device.",
+                                    "The connection timed out.",
+                                    "Please try reconnecting or restarting the Bluetooth adapter."
+                            );
+                            getStateManager().notifyFailedStart(error);
+                        }
+                    }
+                },
                 // Set a timeout for 30 s
-                setConnectionTimeout(bluetoothGatt, 30000);
-            } else {
-                Timber.e(
-                        "ULX connection request for native device %s rejected",
-                        getBluetoothDevice().getAddress()
-                );
-
-                // We should try to figure out a better error message
-                UlxError error = new UlxError(
-                        UlxErrorCode.UNKNOWN,
-                        "Could not connect to the device.",
-                        "The connection could not be initiated.",
-                        "Please try connecting again."
-                );
-
-                getStateManager().notifyFailedStart(error);
-            }
-        });
+                30_000
+        );
     }
 
     @Override
@@ -580,10 +545,7 @@ public class GattClient extends BluetoothGattCallback {
         ConnectorDelegate connectorDelegate = getConnectorDelegate();
 
         synchronized (this) {
-            if (getStateManager().getState() != State.IDLE) {
-                // Don't wait anymore to drop the connection attempt
-                cancelConnectionTimeout();
-            } else {
+            if (getStateManager().getState() == State.IDLE) {
                 Timber.w("onConnectionStateChange() event received in IDLE state. Most likely the connection was timed out");
                 return;
             }
@@ -599,13 +561,7 @@ public class GattClient extends BluetoothGattCallback {
 
         // Is the client connected?
         if (newState == BluetoothProfile.STATE_CONNECTED) {
-
-            // this sleep is here to avoid TONS of problems in BLE, that occur
-            // whenever we start service discovery immediately after the
-            // connection is established
-            SystemClock.sleep(600);
-
-            getStateManager().notifyStart();
+            completableOperation.markAsComplete();
         } else { // As per documentation, the other possibility is only BluetoothProfile.STATE_DISCONNECTED
 
             if (getStateManager().getState() == State.STOPPING) {

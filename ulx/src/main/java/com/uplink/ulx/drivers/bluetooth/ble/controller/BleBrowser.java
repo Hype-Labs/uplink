@@ -36,6 +36,7 @@ import com.uplink.ulx.drivers.model.Channel;
 import com.uplink.ulx.drivers.model.Connector;
 import com.uplink.ulx.drivers.model.Transport;
 import com.uplink.ulx.threading.Dispatch;
+import com.uplink.ulx.utils.SerialOperationsManager;
 import com.uplink.ulx.utils.StringUtils;
 
 import java.util.ArrayList;
@@ -79,6 +80,7 @@ class BleBrowser extends BrowserCommons implements
      */
     private final Deque<Connector> connectorQueue;
     private volatile Connector currentConnector;
+    private final SerialOperationsManager operationsManager;
 
     /**
      * The BLEScannerCallback implements the Bluetooth LE scan callbacks that
@@ -147,29 +149,31 @@ class BleBrowser extends BrowserCommons implements
     }
 
     /**
-     * Initializes the instance with the given parameters. It also
-     * subscribes the browser as a BluetoothStateListener observer, so that it
-     * can track adapter state changes. The given BluetoothManager is expected
-     * to be shared with the advertiser, since it's the abstract entity that
-     * will be used to managed the adapter. The BleDomesticService, on the
-     * other hand, is used to configure the services, and works as a
-     * specification of the type of services that the browser should be looking
-     * for.
-     * @param identifier A string identifier for the instance.
-     * @param bluetoothManager The BluetoothManager instance.
-     * @param domesticService The service configuration specification.
-     * @param context The Android environment Context.
+     * Initializes the instance with the given parameters. It also subscribes the browser as a
+     * BluetoothStateListener observer, so that it can track adapter state changes. The given
+     * BluetoothManager is expected to be shared with the advertiser, since it's the abstract entity
+     * that will be used to managed the adapter. The BleDomesticService, on the other hand, is used
+     * to configure the services, and works as a specification of the type of services that the
+     * browser should be looking for.
+     *
+     * @param identifier        A string identifier for the instance.
+     * @param bluetoothManager  The BluetoothManager instance.
+     * @param domesticService   The service configuration specification.
+     * @param operationsManager operations manager to serialize BLE operations
+     * @param context           The Android environment Context.
      */
     public static BleBrowser newInstance(
             String identifier,
             BluetoothManager bluetoothManager,
             BleDomesticService domesticService,
+            SerialOperationsManager operationsManager,
             Context context
     ) {
         final BleBrowser browser = new BleBrowser(
                 identifier,
                 bluetoothManager,
                 domesticService,
+                operationsManager,
                 context
         );
         browser.initialize();
@@ -181,12 +185,13 @@ class BleBrowser extends BrowserCommons implements
             String identifier,
             BluetoothManager bluetoothManager,
             BleDomesticService domesticService,
-            Context context
+            SerialOperationsManager operationsManager, Context context
     ) {
         super(identifier, TransportType.BLUETOOTH_LOW_ENERGY, context);
 
         this.bluetoothManager = bluetoothManager;
         this.domesticService = domesticService;
+        this.operationsManager = operationsManager;
 
         this.scanCallback = new BLEScannerCallback();
 
@@ -613,6 +618,7 @@ class BleBrowser extends BrowserCommons implements
                 bluetoothDevice,
                 getBluetoothManager(),
                 getDomesticService(),
+                operationsManager,
                 getContext()
         );
 
