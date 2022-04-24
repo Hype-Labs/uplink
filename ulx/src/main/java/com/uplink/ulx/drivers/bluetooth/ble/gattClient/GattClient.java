@@ -32,7 +32,6 @@ import java.util.List;
 import java.util.Objects;
 import java.util.UUID;
 
-import androidx.annotation.GuardedBy;
 import androidx.annotation.MainThread;
 import timber.log.Timber;
 
@@ -163,15 +162,12 @@ public class GattClient extends BluetoothGattCallback {
     private final Handler handler = new Handler(Looper.getMainLooper());
 
     private int mtu;
-    @GuardedBy("mtuLock")
-    private boolean isMtuRequestPending;
-    private final Object mtuLock = new Object();
-    private final Runnable mtuRequestTimeoutRunnable = this::onMtuRequestTimeout;
 
     private final Context context;
 
     private final SerialOperationsManager operationsManager;
-    private volatile Completable completableOperation;
+    private volatile Completable connectionOperation;
+    private Completable mtuOperation;
 
     public static GattClient newInstance(
             BluetoothDevice bluetoothDevice,
@@ -469,7 +465,7 @@ public class GattClient extends BluetoothGattCallback {
 
     public void doConnect() {
 
-        completableOperation = operationsManager.enqueue(
+        connectionOperation = operationsManager.enqueue(
                 new SerialOperationsManager.Task() {
                     @Override
                     public void run(Completable completable) {
@@ -561,7 +557,7 @@ public class GattClient extends BluetoothGattCallback {
 
         // Is the client connected?
         if (newState == BluetoothProfile.STATE_CONNECTED) {
-            completableOperation.markAsComplete();
+            connectionOperation.markAsComplete();
         } else { // As per documentation, the other possibility is only BluetoothProfile.STATE_DISCONNECTED
 
             if (getStateManager().getState() == State.STOPPING) {
@@ -586,49 +582,34 @@ public class GattClient extends BluetoothGattCallback {
      * remote peer by asking it for its maximum supported value.
      */
     private void negotiateMtu() {
-        Dispatch.post(() -> {
+        mtuOperation = operationsManager.enqueue(
+                new SerialOperationsManager.Task() {
+                    @Override
+                    public void run(Completable completable) {
+                        Timber.i(
+                                "ULX is requesting the MTU from the remote native device %s",
+                                getBluetoothDevice().getAddress()
+                        );
 
-            Timber.i(
-                    "ULX is requesting the MTU from the remote native device %s",
-                    getBluetoothDevice().getAddress()
-            );
+                        // 512 is the maximum MTU possible, and its the one we're aiming for.
+                        // In case of failure, we skip the MTU negotiation and go straight to
+                        // discovering the services, since MTU failure is not blocking.
+                        if (!getBluetoothGatt().requestMtu(MtuRegistry.MAXIMUM_MTU)) {
+                            Timber.i(
+                                    "ULX MTU request for remote native device %s failed, and the services will be discovered instead",
+                                    getBluetoothDevice().getAddress()
+                            );
+                            completable.markAsComplete();
+                        }
+                    }
 
-            synchronized (mtuLock) {
-                if (isMtuRequestPending) {
-                    // Should not happen
-                    Timber.w("Attempt to start MTU negotiation while another one is in progress");
-                    return;
-                }
-
-                isMtuRequestPending = true;
-
-                // 512 is the maximum MTU possible, and its the one we're aiming for.
-                // In case of failure, we skip the MTU negotiation and go straight to
-                // discovering the services, since MTU failure is not blocking.
-                if (!getBluetoothGatt().requestMtu(MtuRegistry.MAXIMUM_MTU)) {
-                    Timber.i(
-                            "ULX MTU request for remote native device %s failed, and the services will be discovered instead",
-                            getBluetoothDevice().getAddress()
-                    );
-                    onMtuNegotiationAttemptFinished();
-                } else {
-                    setMtuRequestTimeout();
-                }
-            }
-        });
-    }
-
-    private void setMtuRequestTimeout() {
-        handler.postDelayed(mtuRequestTimeoutRunnable, MtuRegistry.MTU_REQUEST_TIMEOUT_MS);
-    }
-
-    private void cancelMtuRequestTimeout() {
-        handler.removeCallbacks(mtuRequestTimeoutRunnable);
-    }
-
-    private void onMtuRequestTimeout() {
-        Timber.i("MTU request timed out. Proceeding with connection");
-        onMtuNegotiationAttemptFinished();
+                    @Override
+                    public void onComplete(boolean isTimeout) {
+                        onMtuNegotiationAttemptFinished();
+                    }
+                },
+                MtuRegistry.MTU_REQUEST_TIMEOUT_MS
+        );
     }
 
     /**
@@ -636,12 +617,7 @@ public class GattClient extends BluetoothGattCallback {
      * This will proceed with connection process, but only if an MTU request is currently pending
      */
     private void onMtuNegotiationAttemptFinished() {
-        synchronized (mtuLock) {
-            if (isMtuRequestPending) {
-                isMtuRequestPending = false;
-                discoverServices();
-            }
-        }
+        discoverServices();
     }
 
     @Override
@@ -653,8 +629,6 @@ public class GattClient extends BluetoothGattCallback {
                 status
         );
 
-        cancelMtuRequestTimeout();
-
         // Keep the negotiated MTU in case of success. Failure means that we
         // stick with the default.
         if (status == BluetoothGatt.GATT_SUCCESS) {
@@ -665,7 +639,9 @@ public class GattClient extends BluetoothGattCallback {
             notifyOnMtuNegotiation();
         }
 
-        onMtuNegotiationAttemptFinished();
+        if (mtuOperation != null) {
+            mtuOperation.markAsComplete();
+        }
     }
 
     /**

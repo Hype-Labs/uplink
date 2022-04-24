@@ -26,7 +26,7 @@ public class MtuRegistry {
      */
     public static final int DEFAULT_MTU = 20;
 
-    public static final long MTU_REQUEST_TIMEOUT_MS = 20000;
+    public static final int MTU_REQUEST_TIMEOUT_MS = 20000;
 
     /**
      * Data structure for the MTU table. Maps device addresses with their respective MTU values.
