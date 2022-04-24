@@ -24,7 +24,7 @@ import timber.log.Timber;
  *
  * // ...
  *
- * this.completable = manager.enqueue(gatt.writeCharacteristic(characteristic));
+ * this.completable = manager.enqueue(completable -> gatt.writeCharacteristic(characteristic));
  *
  * //...
  *
