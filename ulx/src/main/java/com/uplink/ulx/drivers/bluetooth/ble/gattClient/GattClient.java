@@ -168,6 +168,11 @@ public class GattClient extends BluetoothGattCallback {
     private final SerialOperationsManager operationsManager;
     private volatile Completable connectionOperation;
     private Completable mtuOperation;
+    private Completable discoverServicesOperation;
+    private Completable subscribeCharacteristicOperation;
+    private Completable writeOperation;
+
+    private Runnable closeConnectionTimeout;
 
     public static GattClient newInstance(
             BluetoothDevice bluetoothDevice,
@@ -235,7 +240,7 @@ public class GattClient extends BluetoothGattCallback {
 
             @Override
             public void requestStop(StateManager stateManager) {
-                // TODO implement
+                cleanup();
             }
 
             @Override
@@ -262,7 +267,16 @@ public class GattClient extends BluetoothGattCallback {
                 // same two devices should result in more 133 error codes. See:
                 // https://stackoverflow.com/questions/25330938/android-bluetoothgatt-status-133-register-callback
                 bluetoothGatt.disconnect();
-                bluetoothGatt.close();
+
+                // Close should not be immediately called after disconnect, as we
+                // need either confirmation that the state changed to disconnected. Since this
+                // callback might never come (e.g. if we are disconnecting while connecting),
+                // then a timeout of 2 seconds is also set to close the connection.
+                // Without doing so, the connection could not be correctly closed and
+                // leave memory leaks in the BLE stack, which would result in errors later
+                // on or even needing to reboot the device to fix it.
+                closeConnectionTimeout = () -> bluetoothGatt.close();
+                Dispatch.postDelayed(closeConnectionTimeout, 2_000);
             }
 
             @Override
@@ -469,19 +483,19 @@ public class GattClient extends BluetoothGattCallback {
                 new SerialOperationsManager.Task() {
                     @Override
                     public void run(Completable completable) {
-                        BluetoothGatt bluetoothGatt = GattClient.this.getBluetoothGatt();
+                        BluetoothGatt bluetoothGatt = getBluetoothGatt();
 
                         if (bluetoothGatt.connect()) {
                             Timber.i(
                                     "ULX connection request for native device %s accepted",
-                                    GattClient.this.getBluetoothDevice().getAddress()
+                                    getBluetoothDevice().getAddress()
                             );
                         } else {
                             completable.markAsComplete();
 
                             Timber.e(
                                     "ULX connection request for native device %s rejected",
-                                    GattClient.this.getBluetoothDevice().getAddress()
+                                    getBluetoothDevice().getAddress()
                             );
 
                             // We should try to figure out a better error message
@@ -492,7 +506,7 @@ public class GattClient extends BluetoothGattCallback {
                                     "Please try connecting again."
                             );
 
-                            GattClient.this.getStateManager().notifyFailedStart(error);
+                            getStateManager().notifyFailedStart(error);
                         }
                     }
 
@@ -574,6 +588,10 @@ public class GattClient extends BluetoothGattCallback {
 
                 getStateManager().notifyStop(error);
             }
+
+            // always close the connection after a device was disconnected
+            Dispatch.cancel(closeConnectionTimeout);
+            bluetoothGatt.close();
         }
     }
 
@@ -669,28 +687,42 @@ public class GattClient extends BluetoothGattCallback {
      */
     public void discoverServices() {
 
-        Dispatch.post(() -> {
-            Timber.i(
-                    "ULX discovering services on remote native device %s",
-                    getBluetoothDevice().getAddress()
-            );
+        discoverServicesOperation = operationsManager.enqueue(
+                new SerialOperationsManager.Task() {
+                    @Override
+                    public void run(Completable completable) {
+                        Timber.i(
+                                "ULX discovering services on remote native device %s",
+                                getBluetoothDevice().getAddress()
+                        );
 
-            BluetoothGatt bluetoothGatt = getBluetoothGatt();
+                        BluetoothGatt bluetoothGatt = getBluetoothGatt();
 
-            if (!bluetoothGatt.discoverServices()) {
+                        if (!bluetoothGatt.discoverServices()) {
 
-                // It's not that the service discovery failed, but rather that it
-                // couldn't be initiated
-                UlxError error = new UlxError(
-                        UlxErrorCode.UNKNOWN,
-                        "The connection to the remote device failed.",
-                        "Failed to discover the Bluetooth LE services offered by the remote device.",
-                        "Try connecting again, or restarting the Bluetooth adapter."
-                );
+                            // It's not that the service discovery failed, but rather that it
+                            // couldn't be initiated
+                            UlxError error = new UlxError(
+                                    UlxErrorCode.UNKNOWN,
+                                    "The connection to the remote device failed.",
+                                    "Failed to discover the Bluetooth LE services offered by the remote device.",
+                                    "Try connecting again, or restarting the Bluetooth adapter."
+                            );
 
-                notifyOnConnectionFailure(error);
-            }
-        });
+                            notifyOnConnectionFailure(error);
+                        }
+                    }
+
+                    @Override
+                    public void onComplete(boolean isTimeout) {
+                        // if timeout has occurred retry operation?
+                        if (isTimeout) {
+                            handleServicesDiscoveryFail();
+                        }
+                    }
+                },
+        4_000);
+
     }
 
     @Override
@@ -701,6 +733,10 @@ public class GattClient extends BluetoothGattCallback {
                 status
         );
 
+        if(discoverServicesOperation != null) {
+            discoverServicesOperation.markAsComplete();
+        }
+
         // Services discovered
         if (status == BluetoothGatt.GATT_SUCCESS) {
             handleServicesDiscovered(gatt.getServices());
@@ -708,17 +744,26 @@ public class GattClient extends BluetoothGattCallback {
 
         // The service wasn't discovered, something went wrong
         else {
-
-            // We should be checking the status for this
-            UlxError error = new UlxError(
-                    UlxErrorCode.UNKNOWN,
-                    "Could not connect to the device using Bluetooth Low Energy.",
-                    "The service discovery process failed.",
-                    "Make sure that the other device is properly configured and still within range."
-            );
-
-            notifyOnConnectionFailure(error);
+            handleServicesDiscoveryFail();
         }
+    }
+
+    /**
+     * This method will generate and error and notify the delegate that the connection
+     * procedure has failed. This can occur when the discoverServices operation has
+     * failed or timed out. Without having the list of services, the connection cannot
+     * proceed.
+     */
+    private void handleServicesDiscoveryFail() {
+        // We should be checking the status for this
+        UlxError error = new UlxError(
+                UlxErrorCode.UNKNOWN,
+                "Could not connect to the device using Bluetooth Low Energy.",
+                "The service discovery process failed.",
+                "Make sure that the other device is properly configured and still within range."
+        );
+
+        notifyOnConnectionFailure(error);
     }
 
     /**
@@ -854,66 +899,80 @@ public class GattClient extends BluetoothGattCallback {
      * @param characteristic The characteristic to subscribe.
      */
     public void subscribeCharacteristic(BluetoothGattCharacteristic characteristic) {
-        Dispatch.post(() -> {
-            Timber.i(
-                    "ULX requested to subscribe remote characteristic on native device %s",
-                    getBluetoothDevice().getAddress()
-            );
+        subscribeCharacteristicOperation = operationsManager.enqueue(
+                new SerialOperationsManager.Task() {
+                    @Override
+                    public void run(Completable completable) {
+                        Timber.i(
+                                "ULX requested to subscribe remote characteristic on native device %s",
+                                getBluetoothDevice().getAddress()
+                        );
 
-            BluetoothGattDescriptor descriptor = getDescriptor(characteristic);
+                        BluetoothGattDescriptor descriptor = getDescriptor(characteristic);
 
-            // The descriptor was not found
-            if (descriptor == null) {
-                UlxError error = new UlxError(
-                        UlxErrorCode.PROTOCOL_VIOLATION,
-                        "Could not connect to the remote device.",
-                        "The remote device does not conform with the expected protocol.",
-                        "Make sure that the remote device is running the correct software version."
-                );
-                notifyOnConnectionFailure(error);
-                return;
-            }
+                        // The descriptor was not found
+                        if (descriptor == null) {
+                            UlxError error = new UlxError(
+                                    UlxErrorCode.PROTOCOL_VIOLATION,
+                                    "Could not connect to the remote device.",
+                                    "The remote device does not conform with the expected protocol.",
+                                    "Make sure that the remote device is running the correct software version."
+                            );
+                            notifyOnConnectionFailure(error);
+                            subscribeCharacteristicOperation.markAsComplete();
+                            return;
+                        }
 
-            // To enable notifications on Android, you normally have to locally
-            // enable the notification for the particular characteristic you are
-            // interested in. Once that’s done, you also have to enable
-            // notifications on the peer device by writing to the device’s Client
-            // Characteristic Configuration Descriptor (CCCD)
-            if (!getBluetoothGatt().setCharacteristicNotification(characteristic, true)) {
-                UlxError error = new UlxError(
-                        UlxErrorCode.UNKNOWN,
-                        "Could not connect to the remote device.",
-                        "Could not enable notifications for I/O on the remote device.",
-                        "Make sure that the remote device is running the correct software version or try restarting the Bluetooth adapters."
-                );
-                notifyOnConnectionFailure(error);
-                return;
-            }
+                        // To enable notifications on Android, you normally have to locally
+                        // enable the notification for the particular characteristic you are
+                        // interested in. Once that’s done, you also have to enable
+                        // notifications on the peer device by writing to the device’s Client
+                        // Characteristic Configuration Descriptor (CCCD)
+                        if (!getBluetoothGatt().setCharacteristicNotification(characteristic, true)) {
+                            UlxError error = new UlxError(
+                                    UlxErrorCode.UNKNOWN,
+                                    "Could not connect to the remote device.",
+                                    "Could not enable notifications for I/O on the remote device.",
+                                    "Make sure that the remote device is running the correct software version or try restarting the Bluetooth adapters."
+                            );
+                            notifyOnConnectionFailure(error);
+                            subscribeCharacteristicOperation.markAsComplete();
+                            return;
+                        }
 
-            // Store the Enable Indication value locally
-            if (!descriptor.setValue(BluetoothGattDescriptor.ENABLE_INDICATION_VALUE)) {
-                UlxError error = new UlxError(
-                        UlxErrorCode.UNKNOWN,
-                        "Could not connect to the remote device.",
-                        "Failed to properly configure the server to enable indications.",
-                        "Make sure that the remote device is running the correct software version or try restarting the Bluetooth adapters."
-                );
-                notifyOnConnectionFailure(error);
-                return;
-            }
+                        // Store the Enable Indication value locally
+                        if (!descriptor.setValue(BluetoothGattDescriptor.ENABLE_INDICATION_VALUE)) {
+                            UlxError error = new UlxError(
+                                    UlxErrorCode.UNKNOWN,
+                                    "Could not connect to the remote device.",
+                                    "Failed to properly configure the server to enable indications.",
+                                    "Make sure that the remote device is running the correct software version or try restarting the Bluetooth adapters."
+                            );
+                            notifyOnConnectionFailure(error);
+                            subscribeCharacteristicOperation.markAsComplete();
+                            return;
+                        }
 
-            // Commit to the remote device
-            if (!getBluetoothGatt().writeDescriptor(descriptor)) {
-                UlxError error = new UlxError(
-                        UlxErrorCode.UNKNOWN,
-                        "Could not connect to the remote device.",
-                        "Failed to properly configure the server to enable indications.",
-                        "Make sure that the remote device is running the correct software version or try restarting the Bluetooth adapters."
-                );
-                notifyOnConnectionFailure(error);
-                //return;
-            }
-        });
+                        // Commit to the remote device
+                        if (!getBluetoothGatt().writeDescriptor(descriptor)) {
+                            UlxError error = new UlxError(
+                                    UlxErrorCode.UNKNOWN,
+                                    "Could not connect to the remote device.",
+                                    "Failed to properly configure the server to enable indications.",
+                                    "Make sure that the remote device is running the correct software version or try restarting the Bluetooth adapters."
+                            );
+                            notifyOnConnectionFailure(error);
+                            subscribeCharacteristicOperation.markAsComplete();
+                            //return;
+                        }
+                    }
+
+                    @Override
+                    public void onComplete(boolean isTimeout) {
+                    }
+                }
+
+        );
     }
 
     /**
@@ -950,6 +1009,11 @@ public class GattClient extends BluetoothGattCallback {
 
     @Override
     public void onDescriptorWrite(BluetoothGatt gatt, BluetoothGattDescriptor descriptor, int status) {
+
+        if (subscribeCharacteristicOperation != null) {
+            subscribeCharacteristicOperation.markAsComplete();
+        }
+
         if (status == BluetoothGatt.GATT_SUCCESS) {
             handleCharacteristicSubscribed(descriptor);
         } else {
@@ -1061,7 +1125,26 @@ public class GattClient extends BluetoothGattCallback {
 
     public boolean writeCharacteristic(BluetoothGattCharacteristic characteristic) {
         assert Looper.myLooper() == Looper.getMainLooper();
-        return getBluetoothGatt().writeCharacteristic(characteristic);
+        writeOperation = operationsManager.enqueue(
+                new SerialOperationsManager.Task() {
+                    @Override
+                    public void run(Completable completable) {
+                        boolean success = getBluetoothGatt().writeCharacteristic(characteristic);
+                        if(!success) {
+                            writeOperation.markAsComplete();
+                        }
+                    }
+
+                    @Override
+                    public void onComplete(boolean isTimeout) {
+                    }
+                },
+                5_000
+        );
+
+        // since the operation is being enqueued, this function just returns
+        // whether the gatt object is valid
+        return bluetoothGatt != null;
     }
 
     @Override
@@ -1071,6 +1154,10 @@ public class GattClient extends BluetoothGattCallback {
                 gatt.getDevice().getAddress(),
                 status
         );
+
+        if (writeOperation != null) {
+            writeOperation.markAsComplete();
+        }
 
         Dispatch.post(() -> {
             if (status == BluetoothGatt.GATT_SUCCESS) {

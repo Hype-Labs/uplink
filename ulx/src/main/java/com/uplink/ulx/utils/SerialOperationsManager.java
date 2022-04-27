@@ -128,7 +128,7 @@ public class SerialOperationsManager {
 
                 // Wait for the completion flag to be set
                 final boolean isTimeout;
-                if (timeoutMs > 0) {
+                if (timeoutMs <= 0) {
                     // No timeout - wait as long as needed
                     completionLatch.await();
                     isTimeout = false;
