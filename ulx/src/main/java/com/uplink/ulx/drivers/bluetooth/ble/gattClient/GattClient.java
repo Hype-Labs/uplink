@@ -519,8 +519,10 @@ public class GattClient extends BluetoothGattCallback {
                             // TODO remove the sleep after a delay is added to SerialOperationsManager
                             SystemClock.sleep(600);
 
+
                             getStateManager().notifyStart();
                         } else {
+                            Timber.i("Connection Operation timed out! Device " + bluetoothGatt.getDevice().getAddress());
                             final UlxError error = new UlxError(
                                     UlxErrorCode.CONNECTION_TIMEOUT,
                                     "Could not connect to the remote device.",
@@ -717,6 +719,7 @@ public class GattClient extends BluetoothGattCallback {
                     public void onComplete(boolean isTimeout) {
                         // if timeout has occurred retry operation?
                         if (isTimeout) {
+                            Timber.i("Services Discovery Timed out! Device " + bluetoothGatt.getDevice().getAddress());
                             handleServicesDiscoveryFail();
                         }
                     }
@@ -969,6 +972,9 @@ public class GattClient extends BluetoothGattCallback {
 
                     @Override
                     public void onComplete(boolean isTimeout) {
+                        if (isTimeout) {
+                            Timber.i("Characteristic Subscribe timed out! Device " + bluetoothGatt.getDevice().getAddress());
+                        }
                     }
                 }
 
@@ -1137,6 +1143,9 @@ public class GattClient extends BluetoothGattCallback {
 
                     @Override
                     public void onComplete(boolean isTimeout) {
+                        if (isTimeout) {
+                            Timber.i("Write Characteristic timed out! Device " + bluetoothGatt.getDevice().getAddress());
+                        }
                     }
                 },
                 5_000
