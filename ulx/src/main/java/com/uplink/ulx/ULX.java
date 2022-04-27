@@ -2,6 +2,8 @@ package com.uplink.ulx;
 
 import android.content.Context;
 
+import androidx.annotation.NonNull;
+
 import com.uplink.ulx.model.Instance;
 import com.uplink.ulx.model.Message;
 import com.uplink.ulx.model.State;
@@ -25,9 +27,16 @@ import timber.log.Timber;
  */
 public class ULX {
 
+    static class TagTree extends Timber.DebugTree {
+        @Override
+        protected void log(int priority, String tag, @NonNull String message, Throwable t) {
+            super.log(priority, "ULX-APP | " + tag, message, t);
+        }
+    }
+
     static {
         if (BuildConfig.DEBUG) {
-            Timber.plant(new Timber.DebugTree());
+            Timber.plant(new TagTree());
         }
     }
 
