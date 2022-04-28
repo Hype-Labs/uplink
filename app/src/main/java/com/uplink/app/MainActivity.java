@@ -91,7 +91,7 @@ public class MainActivity extends AppCompatActivity implements StateObserver, Ne
 
     @Override
     public void onUlxStart() {
-        Log.i(getClass().getCanonicalName(), "ULX[APP] has started");
+        Log.i(getClass().getCanonicalName(), "ULX[APP] has started. Device ID -> " + ULX.getHostInstance().getStringIdentifier());
         runOnUiThread(() -> this.<TextView>findViewById(R.id.my_id).setText(ULX.getHostInstance().getStringIdentifier()));
     }
 
