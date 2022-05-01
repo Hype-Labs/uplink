@@ -9,6 +9,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.FutureTask;
 import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 import timber.log.Timber;
 
@@ -30,7 +31,7 @@ import timber.log.Timber;
  * //...
  *
  * public void onCharacteristicWrite(BluetoothGatt gatt, BluetoothGattCharacteristic characteristic, int status) {
- *      this.completable.markAsComplete();
+ *      this.completable.markAsComplete(boolean);
  *      // Handle the result
  * }
  *
@@ -65,12 +66,12 @@ public class SerialOperationsManager {
      *
      * @param task task to execute. It doesn't need to complete all of the work during its {@link
      *             Task#run(Completable)} method. The task is considered to be complete only after
-     *             the {@link Completable#markAsComplete()} is called
+     *             the {@link Completable#markAsComplete(boolean)} ()} is called
      * @return {@link Completable} for marking the task as complete. It is the same object that will
-     * be passed to {@link Task#run(Completable)}. {@link Completable#markAsComplete()} can be
-     * called at any point - before, during or after {@link Task#run(Completable)} is called.
+     * be passed to {@link Task#run(Completable)}. {@link Completable#markAsComplete(boolean)} can
+     * be called at any point - before, during or after {@link Task#run(Completable)} is called.
      * Although it usually doesn't make sense, completing before the task is run will make it not
-     * run at all. {@link Completable#markAsComplete()} is idempotent
+     * run at all. {@link Completable#markAsComplete(boolean)} is idempotent
      */
     public Completable enqueue(Task task) {
         return enqueue(task, 0);
@@ -81,20 +82,24 @@ public class SerialOperationsManager {
      *
      * @param task      task to execute. It doesn't need to complete all of the work during its
      *                  {@link Task#run(Completable)} method. The task is considered to be complete
-     *                  only after the {@link Completable#markAsComplete()} is called
-     * @param timeoutMs timeout, during which {@link Completable#markAsComplete()} is expected to be
-     *                  called. Countdown starts after {@link Task#run(Completable)} exits. A value
-     *                  of zero means no timeout
+     *                  only after the {@link Completable#markAsComplete(boolean)} is called
+     * @param timeoutMs timeout, during which {@link Completable#markAsComplete(boolean)} is
+     *                  expected to be called. Countdown starts after {@link Task#run(Completable)}
+     *                  exits. A value of zero means no timeout
      * @return {@link Completable} for marking the task as complete. It is the same object that will
-     * be passed to {@link Task#run(Completable)}. {@link Completable#markAsComplete()} can be
-     * called at any point - before, during or after {@link Task#run(Completable)} is called.
+     * be passed to {@link Task#run(Completable)}. {@link Completable#markAsComplete(boolean)} can
+     * be called at any point - before, during or after {@link Task#run(Completable)} is called.
      * Although it usually doesn't make sense, completing before the task is run will make it not
-     * run at all. {@link Completable#markAsComplete()} is idempotent
+     * run at all. {@link Completable#markAsComplete(boolean)} is idempotent
      */
     public Completable enqueue(Task task, int timeoutMs) {
         final CountDownLatch completionLatch = new CountDownLatch(1);
+        final AtomicBoolean successStatus = new AtomicBoolean();
         // Calling markComplete() will countdown the latch, thus allowing the queue to proceed
-        final Completable completable = completionLatch::countDown;
+        final Completable completable = isSuccessful -> {
+            successStatus.set(isSuccessful);
+            completionLatch.countDown();
+        };
 
         final Runnable operationRunner = () -> {
 
@@ -136,7 +141,11 @@ public class SerialOperationsManager {
                     Timber.i("Timeout was hit while waiting for the operation's completion");
                 }
 
-                operationsExecutor.execute(() -> task.onComplete(isTimeout));
+                operationsExecutor.execute(() -> task.onComplete(
+                        isTimeout
+                                ? Status.Timeout
+                                : (successStatus.get() ? Status.Success : Status.Failure)
+                ));
 
             } catch (InterruptedException e) {
                 // This should only happen if destroy() was called. So we won't wait for the
@@ -186,9 +195,27 @@ public class SerialOperationsManager {
          * Called when the task is complete. The call is submitted to the executor passed to the
          * {@link SerialOperationsManager}'s constructor
          *
-         * @param isTimeout whether the completion is by timeout
+         * @param status operation's status
          */
-        default void onComplete(boolean isTimeout) {
+        default void onComplete(Status status) {
         }
+    }
+
+    /**
+     * Status of the {@link Task}'s completion
+     */
+    public enum Status {
+        /**
+         * The operation has finished successfully
+         */
+        Success,
+        /**
+         * The operation has failed
+         */
+        Failure,
+        /**
+         * The operation has timed out
+         */
+        Timeout,
     }
 }
