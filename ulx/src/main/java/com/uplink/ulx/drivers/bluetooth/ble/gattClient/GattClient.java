@@ -11,7 +11,6 @@ import android.bluetooth.BluetoothManager;
 import android.bluetooth.BluetoothProfile;
 import android.content.Context;
 import android.os.Build;
-import android.os.Handler;
 import android.os.Looper;
 import android.os.SystemClock;
 
@@ -158,8 +157,6 @@ public class GattClient extends BluetoothGattCallback {
     private final BluetoothManager bluetoothManager;
     private BluetoothAdapter bluetoothAdapter;
     private BluetoothGatt bluetoothGatt;
-
-    private final Handler handler = new Handler(Looper.getMainLooper());
 
     private int mtu;
 
@@ -522,7 +519,10 @@ public class GattClient extends BluetoothGattCallback {
 
                             getStateManager().notifyStart();
                         } else {
-                            Timber.i("Connection Operation timed out! Device " + bluetoothGatt.getDevice().getAddress());
+                            Timber.i(
+                                    "Connection Operation timed out! Device %s",
+                                    bluetoothGatt.getDevice().getAddress()
+                            );
                             final UlxError error = new UlxError(
                                     UlxErrorCode.CONNECTION_TIMEOUT,
                                     "Could not connect to the remote device.",
@@ -701,6 +701,7 @@ public class GattClient extends BluetoothGattCallback {
                         BluetoothGatt bluetoothGatt = getBluetoothGatt();
 
                         if (!bluetoothGatt.discoverServices()) {
+                            completable.markAsComplete();
 
                             // It's not that the service discovery failed, but rather that it
                             // couldn't be initiated
@@ -719,7 +720,10 @@ public class GattClient extends BluetoothGattCallback {
                     public void onComplete(boolean isTimeout) {
                         // if timeout has occurred retry operation?
                         if (isTimeout) {
-                            Timber.i("Services Discovery Timed out! Device " + bluetoothGatt.getDevice().getAddress());
+                            Timber.i(
+                                    "Services Discovery Timed out! Device %s",
+                                    bluetoothGatt.getDevice().getAddress()
+                            );
                             handleServicesDiscoveryFail();
                         }
                     }
@@ -922,7 +926,7 @@ public class GattClient extends BluetoothGattCallback {
                                     "Make sure that the remote device is running the correct software version."
                             );
                             notifyOnConnectionFailure(error);
-                            subscribeCharacteristicOperation.markAsComplete();
+                            completable.markAsComplete();
                             return;
                         }
 
@@ -939,7 +943,7 @@ public class GattClient extends BluetoothGattCallback {
                                     "Make sure that the remote device is running the correct software version or try restarting the Bluetooth adapters."
                             );
                             notifyOnConnectionFailure(error);
-                            subscribeCharacteristicOperation.markAsComplete();
+                            completable.markAsComplete();
                             return;
                         }
 
@@ -952,7 +956,7 @@ public class GattClient extends BluetoothGattCallback {
                                     "Make sure that the remote device is running the correct software version or try restarting the Bluetooth adapters."
                             );
                             notifyOnConnectionFailure(error);
-                            subscribeCharacteristicOperation.markAsComplete();
+                            completable.markAsComplete();
                             return;
                         }
 
@@ -965,7 +969,7 @@ public class GattClient extends BluetoothGattCallback {
                                     "Make sure that the remote device is running the correct software version or try restarting the Bluetooth adapters."
                             );
                             notifyOnConnectionFailure(error);
-                            subscribeCharacteristicOperation.markAsComplete();
+                            completable.markAsComplete();
                             //return;
                         }
                     }
@@ -973,7 +977,7 @@ public class GattClient extends BluetoothGattCallback {
                     @Override
                     public void onComplete(boolean isTimeout) {
                         if (isTimeout) {
-                            Timber.i("Characteristic Subscribe timed out! Device " + bluetoothGatt.getDevice().getAddress());
+                            Timber.i("Characteristic Subscribe timed out! Device %s", bluetoothGatt.getDevice().getAddress());
                         }
                     }
                 }
@@ -1137,14 +1141,17 @@ public class GattClient extends BluetoothGattCallback {
                     public void run(Completable completable) {
                         boolean success = getBluetoothGatt().writeCharacteristic(characteristic);
                         if(!success) {
-                            writeOperation.markAsComplete();
+                            completable.markAsComplete();
                         }
                     }
 
                     @Override
                     public void onComplete(boolean isTimeout) {
                         if (isTimeout) {
-                            Timber.i("Write Characteristic timed out! Device " + bluetoothGatt.getDevice().getAddress());
+                            Timber.i(
+                                    "Write Characteristic timed out! Device %s",
+                                    bluetoothGatt.getDevice().getAddress()
+                            );
                         }
                     }
                 },
