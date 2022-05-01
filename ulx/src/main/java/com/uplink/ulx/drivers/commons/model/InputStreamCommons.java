@@ -1,5 +1,7 @@
 package com.uplink.ulx.drivers.commons.model;
 
+import com.uplink.ulx.UlxError;
+import com.uplink.ulx.UlxErrorCode;
 import com.uplink.ulx.drivers.model.InputStream;
 import com.uplink.ulx.drivers.model.IoResult;
 
@@ -84,7 +86,14 @@ public abstract class InputStreamCommons extends StreamCommons implements InputS
     public final IoResult read(byte[] buffer) {
 
         if (getState() != State.OPEN) {
-            throw new RuntimeException("Could not read from the InputStream because the stream is not open");
+            final UlxError error = new UlxError(
+                    UlxErrorCode.STREAM_IS_NOT_OPEN,
+                    "Could not read from the InputStream",
+                    "Stream is not open",
+                    "Please wait"
+            );
+            Timber.e(error.toString());
+            return new IoResult(0, error);
         }
 
         if (buffer == null) {
