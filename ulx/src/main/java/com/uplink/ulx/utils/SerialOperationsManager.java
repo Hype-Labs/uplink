@@ -9,7 +9,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.FutureTask;
 import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
 
 import timber.log.Timber;
 
@@ -90,14 +90,22 @@ public class SerialOperationsManager {
      * be passed to {@link Task#run(Completable)}. {@link Completable#markAsComplete(boolean)} can
      * be called at any point - before, during or after {@link Task#run(Completable)} is called.
      * Although it usually doesn't make sense, completing before the task is run will make it not
-     * run at all. {@link Completable#markAsComplete(boolean)} is idempotent
+     * run at all. {@link Completable#markAsComplete(boolean)} is idempotent. Only the first value
+     * of 'isSuccess' is being stored
      */
     public Completable enqueue(Task task, int timeoutMs) {
         final CountDownLatch completionLatch = new CountDownLatch(1);
-        final AtomicBoolean successStatus = new AtomicBoolean();
+        // Initial task status is Timeout. It can be updated by client to Success or Failure
+        final AtomicReference<Status> taskStatus = new AtomicReference<>(Status.Timeout);
         // Calling markComplete() will countdown the latch, thus allowing the queue to proceed
         final Completable completable = isSuccessful -> {
-            successStatus.set(isSuccessful);
+            if (!taskStatus.compareAndSet(
+                    Status.Timeout,
+                    isSuccessful ? Status.Success : Status.Failure
+            )) {
+                Timber.w("Task has already been completed. New success status won't be set");
+            }
+
             completionLatch.countDown();
         };
 
@@ -132,20 +140,18 @@ public class SerialOperationsManager {
                 }
 
                 // Wait for the completion flag to be set
-                final boolean isTimeout;
                 if (timeoutMs <= 0) {
                     // No timeout - wait as long as needed
                     completionLatch.await();
-                    isTimeout = false;
-                } else if (isTimeout = !completionLatch.await(timeoutMs, TimeUnit.MILLISECONDS)) {
+                } else if (!completionLatch.await(timeoutMs, TimeUnit.MILLISECONDS)) {
                     Timber.i("Timeout was hit while waiting for the operation's completion");
                 }
 
-                operationsExecutor.execute(() -> task.onComplete(
-                        isTimeout
-                                ? Status.Timeout
-                                : (successStatus.get() ? Status.Success : Status.Failure)
-                ));
+                // Technically, we can get here by timeout while waiting on the latch and then
+                // the task's status could be updated, before task.onComplete() is called. That's
+                // actually ok and from the client's side perspective will look like the operation
+                // has finished on time
+                operationsExecutor.execute(() -> task.onComplete(taskStatus.get()));
 
             } catch (InterruptedException e) {
                 // This should only happen if destroy() was called. So we won't wait for the
