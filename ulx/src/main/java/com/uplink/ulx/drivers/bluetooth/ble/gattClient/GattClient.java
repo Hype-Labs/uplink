@@ -168,8 +168,7 @@ public class GattClient extends BluetoothGattCallback {
     private Completable discoverServicesOperation;
     private Completable subscribeCharacteristicOperation;
     private Completable writeOperation;
-
-    private Runnable closeConnectionTimeout;
+    private Completable disconnectOperation;
 
     public static GattClient newInstance(
             BluetoothDevice bluetoothDevice,
@@ -247,38 +246,54 @@ public class GattClient extends BluetoothGattCallback {
 
             @Override
             public void onStop(StateManager stateManager, UlxError error) {
-                Dispatch.post(() -> {
-                    cleanup();
+                cleanup();
 
-                    if (error != null) {
-                        notifyOnDisconnection(error);
-                    } else {
-                        // TODO
-                    }
-                });
+                if (error != null) {
+                    notifyOnDisconnection(error);
+                } else {
+                    // TODO
+                }
             }
 
-            @MainThread
             private void cleanup() {
                 // Clean up; without this, future attempts to connect between these
                 // same two devices should result in more 133 error codes. See:
                 // https://stackoverflow.com/questions/25330938/android-bluetoothgatt-status-133-register-callback
-                bluetoothGatt.disconnect();
+                disconnectOperation = operationsManager.enqueue(
+                        new SerialOperationsManager.Task() {
+                            @Override
+                            public void run(Completable completable) {
+                                if (bluetoothGatt != null) {
+                                    bluetoothGatt.disconnect();
+                                } else {
+                                    completable.markAsComplete();
+                                }
+                            }
 
-                // Close should not be immediately called after disconnect, as we
-                // need either confirmation that the state changed to disconnected. Since this
-                // callback might never come (e.g. if we are disconnecting while connecting),
-                // then a timeout of 2 seconds is also set to close the connection.
-                // Without doing so, the connection could not be correctly closed and
-                // leave memory leaks in the BLE stack, which would result in errors later
-                // on or even needing to reboot the device to fix it.
-                closeConnectionTimeout = () -> bluetoothGatt.close();
-                Dispatch.postDelayed(closeConnectionTimeout, 2_000);
+                            @Override
+                            public void onComplete(boolean isTimeout) {
+                                // Close should not be immediately called after disconnect, as we
+                                // need either confirmation that the state changed to disconnected. Since this
+                                // callback might never come (e.g. if we are disconnecting while connecting),
+                                // then a timeout of 2 seconds is also set to close the connection.
+                                // Without doing so, the connection could not be correctly closed and
+                                // leave memory leaks in the BLE stack, which would result in errors later
+                                // on or even needing to reboot the device to fix it.
+                                operationsManager.enqueue(completable -> {
+                                    if (bluetoothGatt != null) {
+                                        bluetoothGatt.close();
+                                    }
+                                    completable.markAsComplete();
+                                });
+                            }
+                        },
+                        2000
+                );
             }
 
             @Override
             public void onFailedStart(StateManager stateManager, UlxError error) {
-                Dispatch.post(this::cleanup);
+                cleanup();
                 notifyOnConnectionFailure(error);
             }
 
@@ -575,6 +590,9 @@ public class GattClient extends BluetoothGattCallback {
         if (newState == BluetoothProfile.STATE_CONNECTED) {
             connectionOperation.markAsComplete();
         } else { // As per documentation, the other possibility is only BluetoothProfile.STATE_DISCONNECTED
+            if (disconnectOperation != null) {
+                disconnectOperation.markAsComplete();
+            }
 
             if (getStateManager().getState() == State.STOPPING) {
                 assert false; // Graceful disconnections are not expected at this point
@@ -590,10 +608,6 @@ public class GattClient extends BluetoothGattCallback {
 
                 getStateManager().notifyStop(error);
             }
-
-            // always close the connection after a device was disconnected
-            Dispatch.cancel(closeConnectionTimeout);
-            bluetoothGatt.close();
         }
     }
 
