@@ -271,7 +271,7 @@ public class GattClient extends BluetoothGattCallback {
                             }
 
                             @Override
-                            public void onComplete(boolean isTimeout) {
+                            public void onComplete(SerialOperationsManager.Status status) {
                                 // Close should not be immediately called after disconnect, as we
                                 // need either confirmation that the state changed to disconnected. Since this
                                 // callback might never come (e.g. if we are disconnecting while connecting),
@@ -523,8 +523,8 @@ public class GattClient extends BluetoothGattCallback {
                     }
 
                     @Override
-                    public void onComplete(boolean isTimeout) {
-                        if (!isTimeout) {
+                    public void onComplete(SerialOperationsManager.Status status) {
+                        if (status != SerialOperationsManager.Status.Timeout) {
                             // this sleep is here to avoid TONS of problems in BLE, that occur
                             // whenever we start service discovery immediately after the
                             // connection is established
@@ -638,7 +638,7 @@ public class GattClient extends BluetoothGattCallback {
                     }
 
                     @Override
-                    public void onComplete(boolean isTimeout) {
+                    public void onComplete(SerialOperationsManager.Status status) {
                         onMtuNegotiationAttemptFinished();
                     }
                 },
@@ -731,9 +731,9 @@ public class GattClient extends BluetoothGattCallback {
                     }
 
                     @Override
-                    public void onComplete(boolean isTimeout) {
+                    public void onComplete(SerialOperationsManager.Status status) {
                         // if timeout has occurred retry operation?
-                        if (isTimeout) {
+                        if (status == SerialOperationsManager.Status.Timeout) {
                             Timber.i(
                                     "Services Discovery Timed out! Device %s",
                                     bluetoothGatt.getDevice().getAddress()
@@ -989,8 +989,8 @@ public class GattClient extends BluetoothGattCallback {
                     }
 
                     @Override
-                    public void onComplete(boolean isTimeout) {
-                        if (isTimeout) {
+                    public void onComplete(SerialOperationsManager.Status status) {
+                        if (status == SerialOperationsManager.Status.Timeout) {
                             Timber.i("Characteristic Subscribe timed out! Device %s", bluetoothGatt.getDevice().getAddress());
                         }
                     }
@@ -1160,8 +1160,8 @@ public class GattClient extends BluetoothGattCallback {
                     }
 
                     @Override
-                    public void onComplete(boolean isTimeout) {
-                        if (isTimeout) {
+                    public void onComplete(SerialOperationsManager.Status status) {
+                        if (status == SerialOperationsManager.Status.Timeout) {
                             Timber.i(
                                     "Write Characteristic timed out! Device %s",
                                     bluetoothGatt.getDevice().getAddress()

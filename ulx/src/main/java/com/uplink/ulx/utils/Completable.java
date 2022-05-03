@@ -1,5 +1,9 @@
 package com.uplink.ulx.utils;
 
 public interface Completable {
-    void markAsComplete();
+    default void markAsComplete() {
+        markAsComplete(true);
+    }
+
+    void markAsComplete(boolean isSuccessful);
 }
