@@ -2,9 +2,11 @@ package com.uplink.ulx.drivers.bluetooth.ble.controller;
 
 import android.bluetooth.BluetoothManager;
 import android.content.Context;
+import android.os.Build;
 import android.os.Handler;
 import android.os.Looper;
 
+import com.uplink.ulx.BuildConfig;
 import com.uplink.ulx.TransportType;
 import com.uplink.ulx.drivers.bluetooth.ble.model.passive.BleDomesticService;
 import com.uplink.ulx.drivers.bluetooth.commons.BluetoothStateListener;
@@ -120,7 +122,7 @@ public class BleDriver extends DriverCommons implements Driver {
     }
 
     @Override
-    protected void requestAdapterRestart() {
+    protected boolean requestAdapterRestart() {
         Timber.i("ULX BLE driver is restarting the adapter");
 
         // TODO I've seen some cases in which the adapter restart request is
@@ -135,7 +137,11 @@ public class BleDriver extends DriverCommons implements Driver {
         //      while the restart would occur if no activity was seen for a
         //      while.
 
-        getBluetoothManager().getAdapter().disable();
+        if (Build.VERSION.SDK_INT > Build.VERSION_CODES.N) {
+            return getBluetoothManager().getAdapter().disable();
+        } else {
+            return false;
+        }
     }
 
     @Override

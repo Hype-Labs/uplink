@@ -223,7 +223,6 @@ public class GattServer extends BluetoothGattServerCallback {
      * to listen to GATT server events, as return by getGattServerCallback().
      * @return The BluetoothGatServer GATT server handler instance.
      */
-    @Nullable
     private synchronized BluetoothGattServer getBluetoothGattServer() {
         if (this.bluetoothGattServer == null) {
             this.bluetoothGattServer = getBluetoothManager().openGattServer(

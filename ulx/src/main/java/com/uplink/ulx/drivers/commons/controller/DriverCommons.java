@@ -444,10 +444,11 @@ public abstract class DriverCommons implements
         Timber.i("ULX is accepting an adapter restart request");
 
         // Restart the adapter
-        requestAdapterRestart();
-
-        return true;
+        return requestAdapterRestart();
     }
 
-    protected abstract void requestAdapterRestart();
+    /**
+     * @return whether the request was successful or not
+     */
+    protected abstract boolean requestAdapterRestart();
 }
