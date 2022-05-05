@@ -148,13 +148,15 @@ public class NetworkStateListener {
         // Remove any pending explicit network checks
         handler.removeCallbacks(updaterRunnable);
 
+        // previous internet reachability state
         @Nullable final Boolean oldState = isInternetReachable;
 
         boolean newState = isNetworkAvailable();
 
+        // if there is a valid network connection
         if (newState) {
-            // Let's verify if we can use the network
-            newState = NetworkUtils.isNetworkAvailable(context);
+            // Let's verify if the connection actually can reach the internet
+            newState = NetworkUtils.isInternetReachable(context);
 
             if (!newState) {
                 Timber.d(
@@ -176,10 +178,12 @@ public class NetworkStateListener {
     }
 
     /**
-     * @return whether Android has notified us that there is a network with internet connection
-     * available
+     * @return whether Android has notified us that there is a network connection available (either
+     * Wi-fi or Cellular). At this point, it doesn't mean we have internet access. That will be checked
+     * afterwards in {@link NetworkUtils#isInternetReachable(Context)}
      */
     private boolean isNetworkAvailable() {
+
         boolean newState = Boolean.FALSE;
         for (boolean isAvailable : networksState.values()) {
             if (isAvailable) {
@@ -209,7 +213,7 @@ public class NetworkStateListener {
                 // Either we do not know anything about internet reachability yet, or it should
                 // be available as per Android, but the last request to google.com has failed.
                 // Let's request it now
-                isInternetReachable = NetworkUtils.isNetworkAvailable(context);
+                isInternetReachable = NetworkUtils.isInternetReachable(context);
             }
             // Let the caller thread continue
             latch.countDown();

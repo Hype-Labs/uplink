@@ -21,7 +21,7 @@ public class NetworkUtils {
      * @param context The Android environment context.
      * @return Whether the device is connected to the Internet.
      */
-    public static boolean isNetworkAvailable(@NonNull Context context) {
+    public static boolean isInternetReachable(@NonNull Context context) {
         Timber.d("Checking network availability");
 
         ConnectivityManager cm = (ConnectivityManager)context.getSystemService(Context.CONNECTIVITY_SERVICE);
