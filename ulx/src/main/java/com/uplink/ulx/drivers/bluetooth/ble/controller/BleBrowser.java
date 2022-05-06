@@ -735,7 +735,8 @@ class BleBrowser extends BrowserCommons implements
         BleActiveOutputStream outputStream = BleActiveOutputStream.newInstance(
                 identifier,
                 gattClient,
-                physicalReliableInputCharacteristic
+                physicalReliableInputCharacteristic,
+                operationsManager
         );
 
         // The streams assume the corresponding GATT delegates

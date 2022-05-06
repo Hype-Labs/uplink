@@ -10,6 +10,7 @@ import com.uplink.ulx.UlxErrorCode;
 import com.uplink.ulx.drivers.bluetooth.ble.gattServer.GattServer;
 import com.uplink.ulx.drivers.commons.model.OutputStreamCommons;
 import com.uplink.ulx.drivers.model.IoResult;
+import com.uplink.ulx.utils.SerialOperationsManager;
 
 import timber.log.Timber;
 
@@ -21,23 +22,26 @@ public class BlePassiveOutputStream extends OutputStreamCommons {
 
     /**
      * Factory method. Initializes with given arguments.
-     * @param identifier An identifier used for JNI bridging and debugging.
-     * @param gattServer The GATT server that is managing this stream.
-     * @param bluetoothDevice The corresponding {@link BluetoothDevice}.
-     * @param characteristic The characteristic used by the stream for output.
+     *
+     * @param identifier        An identifier used for JNI bridging and debugging.
+     * @param gattServer        The GATT server that is managing this stream.
+     * @param bluetoothDevice   The corresponding {@link BluetoothDevice}.
+     * @param characteristic    The characteristic used by the stream for output.
+     * @param operationsManager operations manager to serialize BLE operations
      */
-
     public static BlePassiveOutputStream newInstance(
             String identifier,
             GattServer gattServer,
             BluetoothDevice bluetoothDevice,
-            BluetoothGattCharacteristic characteristic
+            BluetoothGattCharacteristic characteristic,
+            SerialOperationsManager operationsManager
     ) {
         final BlePassiveOutputStream instance = new BlePassiveOutputStream(
                 identifier,
                 gattServer,
                 bluetoothDevice,
-                characteristic
+                characteristic,
+                operationsManager
         );
         instance.initialize();
         return instance;
@@ -47,10 +51,11 @@ public class BlePassiveOutputStream extends OutputStreamCommons {
             String identifier,
             GattServer gattServer,
             BluetoothDevice bluetoothDevice,
-            BluetoothGattCharacteristic characteristic
+            BluetoothGattCharacteristic characteristic,
+            SerialOperationsManager operationsManager
     )
     {
-        super(identifier, TransportType.BLUETOOTH_LOW_ENERGY, true);
+        super(identifier, TransportType.BLUETOOTH_LOW_ENERGY, true, operationsManager);
 
         // This will be used to interact with the adapter
         this.gattServer = gattServer;

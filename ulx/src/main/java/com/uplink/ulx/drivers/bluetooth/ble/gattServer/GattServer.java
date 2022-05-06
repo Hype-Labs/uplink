@@ -18,11 +18,12 @@ import com.uplink.ulx.UlxError;
 import com.uplink.ulx.UlxErrorCode;
 import com.uplink.ulx.drivers.bluetooth.ble.model.passive.BleDomesticService;
 import com.uplink.ulx.threading.Dispatch;
+import com.uplink.ulx.utils.Completable;
+import com.uplink.ulx.utils.SerialOperationsManager;
 
 import java.lang.ref.WeakReference;
 import java.util.Objects;
 
-import androidx.annotation.Nullable;
 import timber.log.Timber;
 
 /**
@@ -155,27 +156,34 @@ public class GattServer extends BluetoothGattServerCallback {
     private final BluetoothManager bluetoothManager;
     private final WeakReference<Context> context;
 
+    private final SerialOperationsManager operationsManager;
+    private Completable addServiceOperation;
+
     private final MtuRegistry mtuRegistry;
 
     private BluetoothGattServer bluetoothGattServer;
 
     /**
      * Constructor. Initializes with the given parameters.
-     * @param domesticService The service configuration specification.
-     * @param bluetoothManager The BluetoothManager instance.
-     * @param context The Android environment Context.
+     *
+     * @param domesticService   The service configuration specification.
+     * @param bluetoothManager  The BluetoothManager instance.
+     * @param operationsManager operations manager to serialize BLE operations
+     * @param context           The Android environment Context.
      */
     public GattServer(
             BleDomesticService domesticService,
             BluetoothManager bluetoothManager,
-            Context context)
-    {
+            SerialOperationsManager operationsManager,
+            Context context
+    ) {
         Objects.requireNonNull(domesticService);
         Objects.requireNonNull(bluetoothManager);
         Objects.requireNonNull(context);
 
         this.domesticService = domesticService;
         this.bluetoothManager = bluetoothManager;
+        this.operationsManager = operationsManager;
         this.context = new WeakReference<>(context);
 
         this.mtuRegistry = new MtuRegistry();
@@ -267,40 +275,50 @@ public class GattServer extends BluetoothGattServerCallback {
 
         BluetoothGattService coreService = getDomesticService().getCoreService();
 
-        // Try adding the service, or fail. This will result in either
-        // serviceAdded() or serviceFailedToAdd() to be called, in both of
-        // which cases the lock must be released.
-        final BluetoothGattServer bluetoothGattServer = getBluetoothGattServer();
-        if (bluetoothGattServer == null || !bluetoothGattServer.addService(coreService)) {
+        addServiceOperation = operationsManager.enqueue(
+                new SerialOperationsManager.Task() {
+                    @Override
+                    public void run(Completable completable) {
+                        // Try adding the service, or fail. This will result in either
+                        // serviceAdded() or serviceFailedToAdd() to be called, in both of
+                        // which cases the lock must be released.
+                        final BluetoothGattServer bluetoothGattServer = getBluetoothGattServer();
+                        if (bluetoothGattServer == null
+                                || !bluetoothGattServer.addService(coreService)) {
+                            completable.markAsComplete(false);
+                        }
+                    }
 
-            // We should check the service status for better error info
-            UlxError error = new UlxError(
-                    UlxErrorCode.UNKNOWN,
-                    "Could not advertise using Bluetooth Low Energy.",
-                    "The service could not be properly registered to initiate the activity.",
-                    "Try restarting the Bluetooth adapter."
-            );
+                    @Override
+                    public void onComplete(SerialOperationsManager.Status status) {
+                        if (status == SerialOperationsManager.Status.Success) {
+                            notifyOnServiceAdded(getDomesticService().getCoreService());
+                        } else {
+                            // We should check the service status for better error info
+                            UlxError error = new UlxError(
+                                    UlxErrorCode.UNKNOWN,
+                                    "Could not advertise using Bluetooth Low Energy.",
+                                    "The service could not be properly registered to initiate the activity.",
+                                    "Try restarting the Bluetooth adapter."
+                            );
 
-            notifyOnServiceAdditionFailed(error);
-        }
+                            notifyOnServiceAdditionFailed(error);
+                        }
+                    }
+                },
+                1000
+        );
     }
 
     @Override
     public void onServiceAdded(final int status, final BluetoothGattService service) {
         super.onServiceAdded(status, service);
 
-        if (status == BluetoothGatt.GATT_SUCCESS) {
-            notifyOnServiceAdded(service);
-        } else {
+        // Currently there's only one service we are adding
+        assert service.getUuid().equals(getDomesticService().getCoreService().getUuid());
 
-            UlxError error = new UlxError(
-                    UlxErrorCode.UNKNOWN,
-                    "Could not advertise using Bluetooth Low Energy.",
-                    "The service could not be properly registered to initiate the activity.",
-                    "Try restarting the Bluetooth adapter."
-            );
-
-            notifyOnServiceAdditionFailed(error);
+        if (addServiceOperation != null) {
+            addServiceOperation.markAsComplete(status == BluetoothGatt.GATT_SUCCESS);
         }
     }
 
@@ -369,8 +387,7 @@ public class GattServer extends BluetoothGattServerCallback {
                 device.getAddress()
         );
 
-        Dispatch.post(() -> {
-
+        operationsManager.enqueue(completable -> {
             // Respond to the requester
             if (responseNeeded) {
                 Timber.i(
@@ -393,8 +410,13 @@ public class GattServer extends BluetoothGattServerCallback {
                     // Can be thrown by Android SDK. Apparently, when peer device is unavailable
                     Timber.e("ULX failed to respond to a descriptor write request", e);
                     return;
+                } finally {
+                    completable.markAsComplete();
                 }
             }
+
+            // No problem if it was already called - nothing will happen in such case
+            completable.markAsComplete();
 
             // The connection process is completed when the reliable control
             // characteristic is subscribed
@@ -458,15 +480,13 @@ public class GattServer extends BluetoothGattServerCallback {
             boolean responseNeeded,
             int offset,
             byte[] value) {
+        Timber.i(
+                "ULX characteristic changed with %d bytes of data from device %s",
+                value.length,
+                device.getAddress()
+        );
 
-        Dispatch.post(() -> {
-
-            Timber.i(
-                    "ULX characteristic changed with %d bytes of data from device %s",
-                    value.length,
-                    device.getAddress()
-            );
-
+        operationsManager.enqueue(completable -> {
             if (responseNeeded) {
                 Timber.i(
                         "ULX sending characteristic write request response to device %s",
@@ -488,8 +508,13 @@ public class GattServer extends BluetoothGattServerCallback {
                     // Can be thrown by Android SDK. Apparently, when peer device is unavailable
                     Timber.e("ULX failed to send characteristic write request response", e);
                     return;
+                } finally {
+                    completable.markAsComplete();
                 }
             }
+
+            // No problem if it was already called - nothing will happen in such case
+            completable.markAsComplete();
 
             // Propagate the event
             notifyOnCharacteristicWriteRequest(device, value);

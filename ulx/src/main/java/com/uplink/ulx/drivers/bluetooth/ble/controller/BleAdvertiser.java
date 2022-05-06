@@ -36,6 +36,7 @@ import com.uplink.ulx.drivers.model.InputStream;
 import com.uplink.ulx.drivers.model.OutputStream;
 import com.uplink.ulx.drivers.model.Transport;
 import com.uplink.ulx.threading.Dispatch;
+import com.uplink.ulx.utils.SerialOperationsManager;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -82,6 +83,8 @@ class BleAdvertiser extends AdvertiserCommons implements
      */
     @GuardedBy("connectorRegistry")
     private final Map<BluetoothDevice, Device> deviceRegistry;
+
+    private final SerialOperationsManager operationsManager;
 
     /**
      * The BleAdvertiserCallback is used to respond to the result of requesting
@@ -177,23 +180,26 @@ class BleAdvertiser extends AdvertiserCommons implements
 
     /**
      * Factory method. Initializes with the given arguments.
-     * @param identifier A string identifier for the instance.
-     * @param bluetoothManager The BluetoothManager instance.
-     * @param domesticService The service configuration specification.
-     * @param context The Android environment Context.
+     *
+     * @param identifier        A string identifier for the instance.
+     * @param bluetoothManager  The BluetoothManager instance.
+     * @param domesticService   The service configuration specification.
+     * @param operationsManager operations manager to serialize BLE operations
+     * @param context           The Android environment Context.
      */
-
     public static BleAdvertiser newInstance(
             String identifier,
             BluetoothManager bluetoothManager,
             BleDomesticService domesticService,
+            SerialOperationsManager operationsManager,
             Context context
     ) {
         final BleAdvertiser instance = new BleAdvertiser(
                 identifier,
                 bluetoothManager,
                 domesticService,
-                context
+                context,
+                operationsManager
         );
         instance.initialize();
         return instance;
@@ -203,12 +209,14 @@ class BleAdvertiser extends AdvertiserCommons implements
             String identifier,
             BluetoothManager bluetoothManager,
             BleDomesticService domesticService,
-            Context context
+            Context context,
+            SerialOperationsManager operationsManager
     ) {
         super(identifier, TransportType.BLUETOOTH_LOW_ENERGY, context);
 
         this.bluetoothManager = bluetoothManager;
         this.domesticService = domesticService;
+        this.operationsManager = operationsManager;
 
         // BluetoothDevice overrides equals() and hashcode(), so it's safe to use it in HashMap
         this.deviceRegistry = new HashMap<>();
@@ -280,7 +288,12 @@ class BleAdvertiser extends AdvertiserCommons implements
      */
     private GattServer getGattServer() {
         if (this.gattServer == null) {
-            this.gattServer = new GattServer(getDomesticService(), getBluetoothManager(), getContext());
+            this.gattServer = new GattServer(
+                    getDomesticService(),
+                    getBluetoothManager(),
+                    operationsManager,
+                    getContext()
+            );
             this.gattServer.setDelegate(this);
         }
         return this.gattServer;
@@ -719,7 +732,8 @@ class BleAdvertiser extends AdvertiserCommons implements
                 connector.getIdentifier(),
                 getGattServer(),
                 bluetoothDevice,
-                getDomesticService().getReliableOutputCharacteristic()
+                getDomesticService().getReliableOutputCharacteristic(),
+                operationsManager
         );
 
         Channel reliableChannel = new BleChannel(
