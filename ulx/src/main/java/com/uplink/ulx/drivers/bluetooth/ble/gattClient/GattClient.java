@@ -146,7 +146,7 @@ public class GattClient extends BluetoothGattCallback {
         void onCharacteristicWriteFailure(GattClient gattClient, UlxError error);
     }
 
-    private WeakReference<GattClient.ConnectorDelegate> connectorDelegate;
+    private GattClient.ConnectorDelegate connectorDelegate;
     private WeakReference<InputStreamDelegate> inputStreamDelegate;
     private WeakReference<OutputStreamDelegate> outputStreamDelegate;
 
@@ -264,7 +264,13 @@ public class GattClient extends BluetoothGattCallback {
                             @Override
                             public void run(Completable completable) {
                                 if (bluetoothGatt != null) {
-                                    bluetoothGatt.disconnect();
+                                    try {
+                                        bluetoothGatt.disconnect();
+                                    } catch (Exception e) {
+                                        // DeadObjectException can be thrown here
+                                        Timber.w(e, "Exception occurred while disconnecting");
+                                        completable.markAsComplete(false);
+                                    }
                                 } else {
                                     completable.markAsComplete();
                                 }
@@ -312,7 +318,7 @@ public class GattClient extends BluetoothGattCallback {
      * @param connectorDelegate The ConnectorDelegate to set.
      */
     public final void setConnectorDelegate(ConnectorDelegate connectorDelegate) {
-        this.connectorDelegate = new WeakReference<>(connectorDelegate);
+        this.connectorDelegate = connectorDelegate;
     }
 
     /**
@@ -322,7 +328,7 @@ public class GattClient extends BluetoothGattCallback {
      * @return The current ConnectorDelegate, or null, if one was not set.
      */
     public final ConnectorDelegate getConnectorDelegate() {
-        return this.connectorDelegate != null ? this.connectorDelegate.get() : null;
+        return connectorDelegate;
     }
 
     /**
