@@ -624,13 +624,13 @@ class BleBrowser extends BrowserCommons implements
                 bluetoothDevice.getAddress()
         );
 
-        connector.connect();
         Dispatch.post(() -> {
             connectionsInProgress++;
             if (connectionsInProgress == 1) { // We went from 0 to 1 - maybe time to start scanning
                 updateScannerStatus();
             }
         });
+        connector.connect();
     }
 
     @Override
