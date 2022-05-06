@@ -11,7 +11,6 @@ import com.uplink.ulx.drivers.bluetooth.ble.gattServer.MtuRegistry;
 import com.uplink.ulx.drivers.commons.model.OutputStreamCommons;
 import com.uplink.ulx.drivers.model.IoResult;
 import com.uplink.ulx.utils.ByteUtils;
-import com.uplink.ulx.utils.SerialOperationsManager;
 
 import java.util.Objects;
 
@@ -42,19 +41,16 @@ public class BleActiveOutputStream extends OutputStreamCommons implements GattCl
      * @param identifier An identifier used for JNI bridging and debugging.
      * @param gattClient The {@link GattClient} interacting with this stream.
      * @param outputCharacteristic The reliable output characteristic.
-     * @param operationsManager operations manager to serialize BLE operations
      */
     public static BleActiveOutputStream newInstance(
             String identifier,
             GattClient gattClient,
-            BluetoothGattCharacteristic outputCharacteristic,
-            SerialOperationsManager operationsManager
+            BluetoothGattCharacteristic outputCharacteristic
     ) {
         final BleActiveOutputStream instance = new BleActiveOutputStream(
                 identifier,
                 gattClient,
-                outputCharacteristic,
-                operationsManager
+                outputCharacteristic
         );
         instance.initialize();
         return instance;
@@ -63,10 +59,9 @@ public class BleActiveOutputStream extends OutputStreamCommons implements GattCl
     private BleActiveOutputStream(
             String identifier,
             GattClient gattClient,
-            BluetoothGattCharacteristic outputCharacteristic,
-            SerialOperationsManager operationsManager
+            BluetoothGattCharacteristic outputCharacteristic
     ) {
-        super(identifier, TransportType.BLUETOOTH_LOW_ENERGY, true, operationsManager);
+        super(identifier, TransportType.BLUETOOTH_LOW_ENERGY, true);
 
         Objects.requireNonNull(gattClient);
         Objects.requireNonNull(outputCharacteristic);

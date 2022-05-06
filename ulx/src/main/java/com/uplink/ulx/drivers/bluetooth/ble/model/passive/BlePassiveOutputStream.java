@@ -19,6 +19,7 @@ public class BlePassiveOutputStream extends OutputStreamCommons {
     private final GattServer gattServer;
     private final BluetoothDevice bluetoothDevice;
     private final BluetoothGattCharacteristic characteristic;
+    private final SerialOperationsManager operationsManager;
 
     /**
      * Factory method. Initializes with given arguments.
@@ -55,13 +56,14 @@ public class BlePassiveOutputStream extends OutputStreamCommons {
             SerialOperationsManager operationsManager
     )
     {
-        super(identifier, TransportType.BLUETOOTH_LOW_ENERGY, true, operationsManager);
+        super(identifier, TransportType.BLUETOOTH_LOW_ENERGY, true);
 
         // This will be used to interact with the adapter
         this.gattServer = gattServer;
 
         this.bluetoothDevice = bluetoothDevice;
         this.characteristic = characteristic;
+        this.operationsManager = operationsManager;
     }
 
     /**
@@ -116,6 +118,14 @@ public class BlePassiveOutputStream extends OutputStreamCommons {
      */
     public void notifyAsOpen() {
         super.onOpen();
+    }
+
+    @Override
+    protected void flushAndTrim() {
+        operationsManager.enqueue(completable -> {
+            super.flushAndTrim();
+            completable.markAsComplete();
+        });
     }
 
     @Override

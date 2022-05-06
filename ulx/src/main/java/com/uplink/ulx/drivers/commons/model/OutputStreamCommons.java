@@ -4,11 +4,12 @@ import com.uplink.ulx.UlxError;
 import com.uplink.ulx.UlxErrorCode;
 import com.uplink.ulx.drivers.model.IoResult;
 import com.uplink.ulx.drivers.model.OutputStream;
-import com.uplink.ulx.utils.SerialOperationsManager;
+import com.uplink.ulx.threading.Dispatch;
 
 import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
 
+import androidx.annotation.CallSuper;
 import androidx.annotation.MainThread;
 import timber.log.Timber;
 
@@ -22,7 +23,6 @@ import timber.log.Timber;
 public abstract class OutputStreamCommons extends StreamCommons implements OutputStream {
 
     private final List<Callback> callbacks;
-    private final SerialOperationsManager operationsManager;
     private Buffer buffer;
 
     /**
@@ -31,16 +31,13 @@ public abstract class OutputStreamCommons extends StreamCommons implements Outpu
      * @param identifier        An identifier used for JNI bridging and debugging.
      * @param transportType     The stream's transport type.
      * @param reliable          A boolean flag, indicating whether the stream is reliable.
-     * @param operationsManager operations manager to serialize BLE operations
      */
     public OutputStreamCommons(
             String identifier,
             int transportType,
-            boolean reliable,
-            SerialOperationsManager operationsManager
+            boolean reliable
     ) {
         super(identifier, transportType, reliable);
-        this.operationsManager = operationsManager;
 
         this.callbacks = new CopyOnWriteArrayList<>();
         this.buffer = null;
@@ -123,9 +120,10 @@ public abstract class OutputStreamCommons extends StreamCommons implements Outpu
         return new IoResult(byteCount, null);
     }
 
-    private void flushAndTrim() {
+    @CallSuper
+    protected void flushAndTrim() {
 
-        operationsManager.enqueue(completable -> {
+        Dispatch.post(() -> {
 
             synchronized (getBuffer().getLock()) {
 
@@ -154,8 +152,6 @@ public abstract class OutputStreamCommons extends StreamCommons implements Outpu
                     close(error);
                 }
             }
-
-            completable.markAsComplete();
         });
     }
 
