@@ -136,7 +136,8 @@ public class BleDriver extends DriverCommons implements Driver {
         //      while the restart would occur if no activity was seen for a
         //      while.
 
-        if (Build.VERSION.SDK_INT > Build.VERSION_CODES.N) {
+        // Restart appears to be not working in Android M
+        if (Build.VERSION.SDK_INT != Build.VERSION_CODES.M) {
             return getBluetoothManager().getAdapter().disable();
         } else {
             return false;
