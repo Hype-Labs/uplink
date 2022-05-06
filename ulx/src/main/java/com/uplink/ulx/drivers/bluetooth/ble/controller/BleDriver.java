@@ -6,7 +6,6 @@ import android.os.Build;
 import android.os.Handler;
 import android.os.Looper;
 
-import com.uplink.ulx.BuildConfig;
 import com.uplink.ulx.TransportType;
 import com.uplink.ulx.drivers.bluetooth.ble.model.passive.BleDomesticService;
 import com.uplink.ulx.drivers.bluetooth.commons.BluetoothStateListener;
@@ -14,10 +13,10 @@ import com.uplink.ulx.drivers.commons.controller.DriverCommons;
 import com.uplink.ulx.drivers.controller.Advertiser;
 import com.uplink.ulx.drivers.controller.Browser;
 import com.uplink.ulx.drivers.controller.Driver;
-import com.uplink.ulx.threading.HandlerExecutor;
 import com.uplink.ulx.utils.SerialOperationsManager;
 
 import androidx.annotation.NonNull;
+import androidx.core.os.ExecutorCompat;
 import timber.log.Timber;
 
 /**
@@ -55,7 +54,7 @@ public class BleDriver extends DriverCommons implements Driver {
 
         // All BLE operations will be executed serially in the main thread
         operationsManager = new SerialOperationsManager(
-                new HandlerExecutor(new Handler(Looper.getMainLooper()))
+                ExecutorCompat.create(new Handler(Looper.getMainLooper()))
         );
     }
 
