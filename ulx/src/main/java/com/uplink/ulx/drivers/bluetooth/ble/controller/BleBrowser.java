@@ -626,7 +626,7 @@ class BleBrowser extends BrowserCommons implements
 
         Dispatch.post(() -> {
             connectionsInProgress++;
-            if (connectionsInProgress == 1) { // We went from 0 to 1 - maybe time to start scanning
+            if (connectionsInProgress == 1) { // We went from 0 to 1 - maybe time to stop scanning
                 updateScannerStatus();
             }
         });
@@ -687,7 +687,7 @@ class BleBrowser extends BrowserCommons implements
 
         Dispatch.post(() -> {
             connectionsInProgress--;
-            if (connectionsInProgress == 0) { // We went from 1 to 0 - maybe time to stop scanning
+            if (connectionsInProgress == 0) { // We went from 1 to 0 - maybe time to start scanning
                 updateScannerStatus();
             }
 
@@ -803,7 +803,7 @@ class BleBrowser extends BrowserCommons implements
 
         Dispatch.post(() -> {
             connectionsInProgress--;
-            if (connectionsInProgress == 0) { // We went from 1 to 0 - maybe time to stop scanning
+            if (connectionsInProgress == 0) { // We went from 1 to 0 - maybe time to start scanning
                 updateScannerStatus();
             }
         });
