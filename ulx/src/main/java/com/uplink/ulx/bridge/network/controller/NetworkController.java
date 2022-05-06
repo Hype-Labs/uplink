@@ -212,10 +212,11 @@ public class NetworkController implements IoController.Delegate,
 
     /**
      * Stores last internet reachability flag sent by {@link NetworkStateListener}.
-     * {@code null} means that we haven't received such yet
+     * {@code null} means that we haven't received such yet. This refers to the direct connectivity
+     * to internet, either through a Wi-fi or cellular network
      */
     @Nullable
-    private volatile Boolean isInternetReachable;
+    private volatile Boolean isInternetDirectlyReachable;
 
     /**
      * Maps devices to the last i-hops value sent to them
@@ -450,7 +451,7 @@ public class NetworkController implements IoController.Delegate,
     private int getIncrementedInternetHopCount(Device splitHorizon) throws InterruptedException {
 
         //noinspection ConstantConditions there's no way for the field to be set to null
-        if (isInternetReachable = networkStateListener.isInternetAvailable()) {
+        if (isInternetDirectlyReachable = networkStateListener.isInternetAvailable()) {
             return 1;
         }
 
@@ -1132,7 +1133,7 @@ public class NetworkController implements IoController.Delegate,
                     iHopsCount
             );
 
-            if (isInternetReachable == null) {
+            if (isInternetDirectlyReachable == null) {
                 // This should not happen normally. If we receive iHops update from a device,
                 // we should have negotiated with it by now, which includes setting
                 // isInternetReachable flag
@@ -1140,7 +1141,7 @@ public class NetworkController implements IoController.Delegate,
             }
 
             //noinspection ConstantConditions once non-null, the field is never set to null
-            if (isInternetReachable) {
+            if (isInternetDirectlyReachable) {
                 Timber.v(
                         "We have our own internet. " +
                                 "No need to propagate i-hops update from another device"
@@ -1276,6 +1277,13 @@ public class NetworkController implements IoController.Delegate,
         );
         scheduleUpdatePacket(updatePacket, lastDevice);
 
+        // if no internet connection is available, an internetpacketupdate should be sent as well
+        final RoutingTable.InternetLink bestInternetLink = getRoutingTable().getBestInternetLink(null);
+        boolean isInternetDirectlyAvailable = Boolean.TRUE.equals(isInternetDirectlyReachable);
+        if (!isInternetDirectlyAvailable && bestInternetLink == null) {
+            scheduleInternetUpdatePacket(RoutingTable.HOP_COUNT_INFINITY, lastDevice);
+        }
+
         notifyOnInstanceLost(instance, error);
     }
 
@@ -1286,7 +1294,7 @@ public class NetworkController implements IoController.Delegate,
         final int internetHopCount;
         final RoutingTable.InternetLink bestInternetLink;
 
-        isInternetReachable = isInternetAvailable;
+        isInternetDirectlyReachable = isInternetAvailable;
 
         if (isInternetAvailable) {
             internetHopCount = 1;

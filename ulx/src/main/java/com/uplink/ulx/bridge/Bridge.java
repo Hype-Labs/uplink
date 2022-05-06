@@ -479,8 +479,7 @@ public class Bridge implements
 
     @Override
     public void onDisconnection(@NonNull Connector connector, UlxError error) {
-        Timber.e("ULX connector disconnected on the bridge");
-        Timber.e("ULX connector is %s", connector.getIdentifier());
+        Timber.e("ULX connector %s disconnected on the bridge", connector.getIdentifier());
 
         // Unregister the device
         final Device device = southRegistry.remove(connector.getIdentifier());
