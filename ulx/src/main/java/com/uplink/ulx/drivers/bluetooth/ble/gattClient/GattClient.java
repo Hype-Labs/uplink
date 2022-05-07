@@ -21,7 +21,6 @@ import com.uplink.ulx.drivers.bluetooth.ble.model.active.BleForeignService;
 import com.uplink.ulx.drivers.bluetooth.ble.model.passive.BleDomesticService;
 import com.uplink.ulx.drivers.commons.StateManager;
 import com.uplink.ulx.model.State;
-import com.uplink.ulx.threading.Dispatch;
 import com.uplink.ulx.utils.Completable;
 import com.uplink.ulx.utils.SerialOperationsManager;
 import com.uplink.ulx.utils.SetOnceRef;
@@ -146,7 +145,7 @@ public class GattClient extends BluetoothGattCallback {
         void onCharacteristicWriteFailure(GattClient gattClient, UlxError error);
     }
 
-    private WeakReference<GattClient.ConnectorDelegate> connectorDelegate;
+    private GattClient.ConnectorDelegate connectorDelegate;
     private WeakReference<InputStreamDelegate> inputStreamDelegate;
     private WeakReference<OutputStreamDelegate> outputStreamDelegate;
 
@@ -164,11 +163,11 @@ public class GattClient extends BluetoothGattCallback {
 
     private final SerialOperationsManager operationsManager;
     private volatile Completable connectionOperation;
-    private Completable mtuOperation;
-    private Completable discoverServicesOperation;
-    private Completable subscribeCharacteristicOperation;
-    private Completable writeOperation;
-    private Completable disconnectOperation;
+    private volatile Completable mtuOperation;
+    private volatile Completable discoverServicesOperation;
+    private volatile Completable subscribeCharacteristicOperation;
+    private volatile Completable writeOperation;
+    private volatile Completable disconnectOperation;
 
     public static GattClient newInstance(
             BluetoothDevice bluetoothDevice,
@@ -264,7 +263,13 @@ public class GattClient extends BluetoothGattCallback {
                             @Override
                             public void run(Completable completable) {
                                 if (bluetoothGatt != null) {
-                                    bluetoothGatt.disconnect();
+                                    try {
+                                        bluetoothGatt.disconnect();
+                                    } catch (Exception e) {
+                                        // DeadObjectException can be thrown here
+                                        Timber.w(e, "Exception occurred while disconnecting");
+                                        completable.markAsComplete(false);
+                                    }
                                 } else {
                                     completable.markAsComplete();
                                 }
@@ -312,7 +317,7 @@ public class GattClient extends BluetoothGattCallback {
      * @param connectorDelegate The ConnectorDelegate to set.
      */
     public final void setConnectorDelegate(ConnectorDelegate connectorDelegate) {
-        this.connectorDelegate = new WeakReference<>(connectorDelegate);
+        this.connectorDelegate = connectorDelegate;
     }
 
     /**
@@ -322,7 +327,7 @@ public class GattClient extends BluetoothGattCallback {
      * @return The current ConnectorDelegate, or null, if one was not set.
      */
     public final ConnectorDelegate getConnectorDelegate() {
-        return this.connectorDelegate != null ? this.connectorDelegate.get() : null;
+        return connectorDelegate;
     }
 
     /**
@@ -1148,24 +1153,38 @@ public class GattClient extends BluetoothGattCallback {
     }
 
     public boolean writeCharacteristic(BluetoothGattCharacteristic characteristic) {
-        assert Looper.myLooper() == Looper.getMainLooper();
-        writeOperation = operationsManager.enqueue(
+        operationsManager.enqueue(
                 new SerialOperationsManager.Task() {
                     @Override
                     public void run(Completable completable) {
+                        writeOperation = completable;
                         boolean success = getBluetoothGatt().writeCharacteristic(characteristic);
-                        if(!success) {
-                            completable.markAsComplete();
+                        if (!success) {
+                            completable.markAsComplete(false);
                         }
                     }
 
                     @Override
                     public void onComplete(SerialOperationsManager.Status status) {
-                        if (status == SerialOperationsManager.Status.Timeout) {
-                            Timber.i(
-                                    "Write Characteristic timed out! Device %s",
-                                    bluetoothGatt.getDevice().getAddress()
-                            );
+                        switch (status) {
+                            case Success:
+                                notifyOnCharacteristicWriteSuccess();
+                                break;
+                            case Timeout:
+                                Timber.i(
+                                        "Write Characteristic timed out! Device %s",
+                                        bluetoothGatt.getDevice().getAddress()
+                                );
+                            case Failure:
+                                final UlxError error = new UlxError(
+                                        UlxErrorCode.UNKNOWN,
+                                        "Could not send data to the remote device.",
+                                        "Failed to produce output when writing to the stream.",
+                                        "Try restarting the Bluetooth adapter."
+                                );
+
+                                notifyOnCharacteristicWriteFailure(error);
+                                break;
                         }
                     }
                 },
@@ -1185,27 +1204,12 @@ public class GattClient extends BluetoothGattCallback {
                 status
         );
 
+        // Do not remove the Completable from the queue - it will be removed in its onComplete()
         if (writeOperation != null) {
-            writeOperation.markAsComplete();
+            writeOperation.markAsComplete(status == BluetoothGatt.GATT_SUCCESS);
+        } else {
+            Timber.e("Unexpected onCharacteristicWrite() event");
         }
-
-        Dispatch.post(() -> {
-            if (status == BluetoothGatt.GATT_SUCCESS) {
-                notifyOnCharacteristicWriteSuccess();
-            }
-
-            else {
-
-                UlxError error = new UlxError(
-                        UlxErrorCode.UNKNOWN,
-                        "Could not send data to the remote device.",
-                        "Failed to produce output when writing to the stream.",
-                        "Try restarting the Bluetooth adapter."
-                );
-
-                notifyOnCharacteristicWriteFailure(error);
-            }
-        });
     }
 
     private void notifyOnCharacteristicWriteSuccess() {

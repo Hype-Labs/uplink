@@ -39,6 +39,10 @@ public class BleActiveConnector extends ConnectorCommons implements GattClient.C
     ) {
         final BleActiveConnector instance = new BleActiveConnector(identifier, gattClient);
         instance.initialize();
+
+        // Assume the delegate
+        gattClient.setConnectorDelegate(instance);
+
         return instance;
     }
 
@@ -49,9 +53,6 @@ public class BleActiveConnector extends ConnectorCommons implements GattClient.C
         super(identifier, TransportType.BLUETOOTH_LOW_ENERGY);
 
         this.gattClient = Objects.requireNonNull(gattClient);
-
-        // Assume the delegate
-        this.gattClient.setConnectorDelegate(this);
     }
 
     /**
