@@ -21,7 +21,6 @@ import com.uplink.ulx.drivers.bluetooth.ble.model.active.BleForeignService;
 import com.uplink.ulx.drivers.bluetooth.ble.model.passive.BleDomesticService;
 import com.uplink.ulx.drivers.commons.StateManager;
 import com.uplink.ulx.model.State;
-import com.uplink.ulx.threading.Dispatch;
 import com.uplink.ulx.utils.Completable;
 import com.uplink.ulx.utils.SerialOperationsManager;
 import com.uplink.ulx.utils.SetOnceRef;
@@ -29,7 +28,9 @@ import com.uplink.ulx.utils.SetOnceRef;
 import java.lang.ref.WeakReference;
 import java.util.List;
 import java.util.Objects;
+import java.util.Queue;
 import java.util.UUID;
+import java.util.concurrent.ConcurrentLinkedQueue;
 
 import androidx.annotation.MainThread;
 import timber.log.Timber;
@@ -164,11 +165,11 @@ public class GattClient extends BluetoothGattCallback {
 
     private final SerialOperationsManager operationsManager;
     private volatile Completable connectionOperation;
-    private Completable mtuOperation;
-    private Completable discoverServicesOperation;
-    private Completable subscribeCharacteristicOperation;
-    private volatile Completable writeOperation;
-    private Completable disconnectOperation;
+    private volatile Completable mtuOperation;
+    private volatile Completable discoverServicesOperation;
+    private volatile Completable subscribeCharacteristicOperation;
+    private final Queue<Completable> writeOperations = new ConcurrentLinkedQueue<>();
+    private volatile Completable disconnectOperation;
 
     public static GattClient newInstance(
             BluetoothDevice bluetoothDevice,
@@ -1154,8 +1155,7 @@ public class GattClient extends BluetoothGattCallback {
     }
 
     public boolean writeCharacteristic(BluetoothGattCharacteristic characteristic) {
-        // TODO support enqueuing multiple write operations, so that IOController doesn't have to serialize requests
-        writeOperation = operationsManager.enqueue(
+        writeOperations.add(operationsManager.enqueue(
                 new SerialOperationsManager.Task() {
                     @Override
                     public void run(Completable completable) {
@@ -1167,16 +1167,30 @@ public class GattClient extends BluetoothGattCallback {
 
                     @Override
                     public void onComplete(SerialOperationsManager.Status status) {
-                        if (status == SerialOperationsManager.Status.Timeout) {
-                            Timber.i(
-                                    "Write Characteristic timed out! Device %s",
-                                    bluetoothGatt.getDevice().getAddress()
-                            );
+                        switch (status) {
+                            case Success:
+                                notifyOnCharacteristicWriteSuccess();
+                                break;
+                            case Timeout:
+                                Timber.i(
+                                        "Write Characteristic timed out! Device %s",
+                                        bluetoothGatt.getDevice().getAddress()
+                                );
+                            case Failure:
+                                final UlxError error = new UlxError(
+                                        UlxErrorCode.UNKNOWN,
+                                        "Could not send data to the remote device.",
+                                        "Failed to produce output when writing to the stream.",
+                                        "Try restarting the Bluetooth adapter."
+                                );
+
+                                notifyOnCharacteristicWriteFailure(error);
+                                break;
                         }
                     }
                 },
                 5_000
-        );
+        ));
 
         // since the operation is being enqueued, this function just returns
         // whether the gatt object is valid
@@ -1191,27 +1205,10 @@ public class GattClient extends BluetoothGattCallback {
                 status
         );
 
-        if (writeOperation != null) {
-            writeOperation.markAsComplete();
+        final Completable writeOperation;
+        if ((writeOperation = writeOperations.poll()) != null) {
+            writeOperation.markAsComplete(status == BluetoothGatt.GATT_SUCCESS);
         }
-
-        Dispatch.post(() -> {
-            if (status == BluetoothGatt.GATT_SUCCESS) {
-                notifyOnCharacteristicWriteSuccess();
-            }
-
-            else {
-
-                UlxError error = new UlxError(
-                        UlxErrorCode.UNKNOWN,
-                        "Could not send data to the remote device.",
-                        "Failed to produce output when writing to the stream.",
-                        "Try restarting the Bluetooth adapter."
-                );
-
-                notifyOnCharacteristicWriteFailure(error);
-            }
-        });
     }
 
     private void notifyOnCharacteristicWriteSuccess() {
