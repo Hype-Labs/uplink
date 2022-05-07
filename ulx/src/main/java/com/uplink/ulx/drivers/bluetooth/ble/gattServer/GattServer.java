@@ -157,7 +157,7 @@ public class GattServer extends BluetoothGattServerCallback {
     private final WeakReference<Context> context;
 
     private final SerialOperationsManager operationsManager;
-    private Completable addServiceOperation;
+    private volatile Completable addServiceOperation;
     private volatile Completable updateCharacteristicOperation;
 
     private final MtuRegistry mtuRegistry;
@@ -563,11 +563,12 @@ public class GattServer extends BluetoothGattServerCallback {
             return 0;
         }
 
-        // TODO support enqueuing multiple write operations, so that IOController doesn't have to serialize requests
-        updateCharacteristicOperation = operationsManager.enqueue(
+        operationsManager.enqueue(
                 new SerialOperationsManager.Task() {
                     @Override
                     public void run(Completable completable) {
+                        updateCharacteristicOperation = completable;
+
                         try {
 
                             // Notify the characteristic as changed
