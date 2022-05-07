@@ -10,6 +10,7 @@ import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.CopyOnWriteArrayList;
 
+import androidx.annotation.CallSuper;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import timber.log.Timber;
@@ -217,6 +218,7 @@ public abstract class StreamCommons implements
      * Clean up used resources and notify state delegate
      * @param error reason for closing
      */
+    @CallSuper
     protected void onClose(@Nullable UlxError error) {
         Timber.e(
                 "ULX stream %s stopped with error %s",

@@ -4,12 +4,11 @@ import com.uplink.ulx.UlxError;
 import com.uplink.ulx.UlxErrorCode;
 import com.uplink.ulx.drivers.model.IoResult;
 import com.uplink.ulx.drivers.model.OutputStream;
-import com.uplink.ulx.threading.Dispatch;
 
 import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
 
-import androidx.annotation.MainThread;
+import androidx.annotation.CallSuper;
 import timber.log.Timber;
 
 /**
@@ -26,9 +25,10 @@ public abstract class OutputStreamCommons extends StreamCommons implements Outpu
 
     /**
      * Constructor. Initializes with given arguments.
-     * @param identifier An identifier used for JNI bridging and debugging.
-     * @param transportType The stream's transport type.
-     * @param reliable A boolean flag, indicating whether the stream is reliable.
+     *
+     * @param identifier        An identifier used for JNI bridging and debugging.
+     * @param transportType     The stream's transport type.
+     * @param reliable          A boolean flag, indicating whether the stream is reliable.
      */
     public OutputStreamCommons(
             String identifier,
@@ -120,39 +120,37 @@ public abstract class OutputStreamCommons extends StreamCommons implements Outpu
 
     private void flushAndTrim() {
 
-        Dispatch.post(() -> {
+        synchronized (getBuffer().getLock()) {
 
-            synchronized (getBuffer().getLock()) {
+            byte[] data = getBuffer().getData();
 
-                byte[] data = getBuffer().getData();
+            // Ask the stream to flush data
+            final IoResult result = flush(data);
 
-                // Ask the stream to flush data
-                final IoResult result = flush(data);
+            // Trim the buffer
+            getBuffer().trim(result.getByteCount());
 
-                // Trim the buffer
-                getBuffer().trim(result.getByteCount());
+            final UlxError error = result.getError();
+            if (error != null) {
+                Timber.w(
+                        "Output stream failed to flush buffer data. Cause: %s\nInvalidating...",
+                        error.getReason()
+                );
 
-                final UlxError error = result.getError();
-                if (error != null) {
-                    Timber.w(
-                            "Output stream failed to flush buffer data. Cause: %s\nInvalidating...",
-                            error.getReason()
-                    );
-
-                    // Since we are invalidating the stream, let's also clear its buffer
-                    // This will ensure that we won't try to flush the same data anymore
-                    final int bytesLeft = data.length - result.getByteCount();
-                    if (bytesLeft > 0) {
-                        getBuffer().trim(bytesLeft);
-                    }
-
-                    close(error);
+                // Since we are invalidating the stream, let's also clear its buffer
+                // This will ensure that we won't try to flush the same data anymore
+                final int bytesLeft = data.length - result.getByteCount();
+                if (bytesLeft > 0) {
+                    getBuffer().trim(bytesLeft);
                 }
+
+                close(error);
             }
-        });
+        }
     }
 
     @Override
+    @CallSuper
     public void onClose(UlxError error) {
         notifyInvalidatedAndClosed(error);
         super.onClose(error);
@@ -162,8 +160,6 @@ public abstract class OutputStreamCommons extends StreamCommons implements Outpu
      * Cleans up used resources and notifies callbacks that the stream is invalidated and closed
      * @param error an error describing cause of the shutdown
      */
-
-
     private void notifyInvalidatedAndClosed(UlxError error) {
         final List<InvalidationCallback> callbacks = getInvalidationCallbacks();
         if (callbacks != null) {
@@ -186,6 +182,5 @@ public abstract class OutputStreamCommons extends StreamCommons implements Outpu
      * @param data The data to write.
      * @return The {@link IoResult} for the operation.
      */
-    @MainThread
     protected abstract IoResult flush(byte[] data);
 }

@@ -39,13 +39,11 @@ import com.uplink.ulx.threading.Dispatch;
 import com.uplink.ulx.utils.SerialOperationsManager;
 
 import java.util.ArrayList;
-import java.util.Deque;
 import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ConcurrentLinkedDeque;
 import java.util.concurrent.ConcurrentMap;
 
 import androidx.annotation.MainThread;
@@ -72,13 +70,13 @@ class BleBrowser extends BrowserCommons implements
      * found multiples times.
      */
     private final ConcurrentMap<String, BluetoothDevice> knownDevices;
-    /**
-     * Connector queue, which holds connections that are pending. These connections will be
-     * dispatched in sequence, in the same order in which the devices are seen on the network.
-     */
-    private final Deque<Connector> connectorQueue;
-    private volatile Connector currentConnector;
+
     private final SerialOperationsManager operationsManager;
+
+    // Access to this field is confined to the main thread
+    private boolean isStartScanRequested;
+    // Access to this field is confined to the main thread
+    private int connectionsInProgress;
 
     /**
      * The BLEScannerCallback implements the Bluetooth LE scan callbacks that
@@ -194,9 +192,15 @@ class BleBrowser extends BrowserCommons implements
         this.scanCallback = new BLEScannerCallback();
 
         this.knownDevices = new ConcurrentHashMap<>();
+    }
 
-        this.connectorQueue = new ConcurrentLinkedDeque<>();
-        this.currentConnector = null;
+    @MainThread
+    private void updateScannerStatus() {
+        if (isStartScanRequested && connectionsInProgress == 0) {
+            startScanning();
+        } else {
+            stopScanning();
+        }
     }
 
     /**
@@ -325,25 +329,6 @@ class BleBrowser extends BrowserCommons implements
         return getCoreServiceUuid().toString();
     }
 
-    /**
-     * The current connector is a {@link Connector} that is currently attempting
-     * to connect. This getter returns such a connector. When not {@code null},
-     * the connector is busy and thus no new connections should overlap.
-     * @return The active {@link Connector}.
-     */
-    private Connector getCurrentConnector() {
-        return this.currentConnector;
-    }
-
-    /**
-     * Sets the active {@link Connector}. If a previous {@link Connector} was
-     * defined as active, it will be overridden.
-     * @param connector The {@link Connector} to set.
-     */
-    private void setCurrentConnector(Connector connector) {
-        this.currentConnector = connector;
-    }
-
     @SuppressLint("MissingPermission")
     @Override
     protected void requestAdapterToStartBrowsing() {
@@ -361,45 +346,45 @@ class BleBrowser extends BrowserCommons implements
             return;
         }
 
-        // Start scanning
-        startScanning();
+        Dispatch.post(() -> {
+            isStartScanRequested = true;
+            updateScannerStatus();
+        });
     }
 
     @SuppressLint("MissingPermission")
+    @MainThread
     private void startScanning() {
         Timber.i("ULX BLE scanner starting");
 
-        Dispatch.post(() -> {
-
-            final BluetoothLeScanner bluetoothLeScanner = getBluetoothLeScanner();
-            if (bluetoothLeScanner != null) {
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
-                    bluetoothLeScanner.startScan(
-                            getScanFilters(),
-                            getScanSettings(),
-                            getScanCallback()
-                    );
-                } else {
-                    bluetoothLeScanner.startScan(
-                            getScanCallback()
-                    );
-                }
-
-                // Notify the delegate
-                onStart();
+        final BluetoothLeScanner bluetoothLeScanner = getBluetoothLeScanner();
+        if (bluetoothLeScanner != null) {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+                bluetoothLeScanner.startScan(
+                        getScanFilters(),
+                        getScanSettings(),
+                        getScanCallback()
+                );
             } else {
-                onFailedStart(new UlxError(
-                        UlxErrorCode.UNKNOWN,
-                        "Failed to start BLE scanning",
-                        String.format(
-                                Locale.US,
-                                "BT scanner unavailable. BT adapter state: %d",
-                                getBluetoothAdapter().getState()
-                        ),
-                        "Try restarting bluetooth"
-                ));
+                bluetoothLeScanner.startScan(
+                        getScanCallback()
+                );
             }
-        });
+
+            // Notify the delegate
+            onStart();
+        } else {
+            onFailedStart(new UlxError(
+                    UlxErrorCode.UNKNOWN,
+                    "Failed to start BLE scanning",
+                    String.format(
+                            Locale.US,
+                            "BT scanner unavailable. BT adapter state: %d",
+                            getBluetoothAdapter().getState()
+                    ),
+                    "Try restarting bluetooth"
+            ));
+        }
     }
 
     /**
@@ -443,14 +428,17 @@ class BleBrowser extends BrowserCommons implements
     protected void requestAdapterToStopBrowsing() {
         Timber.i("ULX BLE browser requesting the adapter to stop browsing");
 
-        // Stop the scanner
-        stopScanning();
+        Dispatch.post(() -> {
+            isStartScanRequested = false;
+            updateScannerStatus();
+        });
 
         // Notify the delegate; we're stopping gracefully
         onStop(null);
     }
 
     @SuppressLint("MissingPermission")
+    @MainThread
     private void stopScanning() {
         Timber.i("ULX BLE scanner stopping");
         final BluetoothLeScanner bluetoothLeScanner = getBluetoothLeScanner();
@@ -493,7 +481,7 @@ class BleBrowser extends BrowserCommons implements
 
 
         // Connect
-        queueConnection(bluetoothDevice);
+        startConnection(bluetoothDevice);
     }
 
     /**
@@ -530,10 +518,8 @@ class BleBrowser extends BrowserCommons implements
     }
 
     /**
-     * Instantiates the Connector abstraction and adds the connector to a queue.
-     * The connector will be requested to connect when others already on the
-     * queue finish connecting (either successfully or with an error). The
-     * connector will also be assigned a unique identifier (generated randomly)
+     * Instantiates the Connector abstraction and initiates the connection. The
+     * connector will be assigned a unique identifier (generated randomly)
      * that is used internally by the implementation to keep track of known
      * connectors, and the browser (this browser) will assume the connector's
      * delegates as needed. This is the first step in abstracting the native
@@ -542,9 +528,9 @@ class BleBrowser extends BrowserCommons implements
      * @param bluetoothDevice The native device to connect.
      */
     @SuppressWarnings("MissingPermission")
-    private void queueConnection(BluetoothDevice bluetoothDevice) {
+    private void startConnection(BluetoothDevice bluetoothDevice) {
         Timber.i(
-                "ULX BLE scanner is queueing connection %s",
+                "ULX BLE scanner is initiating connection process to %s",
                 bluetoothDevice.getAddress()
         );
 
@@ -567,84 +553,18 @@ class BleBrowser extends BrowserCommons implements
         connector.setStateDelegate(this);
         connector.addInvalidationCallback(this);
 
-        // Queue the connector
-        connectorQueue.add(connector);
         Timber.i(
-                "ULX BLE scanner queued connector %s for native device %s",
+                "ULX BLE scanner created connector %s for native device %s",
                 connector.getIdentifier(),
                 bluetoothDevice.getAddress()
         );
 
-        // Attempt to connect
-        attemptConnection();
-    }
-
-    /**
-     * Attempts to remove a Connector from the queue, if one exists. This method
-     * will return the first still valid and non-connected Connector that it
-     * finds in queue, skipping all others. If none is found, it returns null.
-     * @return The next valid Connector in the queue or null, if none exists.
-     */
-    private Connector dequeueConnector() {
-
-        // Remove the oldest
-        Connector connector = connectorQueue.poll();
-
-        if (connector == null) {
-            return null;
-        }
-
-        // The connector might have connected or invalidated meanwhile
-        if (connector.getState() != Connector.State.DISCONNECTED) {
-
-            // Try again, until the queue is known to be empty or one connection
-            // request succeeds
-            return dequeueConnector();
-        }
-
-        return connector;
-    }
-
-    /**
-     * Removes a {@link Connector} from the queue and asks it to connect. The
-     * {@link Connector} will initiate the connection with the foreign device
-     * by following the normal connection lifecycle. If there are no connectors
-     * pending on the queue, this method does nothing.
-     */
-    private void attemptConnection() {
-        Timber.i("ULX is removing the next connector from the queue");
-        Connector connector;
-
-        synchronized (connectorQueue) {
-            // Don't proceed if busy
-            if (getCurrentConnector() != null) {
-                Timber.i("ULX connector queue not proceeding because it's busy");
-                return;
+        Dispatch.post(() -> {
+            connectionsInProgress++;
+            if (connectionsInProgress == 1) { // We went from 0 to 1 - maybe time to stop scanning
+                updateScannerStatus();
             }
-
-            connector = dequeueConnector();
-
-            // Don't proceed if there's no connector
-            if (connector == null) {
-                Timber.i("ULX attempted to dequeue a connector, but the queue was empty");
-
-                // Resume scanning, no connection is in progress
-                startScanning();
-                return;
-            }
-
-            // Set as busy
-            setCurrentConnector(connector);
-        }
-
-        // Stop scanning while connecting
-        stopScanning();
-
-        // Request the connector at the top of the queue to connect
-        Timber.i(
-                "ULX connector queue proceeding with connector %s",
-                connector.getIdentifier()
-        );
+        });
         connector.connect();
     }
 
@@ -662,8 +582,6 @@ class BleBrowser extends BrowserCommons implements
     public void onAdapterEnabled(BluetoothStateListener bluetoothStateListener) {
         if (getState() != Browser.State.RUNNING) {
             onReady();
-            // If adapter is restarted, it might have pending connections
-            attemptConnection();
         }
     }
 
@@ -703,12 +621,12 @@ class BleBrowser extends BrowserCommons implements
         );
 
         Dispatch.post(() -> {
+            connectionsInProgress--;
+            if (connectionsInProgress == 0) { // We went from 1 to 0 - maybe time to start scanning
+                updateScannerStatus();
+            }
 
-            // Dequeue another connector, in case any is waiting
-            setCurrentConnector(null);
-            attemptConnection();
-
-            BleDevice device = createDevice((BleActiveConnector)connector);
+            final BleDevice device = createDevice((BleActiveConnector)connector);
 
             // Propagate to the delegate
             super.onDeviceFound(this, device);
@@ -811,18 +729,18 @@ class BleBrowser extends BrowserCommons implements
         this.knownDevices.remove(bluetoothDevice.getAddress());
         Timber.d("Device %s removed from registry", bluetoothDevice.getAddress());
 
-        // Free the queue
-        setCurrentConnector(null);
-
         // Since we're having failed connections, we should ask the adapter to
         // restart.
         Delegate delegate = getDelegate();
-        if (delegate == null || !delegate.onAdapterRestartRequest(this)) {
-            // Try next connector
-            attemptConnection();
-
-            // If we cannot restart the adapter - let's continue scanning
-            startScanning();
+        if (delegate != null) {
+            delegate.onAdapterRestartRequest(this);
         }
+
+        Dispatch.post(() -> {
+            connectionsInProgress--;
+            if (connectionsInProgress == 0) { // We went from 1 to 0 - maybe time to start scanning
+                updateScannerStatus();
+            }
+        });
     }
 }

@@ -102,6 +102,7 @@ public class BleDriver extends DriverCommons
                     getIdentifier(),
                     getBluetoothManager(),
                     getDomesticService(),
+                    operationsManager,
                     getContext()
             );
             this.advertiser.setDelegate(this);

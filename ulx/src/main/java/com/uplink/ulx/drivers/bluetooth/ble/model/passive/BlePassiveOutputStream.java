@@ -2,7 +2,6 @@ package com.uplink.ulx.drivers.bluetooth.ble.model.passive;
 
 import android.bluetooth.BluetoothDevice;
 import android.bluetooth.BluetoothGattCharacteristic;
-import android.os.Looper;
 
 import com.uplink.ulx.TransportType;
 import com.uplink.ulx.UlxError;
@@ -21,12 +20,12 @@ public class BlePassiveOutputStream extends OutputStreamCommons {
 
     /**
      * Factory method. Initializes with given arguments.
-     * @param identifier An identifier used for JNI bridging and debugging.
-     * @param gattServer The GATT server that is managing this stream.
-     * @param bluetoothDevice The corresponding {@link BluetoothDevice}.
-     * @param characteristic The characteristic used by the stream for output.
+     *
+     * @param identifier        An identifier used for JNI bridging and debugging.
+     * @param gattServer        The GATT server that is managing this stream.
+     * @param bluetoothDevice   The corresponding {@link BluetoothDevice}.
+     * @param characteristic    The characteristic used by the stream for output.
      */
-
     public static BlePassiveOutputStream newInstance(
             String identifier,
             GattServer gattServer,
@@ -116,8 +115,6 @@ public class BlePassiveOutputStream extends OutputStreamCommons {
     @Override
     public IoResult flush(byte[] data) {
 
-        assert Looper.myLooper() == Looper.getMainLooper();
-
         // Write to the characteristic and update the remote
         int written = getGattServer().updateCharacteristic(
                 getBluetoothDevice(),
@@ -163,5 +160,11 @@ public class BlePassiveOutputStream extends OutputStreamCommons {
                 error.toString()
         );
         close(error);
+    }
+
+    @Override
+    public void onClose(UlxError error) {
+        getGattServer().disconnect(getBluetoothDevice());
+        super.onClose(error);
     }
 }
