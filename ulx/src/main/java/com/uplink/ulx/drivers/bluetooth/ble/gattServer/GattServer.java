@@ -17,13 +17,13 @@ import android.os.Looper;
 import com.uplink.ulx.UlxError;
 import com.uplink.ulx.UlxErrorCode;
 import com.uplink.ulx.drivers.bluetooth.ble.model.passive.BleDomesticService;
-import com.uplink.ulx.threading.Dispatch;
 import com.uplink.ulx.utils.Completable;
 import com.uplink.ulx.utils.SerialOperationsManager;
 
 import java.lang.ref.WeakReference;
 import java.util.Objects;
 
+import androidx.annotation.Nullable;
 import timber.log.Timber;
 
 /**
@@ -158,6 +158,7 @@ public class GattServer extends BluetoothGattServerCallback {
 
     private final SerialOperationsManager operationsManager;
     private Completable addServiceOperation;
+    private volatile Completable updateCharacteristicOperation;
 
     private final MtuRegistry mtuRegistry;
 
@@ -231,6 +232,7 @@ public class GattServer extends BluetoothGattServerCallback {
      * to listen to GATT server events, as return by getGattServerCallback().
      * @return The BluetoothGatServer GATT server handler instance.
      */
+    @Nullable
     private synchronized BluetoothGattServer getBluetoothGattServer() {
         if (this.bluetoothGattServer == null) {
             this.bluetoothGattServer = getBluetoothManager().openGattServer(
@@ -551,8 +553,6 @@ public class GattServer extends BluetoothGattServerCallback {
      */
     public int updateCharacteristic(BluetoothDevice bluetoothDevice, BluetoothGattCharacteristic characteristic, boolean confirm, byte[] data) {
 
-        assert Looper.myLooper() == Looper.getMainLooper();
-
         byte[] dataToSend = new byte[Math.min(data.length, getMtu(bluetoothDevice))];
 
         // Copy the data
@@ -563,58 +563,87 @@ public class GattServer extends BluetoothGattServerCallback {
             return 0;
         }
 
-        try {
+        // TODO support enqueuing multiple write operations, so that IOController doesn't have to serialize requests
+        updateCharacteristicOperation = operationsManager.enqueue(
+                new SerialOperationsManager.Task() {
+                    @Override
+                    public void run(Completable completable) {
+                        try {
 
-            // Notify the characteristic as changed
-            if (!getBluetoothGattServer().notifyCharacteristicChanged(bluetoothDevice, characteristic, confirm)) {
-                Timber.w("Failed to change characteristic: notifyCharacteristicChanged() returned false");
-                return 0;
-            }
-        } catch (Exception ex) { // In practice, NullPointerException or DeadObjectException
-            // can happen, even though DeadObjectException is not present in the method's
-            // signature. TODO investigate DeadObjectException
+                            // Notify the characteristic as changed
+                            if (!getBluetoothGattServer().notifyCharacteristicChanged(
+                                    bluetoothDevice,
+                                    characteristic,
+                                    confirm
+                            )) {
+                                Timber.w(
+                                        "Failed to change characteristic: notifyCharacteristicChanged() returned false");
+                                completable.markAsComplete(false);
+                            }
+                        } catch (Exception ex) { // In practice, NullPointerException or DeadObjectException
+                            // can happen, even though DeadObjectException is not present in the method's
+                            // signature. TODO investigate DeadObjectException
 
-            Timber.w(
-                    ex,
-                    "ULX unexpected exception happened. Invalidating device %s",
-                    bluetoothDevice.getAddress()
-            );
+                            Timber.w(
+                                    ex,
+                                    "ULX unexpected exception happened. Invalidating device %s",
+                                    bluetoothDevice.getAddress()
+                            );
 
-            UlxError error = new UlxError(
-                    UlxErrorCode.UNKNOWN,
-                    "Could not communicate with the remote device.",
-                    "The device does not appear to be reachable.",
-                    "Try reconnecting to the remote device."
-            );
+                            // Android raises a NullPointerException sometimes if the remote
+                            // device is no longer available. This can be replicated by closing
+                            // the app on the remote.
+                            Timber.e(
+                                    "Could not communicate with the remote device. The device does not appear to be reachable"
+                            );
 
-            // Android raises a NullPointerException sometimes if the remote
-            // device is no longer available. This can be replicated by closing
-            // the app on the remote.
-            notifyOnInvalidation(bluetoothDevice, error);
+                            // java.lang.NullPointerException: Attempt to invoke virtual method 'int java.lang.Integer.intValue()' on a null object reference
+                            //        at android.os.Parcel.readException(Parcel.java:1698)
+                            //        at android.os.Parcel.readException(Parcel.java:1645)
+                            //        at android.bluetooth.IBluetoothGatt$Stub$Proxy.sendNotification(IBluetoothGatt.java:1318)
+                            //        at android.bluetooth.BluetoothGattServer.notifyCharacteristicChanged(BluetoothGattServer.java:590)
+                            //        at com.uplink.ulx.drivers.bluetooth.ble.gattServer.GattServer.updateCharacteristic(GattServer.java:465)
+                            //
+                            // This exception occurs sometimes, but it appears to be one that
+                            // we can't handle. This will result in the buffer not being trimmed,
+                            // meaning that the no data is removed from it, and the writer will
+                            // simply attempt to send the same data again.
+                            //
+                            // android.os.DeadObjectException
+                            //        at android.os.BinderProxy.transactNative(Native Method)
+                            //        at android.os.BinderProxy.transact(Binder.java:622)
+                            //        at android.bluetooth.IBluetoothGatt$Stub$Proxy.sendNotification(IBluetoothGatt.java:1317)
+                            //        at android.bluetooth.BluetoothGattServer.notifyCharacteristicChanged(BluetoothGattServer.java:590)
+                            //        at com.uplink.ulx.drivers.bluetooth.ble.gattServer.GattServer.updateCharacteristic(GattServer.java:467)
+                            //
+                            Timber.e(
+                                    ex,
+                                    "ULX handled exception by printing the stack trace, but operations will resume"
+                            );
 
-            // java.lang.NullPointerException: Attempt to invoke virtual method 'int java.lang.Integer.intValue()' on a null object reference
-            //        at android.os.Parcel.readException(Parcel.java:1698)
-            //        at android.os.Parcel.readException(Parcel.java:1645)
-            //        at android.bluetooth.IBluetoothGatt$Stub$Proxy.sendNotification(IBluetoothGatt.java:1318)
-            //        at android.bluetooth.BluetoothGattServer.notifyCharacteristicChanged(BluetoothGattServer.java:590)
-            //        at com.uplink.ulx.drivers.bluetooth.ble.gattServer.GattServer.updateCharacteristic(GattServer.java:465)
-            //
-            // This exception occurs sometimes, but it appears to be one that
-            // we can't handle. This will result in the buffer not being trimmed,
-            // meaning that the no data is removed from it, and the writer will
-            // simply attempt to send the same data again.
-            //
-            // android.os.DeadObjectException
-            //        at android.os.BinderProxy.transactNative(Native Method)
-            //        at android.os.BinderProxy.transact(Binder.java:622)
-            //        at android.bluetooth.IBluetoothGatt$Stub$Proxy.sendNotification(IBluetoothGatt.java:1317)
-            //        at android.bluetooth.BluetoothGattServer.notifyCharacteristicChanged(BluetoothGattServer.java:590)
-            //        at com.uplink.ulx.drivers.bluetooth.ble.gattServer.GattServer.updateCharacteristic(GattServer.java:467)
-            //
-            Timber.e(ex, "ULX handled exception by printing the stack trace, but operations will resume");
+                            completable.markAsComplete(false);
+                        }
+                    }
 
-            return 0;
-        }
+                    @Override
+                    public void onComplete(SerialOperationsManager.Status status) {
+                        if (status == SerialOperationsManager.Status.Success) {
+                            notifyOnNotificationSent(bluetoothDevice);
+                        } else {
+                            UlxError error = new UlxError(
+                                    UlxErrorCode.UNKNOWN,
+                                    "Could not deliver the message to the remote device.",
+                                    "The device failed to acknowledge reception of the data.",
+                                    "Try sending the message again."
+                            );
+
+                            notifyOnNotificationSentFailure(bluetoothDevice, error);
+                            notifyOnInvalidation(bluetoothDevice, error);
+                        }
+                    }
+                },
+                5000
+        );
 
         return dataToSend.length;
     }
@@ -627,22 +656,11 @@ public class GattServer extends BluetoothGattServerCallback {
                 status
         );
 
-        Dispatch.post(() -> {
-
-            if (status == BluetoothGatt.GATT_SUCCESS) {
-                notifyOnNotificationSent(bluetoothDevice);
-            } else {
-
-                UlxError error = new UlxError(
-                        UlxErrorCode.UNKNOWN,
-                        "Could not deliver the message to the remote device.",
-                        "The device failed to acknowledge reception of the data was not delivered.",
-                        "Try sending the message again."
-                );
-
-                notifyOnNotificationSentFailure(bluetoothDevice, error);
-            }
-        });
+        if (updateCharacteristicOperation != null) {
+            updateCharacteristicOperation.markAsComplete(status == BluetoothGatt.GATT_SUCCESS);
+        } else {
+            Timber.e("Unexpected onNotificationSent()");
+        }
     }
 
     private void notifyOnInvalidation(BluetoothDevice bluetoothDevice, UlxError error) {
@@ -675,5 +693,22 @@ public class GattServer extends BluetoothGattServerCallback {
         if (delegate != null) {
             delegate.onNotificationNotSent(this, bluetoothDevice, error);
         }
+    }
+
+    /**
+     * Disconnects from the given device
+     *
+     * @param bluetoothDevice device to disconnect from
+     */
+    public void disconnect(BluetoothDevice bluetoothDevice) {
+        operationsManager.enqueue(completable -> {
+            final BluetoothGattServer gattServer = getBluetoothGattServer();
+            if (gattServer != null) {
+                gattServer.cancelConnection(bluetoothDevice);
+                completable.markAsComplete(true);
+            } else {
+                completable.markAsComplete(false);
+            }
+        });
     }
 }

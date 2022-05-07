@@ -1,7 +1,6 @@
 package com.uplink.ulx.drivers.bluetooth.ble.model.active;
 
 import android.bluetooth.BluetoothGattCharacteristic;
-import android.os.Looper;
 
 import com.uplink.ulx.TransportType;
 import com.uplink.ulx.UlxError;
@@ -14,7 +13,6 @@ import com.uplink.ulx.utils.ByteUtils;
 
 import java.util.Objects;
 
-import androidx.annotation.MainThread;
 import timber.log.Timber;
 
 /**
@@ -124,10 +122,7 @@ public class BleActiveOutputStream extends OutputStreamCommons implements GattCl
     }
 
     @Override
-    @MainThread
     public IoResult flush(byte[] data) {
-
-        assert Looper.myLooper() == Looper.getMainLooper();
 
         byte[] dataToSend = ByteUtils.trimCopyToSize(data, getMtu());
 

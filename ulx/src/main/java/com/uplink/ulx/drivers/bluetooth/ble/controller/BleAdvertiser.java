@@ -732,8 +732,7 @@ class BleAdvertiser extends AdvertiserCommons implements
                 connector.getIdentifier(),
                 getGattServer(),
                 bluetoothDevice,
-                getDomesticService().getReliableOutputCharacteristic(),
-                operationsManager
+                getDomesticService().getReliableOutputCharacteristic()
         );
 
         Channel reliableChannel = new BleChannel(

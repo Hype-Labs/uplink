@@ -167,7 +167,7 @@ public class GattClient extends BluetoothGattCallback {
     private Completable mtuOperation;
     private Completable discoverServicesOperation;
     private Completable subscribeCharacteristicOperation;
-    private Completable writeOperation;
+    private volatile Completable writeOperation;
     private Completable disconnectOperation;
 
     public static GattClient newInstance(
@@ -1154,14 +1154,14 @@ public class GattClient extends BluetoothGattCallback {
     }
 
     public boolean writeCharacteristic(BluetoothGattCharacteristic characteristic) {
-        assert Looper.myLooper() == Looper.getMainLooper();
+        // TODO support enqueuing multiple write operations, so that IOController doesn't have to serialize requests
         writeOperation = operationsManager.enqueue(
                 new SerialOperationsManager.Task() {
                     @Override
                     public void run(Completable completable) {
                         boolean success = getBluetoothGatt().writeCharacteristic(characteristic);
                         if(!success) {
-                            completable.markAsComplete();
+                            completable.markAsComplete(false);
                         }
                     }
 

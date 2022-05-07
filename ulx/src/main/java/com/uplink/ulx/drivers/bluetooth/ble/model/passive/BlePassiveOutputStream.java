@@ -2,7 +2,6 @@ package com.uplink.ulx.drivers.bluetooth.ble.model.passive;
 
 import android.bluetooth.BluetoothDevice;
 import android.bluetooth.BluetoothGattCharacteristic;
-import android.os.Looper;
 
 import com.uplink.ulx.TransportType;
 import com.uplink.ulx.UlxError;
@@ -10,7 +9,6 @@ import com.uplink.ulx.UlxErrorCode;
 import com.uplink.ulx.drivers.bluetooth.ble.gattServer.GattServer;
 import com.uplink.ulx.drivers.commons.model.OutputStreamCommons;
 import com.uplink.ulx.drivers.model.IoResult;
-import com.uplink.ulx.utils.SerialOperationsManager;
 
 import timber.log.Timber;
 
@@ -19,7 +17,6 @@ public class BlePassiveOutputStream extends OutputStreamCommons {
     private final GattServer gattServer;
     private final BluetoothDevice bluetoothDevice;
     private final BluetoothGattCharacteristic characteristic;
-    private final SerialOperationsManager operationsManager;
 
     /**
      * Factory method. Initializes with given arguments.
@@ -28,21 +25,18 @@ public class BlePassiveOutputStream extends OutputStreamCommons {
      * @param gattServer        The GATT server that is managing this stream.
      * @param bluetoothDevice   The corresponding {@link BluetoothDevice}.
      * @param characteristic    The characteristic used by the stream for output.
-     * @param operationsManager operations manager to serialize BLE operations
      */
     public static BlePassiveOutputStream newInstance(
             String identifier,
             GattServer gattServer,
             BluetoothDevice bluetoothDevice,
-            BluetoothGattCharacteristic characteristic,
-            SerialOperationsManager operationsManager
+            BluetoothGattCharacteristic characteristic
     ) {
         final BlePassiveOutputStream instance = new BlePassiveOutputStream(
                 identifier,
                 gattServer,
                 bluetoothDevice,
-                characteristic,
-                operationsManager
+                characteristic
         );
         instance.initialize();
         return instance;
@@ -52,8 +46,7 @@ public class BlePassiveOutputStream extends OutputStreamCommons {
             String identifier,
             GattServer gattServer,
             BluetoothDevice bluetoothDevice,
-            BluetoothGattCharacteristic characteristic,
-            SerialOperationsManager operationsManager
+            BluetoothGattCharacteristic characteristic
     )
     {
         super(identifier, TransportType.BLUETOOTH_LOW_ENERGY, true);
@@ -63,7 +56,6 @@ public class BlePassiveOutputStream extends OutputStreamCommons {
 
         this.bluetoothDevice = bluetoothDevice;
         this.characteristic = characteristic;
-        this.operationsManager = operationsManager;
     }
 
     /**
@@ -121,17 +113,7 @@ public class BlePassiveOutputStream extends OutputStreamCommons {
     }
 
     @Override
-    protected void flushAndTrim() {
-        operationsManager.enqueue(completable -> {
-            super.flushAndTrim();
-            completable.markAsComplete();
-        });
-    }
-
-    @Override
     public IoResult flush(byte[] data) {
-
-        assert Looper.myLooper() == Looper.getMainLooper();
 
         // Write to the characteristic and update the remote
         int written = getGattServer().updateCharacteristic(
@@ -178,5 +160,11 @@ public class BlePassiveOutputStream extends OutputStreamCommons {
                 error.toString()
         );
         close(error);
+    }
+
+    @Override
+    public void onClose(UlxError error) {
+        getGattServer().disconnect(getBluetoothDevice());
+        super.onClose(error);
     }
 }
