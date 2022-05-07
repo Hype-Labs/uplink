@@ -443,12 +443,7 @@ class BleBrowser extends BrowserCommons implements
     @SuppressLint("MissingPermission")
     @Override
     protected void requestAdapterToStopBrowsing() {
-        Timber.i("ULX BLE browser requesting the adapter to stop");
-
-        // Is the adapter enabled?
-        if (getBluetoothAdapter().isEnabled()) {
-            return;
-        }
+        Timber.i("ULX BLE browser requesting the adapter to stop browsing");
 
         // Stop the scanner
         stopScanning();
@@ -498,18 +493,6 @@ class BleBrowser extends BrowserCommons implements
             return;
         }
 
-        // Is the host supposed to initiate, or is the foreign bluetoothDevice?
-        if (!isConnectableScanRecord(scanRecord)) {
-            Timber.i(
-                    "ULX BLE browser ignoring device %s because the remote is the initiator",
-                    bluetoothDevice.getAddress()
-            );
-            Timber.i(
-                    "ULX BLE browser ignoring device %s because the remote is the initiator",
-                    bluetoothDevice.getAddress()
-            );
-            return;
-        }
 
         // Connect
         queueConnection(bluetoothDevice);

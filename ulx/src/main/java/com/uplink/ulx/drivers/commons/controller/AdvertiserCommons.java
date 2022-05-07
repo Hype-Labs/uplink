@@ -13,6 +13,8 @@ import java.util.Objects;
 
 import androidx.annotation.CallSuper;
 
+import timber.log.Timber;
+
 /**
  * This is a base class for advertisers that implements common functionality
  * that is needed by all Advertiser implementations. It implements all basic
@@ -206,23 +208,28 @@ public abstract class AdvertiserCommons implements
 
     @Override
     public void start() {
+        Timber.i("ULX advertiser is starting");
         getStateManager().start();
     }
 
     @Override
     public void stop() {
+        Timber.i("ULX advertiser is stopping");
         getStateManager().stop();
     }
 
     protected void onStart() {
+        Timber.i("ULX advertiser started");
         getStateManager().notifyStart();
     }
 
     protected void onStop(UlxError error) {
+        Timber.i("ULX advertiser stopped");
         getStateManager().notifyStop(error);
     }
 
     protected void onFailedStart(UlxError error) {
+        Timber.i("ULX advertiser failed to start");
         getStateManager().notifyFailedStart(error);
     }
 

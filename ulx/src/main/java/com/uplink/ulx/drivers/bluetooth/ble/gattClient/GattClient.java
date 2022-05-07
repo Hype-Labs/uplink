@@ -256,6 +256,7 @@ public class GattClient extends BluetoothGattCallback {
             }
 
             private void cleanup() {
+                Timber.d("Cleaning up!");
                 // Clean up; without this, future attempts to connect between these
                 // same two devices should result in more 133 error codes. See:
                 // https://stackoverflow.com/questions/25330938/android-bluetoothgatt-status-133-register-callback
@@ -264,6 +265,7 @@ public class GattClient extends BluetoothGattCallback {
                             @Override
                             public void run(Completable completable) {
                                 if (bluetoothGatt != null) {
+                                    Timber.d("Disconnecting from gatt!");
                                     bluetoothGatt.disconnect();
                                 } else {
                                     completable.markAsComplete();
@@ -831,51 +833,7 @@ public class GattClient extends BluetoothGattCallback {
         Objects.requireNonNull(domesticReliableControl);
         Objects.requireNonNull(foreignReliableControl);
 
-        // The Reliable Control characteristic UUID is used to compare the
-        // domestic (host) and foreign (discovered) service UUIDs. This will
-        // determine which device is active (initiator) and which is passive.
-        String domesticServiceUuid = domesticReliableControl.getUuid().toString();
-        String foreignServiceUuid = foreignReliableControl.getUuid().toString();
-
-        // Compare the two IDs in lexicographic order (case-insensitive). The
-        // lowest one will be the initiator.
-        int comparison = domesticServiceUuid.compareToIgnoreCase(foreignServiceUuid);
-
-        // In the first case, the host will be the initiator (peripheral). This
-        // happens if out of the two UUIDs it compares lexicographically
-        // smaller, or if the device is physically incapable of advertising
-        // (which means that it cannot be seen, and therefore it must be the
-        // one to initiate). The host will also be the initiator if it does not
-        // support advertising, which means that the remote peer will not see it
-        if (comparison < 0 || !getBluetoothAdapter().isMultipleAdvertisementSupported()) {
-            Timber.i(
-                    "ULX host device subscribing characteristics on remote native device %s",
-                    getBluetoothDevice().getAddress()
-            );
-            subscribeCharacteristic(foreignReliableControl);
-        }
-
-        // If the UUID is larger and the host supports advertising, wait
-        // passively for the other device to connect.
-        else if (comparison > 0) {
-            Timber.i(
-                    "ULX host device NOT subscribing characteristics for remote native device %s, waiting instead",
-                    getBluetoothDevice().getAddress()
-            );
-
-            // This isn't really an error, but we must respond back to a
-            // connection request. Regardless, this workflow should be reviewed
-            // in the future, since flagging an error here is not adequate.
-            UlxError error = new UlxError(
-                    UlxErrorCode.NOT_CONNECTABLE,
-                    "Could not connect to remote device.",
-                    "The remote device is the one expected to initiate the connection.",
-                    "Wait for the remote device to connect."
-            );
-
-            // Propagate to the delegate.
-            notifyOnConnectionFailure(error);
-        }
+        subscribeCharacteristic(foreignReliableControl);
     }
 
     /**

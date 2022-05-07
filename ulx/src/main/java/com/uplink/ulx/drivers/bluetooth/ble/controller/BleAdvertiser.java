@@ -632,7 +632,6 @@ class BleAdvertiser extends AdvertiserCommons implements
      * should be up.
      */
     private void startAdvertising() {
-        Timber.i("ULX advertiser is starting");
 
         final BluetoothLeAdvertiser advertiser = getBluetoothLeAdvertiser();
         if (advertiser != null) {

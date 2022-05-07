@@ -827,6 +827,14 @@ public class Bridge implements
         getNetworkController().sendInternet(url, jsonObject, test);
     }
 
+    public void setInternetConnectionCallback(NetworkController.InternetConnectivityDelegate delegate) {
+        // set the delegate
+        getNetworkController().setInternetConnectivityDelegate(delegate);
+
+        // issue a first request to get the initial state of internet connectivity
+        getNetworkController().checkForInternetConnection();
+    }
+
     /**
      * Cleans up allocated resources
      */

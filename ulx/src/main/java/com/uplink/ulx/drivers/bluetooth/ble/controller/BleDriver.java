@@ -6,8 +6,9 @@ import android.os.Build;
 import android.os.Handler;
 import android.os.Looper;
 
-import com.uplink.ulx.BuildConfig;
 import com.uplink.ulx.TransportType;
+import com.uplink.ulx.bridge.Bridge;
+import com.uplink.ulx.bridge.network.controller.NetworkController;
 import com.uplink.ulx.drivers.bluetooth.ble.model.passive.BleDomesticService;
 import com.uplink.ulx.drivers.bluetooth.commons.BluetoothStateListener;
 import com.uplink.ulx.drivers.commons.controller.DriverCommons;
@@ -27,13 +28,16 @@ import timber.log.Timber;
  * that are common to the two of them, such as the BleDomesticService and the
  * BluetoothManager.
  */
-public class BleDriver extends DriverCommons implements Driver {
+public class BleDriver extends DriverCommons
+        implements Driver,
+        NetworkController.InternetConnectivityDelegate {
 
     private BluetoothManager bluetoothManager;
     private BleDomesticService bleDomesticService;
     private Advertiser advertiser;
     private Browser browser;
     private final SerialOperationsManager operationsManager;
+    private boolean hasInternetConnection;
 
     /**
      * Factory method. Initializes with the given parameters. It also makes sure
@@ -52,11 +56,14 @@ public class BleDriver extends DriverCommons implements Driver {
     private BleDriver(String identifier, @NonNull Context context) {
         super(identifier, TransportType.BLUETOOTH_LOW_ENERGY, context);
         BluetoothStateListener.register(context);
+        Bridge.getInstance().setInternetConnectionCallback(this);
 
         // All BLE operations will be executed serially in the main thread
         operationsManager = new SerialOperationsManager(
                 new HandlerExecutor(new Handler(Looper.getMainLooper()))
         );
+
+        hasInternetConnection = false;
     }
 
     /**
@@ -137,7 +144,7 @@ public class BleDriver extends DriverCommons implements Driver {
         //      while the restart would occur if no activity was seen for a
         //      while.
 
-        if (Build.VERSION.SDK_INT > Build.VERSION_CODES.N) {
+        if (Build.VERSION.SDK_INT != Build.VERSION_CODES.M) {
             return getBluetoothManager().getAdapter().disable();
         } else {
             return false;
@@ -150,5 +157,32 @@ public class BleDriver extends DriverCommons implements Driver {
         operationsManager.destroy();
 
         super.destroy();
+    }
+
+    @Override
+    protected boolean shouldStartAdvertiser() {
+        // advertiser will only start after a valid internet connection is confirmed
+        return hasInternetConnection;
+    }
+
+    @Override
+    protected boolean shouldStartBrowser() {
+        // by default, the device should start browsing and connect to devices until it finds one
+        // with internet reachability
+        return !hasInternetConnection;
+    }
+
+    @Override
+    public void onInternetConnectionUpdated(NetworkController networkController, boolean hasInternetConnection) {
+        this.hasInternetConnection = hasInternetConnection;
+        if (hasInternetConnection) {
+            // if a valid internet connection is available, start advertising
+            getBrowser().stop();
+            getAdvertiser().start();
+        } else {
+            // if internet connection drops, start browsing
+            getAdvertiser().stop();
+            getBrowser().start();
+        }
     }
 }

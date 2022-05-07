@@ -177,6 +177,22 @@ public class NetworkController implements IoController.Delegate,
     }
 
     /**
+     * This is a delegate that provides updates about when internet connectivity has become available
+     * or unavailable. This can be through a local direct connection (Wi-fi, celullar)
+     * or via a mesh link.
+     */
+    public interface InternetConnectivityDelegate {
+
+        /**
+         * This {@link Delegate} notification gives indicating that the status of the internet´
+         * connection has changed, indicating whether it is now availiable or not.
+         * @param networkController The {@link NetworkController}.
+         * @param hasInternetConnection true if internet is reachable; false otherwise.
+         */
+        void onInternetConnectionUpdated(NetworkController networkController, boolean hasInternetConnection);
+    }
+
+    /**
      * A {@link NetworkPacket} is an abstraction of the {@link
      * IoController.IoPacket} model that forces the implementation of specific
      * method callbacks for handling write success and failures. This will serve
@@ -205,6 +221,7 @@ public class NetworkController implements IoController.Delegate,
 
     private Delegate delegate;
     private InternetRequestDelegate internetRequestDelegate;
+    private InternetConnectivityDelegate internetConnectivityDelegate;
 
     // This identifier is used to give a sequence number to packets as they are
     // being dispatched. The sequence begins in 0 and resets at 65535.
@@ -252,6 +269,7 @@ public class NetworkController implements IoController.Delegate,
 
         this.delegate = null;
         this.internetRequestDelegate = null;
+        this.internetConnectivityDelegate = null;
 
         this.sequenceGenerator = null;
 
@@ -262,6 +280,22 @@ public class NetworkController implements IoController.Delegate,
 
     private void setNetworkStateListener(NetworkStateListener networkStateListener) {
         this.networkStateListener = networkStateListener;
+    }
+
+    public void checkForInternetConnection() {
+        ExecutorPool.getInternetExecutor().execute(() -> {
+            Timber.d("ULX checking for internet connectivity");
+
+            try {
+                // This call may make requests to the Internet, which is why we're
+                // using a different thread
+                getIncrementedInternetHopCount(null);
+            } catch (InterruptedException e) {
+                Timber.i(e, "Thread interrupted while determining internet availability");
+                // Reset the interruption flag
+                Thread.currentThread().interrupt();
+            }
+        });
     }
 
     /**
@@ -329,6 +363,14 @@ public class NetworkController implements IoController.Delegate,
 
     public final void setInternetRequestDelegate(InternetRequestDelegate internetRequestDelegate) {
         this.internetRequestDelegate = internetRequestDelegate;
+    }
+
+    private InternetConnectivityDelegate getInternetConnectivityDelegate() {
+        return internetConnectivityDelegate;
+    }
+
+    public final void setInternetConnectivityDelegate(InternetConnectivityDelegate internetConnectivityDelegate) {
+        this.internetConnectivityDelegate = internetConnectivityDelegate;
     }
 
     /**
@@ -1125,20 +1167,15 @@ public class NetworkController implements IoController.Delegate,
      * @param iHopsCount new i-hops count for the instance
      */
     private void handleIHopsUpdate(Device device, Instance instance, int iHopsCount) {
-
+        Timber.d(
+                "Received I-hops update"
+        );
         synchronized (getRoutingTable()) {
             getRoutingTable().updateInternetHopsCount(
                     device,
                     instance,
                     iHopsCount
             );
-
-            if (isInternetDirectlyReachable == null) {
-                // This should not happen normally. If we receive iHops update from a device,
-                // we should have negotiated with it by now, which includes setting
-                // isInternetReachable flag
-                return;
-            }
 
             //noinspection ConstantConditions once non-null, the field is never set to null
             if (isInternetDirectlyReachable) {
@@ -1155,6 +1192,7 @@ public class NetworkController implements IoController.Delegate,
                     // Send updated i-hops count to everyone except through which
                     // internet is to be accessed
                     scheduleInternetUpdatePacket(newBestLink.second + 1, newBestLink.first);
+
 
                     final RoutingTable.InternetLink secondBestLink = getRoutingTable()
                             .getBestInternetLink(newBestLink.first);
@@ -1338,6 +1376,9 @@ public class NetworkController implements IoController.Delegate,
             Device splitHorizon
     ) {
         final InternetUpdatePacket packet = createInternetUpdatePacket(internetHopCount);
+
+        final boolean isInternetReachable = internetHopCount != RoutingTable.HOP_COUNT_INFINITY;
+        notifyOnInternetConnectionChanged(isInternetReachable);
 
         for (Device device : getRoutingTable().getDeviceList()) {
             if (!device.equals(splitHorizon)) {
@@ -1524,6 +1565,13 @@ public class NetworkController implements IoController.Delegate,
         Delegate delegate = getDelegate();
         if (delegate != null) {
             delegate.onInstanceLost(this, instance, error);
+        }
+    }
+
+    private void notifyOnInternetConnectionChanged(boolean isInternetAvailable) {
+        InternetConnectivityDelegate delegate = getInternetConnectivityDelegate();
+        if (delegate != null) {
+            delegate.onInternetConnectionUpdated(this, isInternetAvailable);
         }
     }
 

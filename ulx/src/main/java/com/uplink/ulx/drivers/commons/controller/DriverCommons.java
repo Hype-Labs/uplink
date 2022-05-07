@@ -83,8 +83,12 @@ public abstract class DriverCommons implements
             @Override
             public void requestStart(StateManager stateManager) {
                 getExecutorService().execute(() -> {
-                    getAdvertiser().start();
-                    getBrowser().start();
+                    if (shouldStartAdvertiser()) {
+                        getAdvertiser().start();
+                    }
+                    if (shouldStartBrowser()) {
+                        getBrowser().start();
+                    }
                 });
             }
 
@@ -330,13 +334,15 @@ public abstract class DriverCommons implements
 
     @Override
     public void onStart(Advertiser advertiser) {
-        if (getBrowser().getState() != Browser.State.RUNNING) {
-            getStateManager().notifyStart();
-        }
+        getStateManager().notifyStart();
     }
 
     @Override
     public void onStop(Advertiser advertiser, UlxError error) {
+        handleAdvertiserStopped(error);
+    }
+
+    protected void handleAdvertiserStopped(UlxError error) {
         if (getBrowser().getState() == Browser.State.IDLE) {
             getStateManager().notifyStop(error);
         }
@@ -393,13 +399,15 @@ public abstract class DriverCommons implements
 
     @Override
     public void onStart(Browser browser) {
-        if (getAdvertiser().getState() != Advertiser.State.RUNNING) {
-            getStateManager().notifyStart();
-        }
+        getStateManager().notifyStart();
     }
 
     @Override
     public void onStop(Browser browser, UlxError error) {
+        handleBrowserStopped(error);
+    }
+
+    protected void handleBrowserStopped(UlxError error) {
         if (getAdvertiser().getState() == Advertiser.State.IDLE) {
             getStateManager().notifyStop(error);
         }
@@ -451,4 +459,22 @@ public abstract class DriverCommons implements
      * @return whether the request was successful or not
      */
     protected abstract boolean requestAdapterRestart();
+
+    /**
+     * @return whether the advertiser for this driver should be started
+     * defaults to true but a specific driver might have different logic for deciding wether
+     * to start it or not
+     */
+    protected boolean shouldStartAdvertiser() {
+        return true;
+    }
+
+    /**
+     * @return whether the browser for this driver should be started
+     * defaults to true but a specific driver might have different logic for deciding wether
+     * to start it or not
+     */
+    protected boolean shouldStartBrowser() {
+        return true;
+    }
 }
