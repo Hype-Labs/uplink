@@ -37,7 +37,7 @@ public class BleDriver extends DriverCommons
     private Advertiser advertiser;
     private Browser browser;
     private final SerialOperationsManager operationsManager;
-    private boolean hasInternetConnection;
+    private volatile boolean hasInternetConnection;
 
     /**
      * Factory method. Initializes with the given parameters. It also makes sure

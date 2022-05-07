@@ -289,7 +289,8 @@ public class NetworkController implements IoController.Delegate,
             try {
                 // This call may make requests to the Internet, which is why we're
                 // using a different thread
-                getIncrementedInternetHopCount(null);
+                int hopCount = getIncrementedInternetHopCount(null);
+                notifyOnInternetConnectionChanged(hopCount != RoutingTable.HOP_COUNT_INFINITY);
             } catch (InterruptedException e) {
                 Timber.i(e, "Thread interrupted while determining internet availability");
                 // Reset the interruption flag
@@ -1191,7 +1192,7 @@ public class NetworkController implements IoController.Delegate,
                 if (newBestLink != null) {
                     // Send updated i-hops count to everyone except through which
                     // internet is to be accessed
-                    scheduleInternetUpdatePacket(newBestLink.second + 1, newBestLink.first);
+                    notifyAndSendInternetUpdatePacket(newBestLink.second + 1, newBestLink.first);
 
 
                     final RoutingTable.InternetLink secondBestLink = getRoutingTable()
@@ -1206,7 +1207,7 @@ public class NetworkController implements IoController.Delegate,
                     );
                 } else {
                     // Tell everyone that we don't have internet access anymore
-                    scheduleInternetUpdatePacket(RoutingTable.HOP_COUNT_INFINITY, null);
+                    notifyAndSendInternetUpdatePacket(RoutingTable.HOP_COUNT_INFINITY, null);
                 }
             }
         }
@@ -1319,7 +1320,7 @@ public class NetworkController implements IoController.Delegate,
         final RoutingTable.InternetLink bestInternetLink = getRoutingTable().getBestInternetLink(null);
         boolean isInternetDirectlyAvailable = Boolean.TRUE.equals(isInternetDirectlyReachable);
         if (!isInternetDirectlyAvailable && bestInternetLink == null) {
-            scheduleInternetUpdatePacket(RoutingTable.HOP_COUNT_INFINITY, lastDevice);
+            notifyAndSendInternetUpdatePacket(RoutingTable.HOP_COUNT_INFINITY, lastDevice);
         }
 
         notifyOnInstanceLost(instance, error);
@@ -1345,7 +1346,7 @@ public class NetworkController implements IoController.Delegate,
                     : RoutingTable.HOP_COUNT_INFINITY;
         }
 
-        scheduleInternetUpdatePacket(
+        notifyAndSendInternetUpdatePacket(
                 internetHopCount,
                 bestInternetLink != null ? bestInternetLink.first : null
         );
@@ -1371,7 +1372,7 @@ public class NetworkController implements IoController.Delegate,
      * @param splitHorizon     device to skip
      */
     @GuardedBy("iHopsLock")
-    private void scheduleInternetUpdatePacket(
+    private void notifyAndSendInternetUpdatePacket(
             int internetHopCount,
             Device splitHorizon
     ) {

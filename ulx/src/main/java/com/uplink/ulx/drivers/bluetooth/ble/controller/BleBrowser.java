@@ -37,10 +37,8 @@ import com.uplink.ulx.drivers.model.Connector;
 import com.uplink.ulx.drivers.model.Transport;
 import com.uplink.ulx.threading.Dispatch;
 import com.uplink.ulx.utils.SerialOperationsManager;
-import com.uplink.ulx.utils.StringUtils;
 
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Deque;
 import java.util.List;
 import java.util.Locale;
@@ -529,52 +527,6 @@ class BleBrowser extends BrowserCommons implements
         }
 
         return false;
-    }
-
-    /**
-     * This method decides whether the given ScanRecord displays a control value
-     * that is lexicographically lower than the host service, meaning that it
-     * should be the initiator of a connection. If that is not verified, than
-     * the host device should initiate the connection instead. This is done
-     * this way in order to prevent the connection from occurring in both
-     * directions, eliminating noise and unnecessary redundancy.
-     * @param scanRecord The ScanRecord to check for lexicographic control order.
-     * @return Whether the host should initiate the connection.
-     */
-    private boolean isConnectableScanRecord(ScanRecord scanRecord) {
-
-        String gattServiceIdentifier = BleDomesticService.getGattServiceIdentifier16bits().toLowerCase();
-        ParcelUuid uuid = ParcelUuid.fromString(gattServiceIdentifier);
-
-        byte[] serviceData = scanRecord.getServiceData(uuid);
-        byte[] foreignControlValue = Arrays.copyOfRange(
-                serviceData, 0, BleDomesticService.CONTROL_VALUE_SIZE
-        );
-
-        return compareControlValue(getDomesticService().getControlValue(), foreignControlValue);
-    }
-
-    /**
-     * Compares a domestic (host) control characteristic value and a foreign
-     * one, returning true if the domestic control value (left-hand side)
-     * compares less than the other. This can be used to assert whether a
-     * device should be the initiator for a given connection.
-     * @param domesticControlValue The domestic control value.
-     * @param foreignControlValue The foreign control value.
-     * @return Whether the domestic control value is lexicographically lower.
-     */
-    private boolean compareControlValue(byte [] domesticControlValue, byte [] foreignControlValue) {
-        Timber.d("ULX domestic control value: " + StringUtils.byteArrayToHexString(
-                domesticControlValue));
-        Timber.d("ULX foreign control value: " + StringUtils.byteArrayToHexString(
-                foreignControlValue));
-        int comparison = StringUtils.compare(
-                domesticControlValue,
-                foreignControlValue,
-                BleDomesticService.CONTROL_VALUE_SIZE
-        );
-
-        return comparison < 0;
     }
 
     /**
