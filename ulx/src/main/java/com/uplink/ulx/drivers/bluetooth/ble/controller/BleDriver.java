@@ -179,12 +179,12 @@ public class BleDriver extends DriverCommons
         this.hasInternetConnection = hasInternetConnection;
         if (hasInternetConnection) {
             // if a valid internet connection is available, start advertising
-            getBrowser().stop();
             getAdvertiser().start();
+            getBrowser().stop();
         } else {
             // if internet connection drops, start browsing
-            getAdvertiser().stop();
             getBrowser().start();
+            getAdvertiser().stop();
         }
     }
 }
