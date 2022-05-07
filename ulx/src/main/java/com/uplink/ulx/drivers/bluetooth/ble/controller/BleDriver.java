@@ -15,10 +15,10 @@ import com.uplink.ulx.drivers.commons.controller.DriverCommons;
 import com.uplink.ulx.drivers.controller.Advertiser;
 import com.uplink.ulx.drivers.controller.Browser;
 import com.uplink.ulx.drivers.controller.Driver;
-import com.uplink.ulx.threading.HandlerExecutor;
 import com.uplink.ulx.utils.SerialOperationsManager;
 
 import androidx.annotation.NonNull;
+import androidx.core.os.ExecutorCompat;
 import timber.log.Timber;
 
 /**
@@ -60,7 +60,7 @@ public class BleDriver extends DriverCommons
 
         // All BLE operations will be executed serially in the main thread
         operationsManager = new SerialOperationsManager(
-                new HandlerExecutor(new Handler(Looper.getMainLooper()))
+                ExecutorCompat.create(new Handler(Looper.getMainLooper()))
         );
 
         hasInternetConnection = false;
@@ -144,6 +144,7 @@ public class BleDriver extends DriverCommons
         //      while the restart would occur if no activity was seen for a
         //      while.
 
+        // Restart appears to be not working in Android M
         if (Build.VERSION.SDK_INT != Build.VERSION_CODES.M) {
             return getBluetoothManager().getAdapter().disable();
         } else {
