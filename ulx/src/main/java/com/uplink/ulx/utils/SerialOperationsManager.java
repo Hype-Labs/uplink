@@ -21,7 +21,7 @@ import timber.log.Timber;
  * later. Sample usage:
  * <pre> {@code
  * SerialOperationsManager manager = new SerialOperationsManager(
- *      new HandlerExecutor(new Handler(Looper.getMainLooper()))
+ *      ExecutorCompat.create(new Handler(Looper.getMainLooper()))
  * );
  *
  * // ...
