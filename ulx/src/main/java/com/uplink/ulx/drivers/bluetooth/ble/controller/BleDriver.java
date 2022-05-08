@@ -34,8 +34,8 @@ public class BleDriver extends DriverCommons
 
     private BluetoothManager bluetoothManager;
     private BleDomesticService bleDomesticService;
-    private Advertiser advertiser;
-    private Browser browser;
+    private final Advertiser advertiser;
+    private final Browser browser;
     private final SerialOperationsManager operationsManager;
     private volatile boolean hasInternetConnection;
 
@@ -50,17 +50,43 @@ public class BleDriver extends DriverCommons
     public static BleDriver newInstance(String identifier, @NonNull Context context) {
         final BleDriver instance = new BleDriver(identifier, context);
         instance.initialize();
+        
+        Bridge.getInstance().setInternetConnectionCallback(instance);
+
+        instance.browser.setDelegate(instance);
+        instance.browser.setStateDelegate(instance);
+        instance.browser.setNetworkDelegate(instance);
+
+        instance.advertiser.setDelegate(instance);
+        instance.advertiser.setStateDelegate(instance);
+        instance.advertiser.setNetworkDelegate(instance);
+        
         return instance;
     }
 
     private BleDriver(String identifier, @NonNull Context context) {
         super(identifier, TransportType.BLUETOOTH_LOW_ENERGY, context);
         BluetoothStateListener.register(context);
-        Bridge.getInstance().setInternetConnectionCallback(this);
 
         // All BLE operations will be executed serially in the main thread
         operationsManager = new SerialOperationsManager(
                 ExecutorCompat.create(new Handler(Looper.getMainLooper()))
+        );
+
+        browser = BleBrowser.newInstance(
+                getIdentifier(),
+                getBluetoothManager(),
+                getDomesticService(),
+                operationsManager,
+                getContext()
+        );
+
+        advertiser = BleAdvertiser.newInstance(
+                getIdentifier(),
+                getBluetoothManager(),
+                getDomesticService(),
+                operationsManager,
+                getContext()
         );
 
         hasInternetConnection = false;
@@ -97,35 +123,11 @@ public class BleDriver extends DriverCommons
 
     @Override
     public Advertiser getAdvertiser() {
-        if (this.advertiser == null) {
-            this.advertiser = BleAdvertiser.newInstance(
-                    getIdentifier(),
-                    getBluetoothManager(),
-                    getDomesticService(),
-                    operationsManager,
-                    getContext()
-            );
-            this.advertiser.setDelegate(this);
-            this.advertiser.setStateDelegate(this);
-            this.advertiser.setNetworkDelegate(this);
-        }
         return this.advertiser;
     }
 
     @Override
     public Browser getBrowser() {
-        if (this.browser == null) {
-            this.browser = BleBrowser.newInstance(
-                    getIdentifier(),
-                    getBluetoothManager(),
-                    getDomesticService(),
-                    operationsManager,
-                    getContext()
-            );
-            this.browser.setDelegate(this);
-            this.browser.setStateDelegate(this);
-            this.browser.setNetworkDelegate(this);
-        }
         return this.browser;
     }
 
