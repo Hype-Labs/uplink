@@ -6,6 +6,8 @@ import android.content.pm.PackageManager;
 
 import com.uplink.ulx.TransportType;
 
+import timber.log.Timber;
+
 /**
  * This is a helper class that helps determining whether certain transports are
  * supported by the host system. It currently supports BLE only, and checks
@@ -62,7 +64,12 @@ public class Compatibility {
      * @return Whether Bluetooth is supporterd by the host system.
      */
     private boolean isBluetoothSupported() {
-        BluetoothManager blm = (BluetoothManager) getContext().getSystemService(Context.BLUETOOTH_SERVICE);
-        return blm.getAdapter() != null;
+        try {
+            BluetoothManager blm = (BluetoothManager) getContext().getSystemService(Context.BLUETOOTH_SERVICE);
+            return blm.getAdapter() != null;
+        } catch (Throwable t) {
+            Timber.e(t, "Error while determining bluetooth compatibility");
+            return false;
+        }
     }
 }
