@@ -482,18 +482,23 @@ public class RoutingTable {
 
     /**
      * Updates information about i-hops count for the given instance
-     *
-     * @param device   The next-hop {@link Device}.
-     * @param instance The {@link Instance} that is hosted by the device.
+     *  @param device   The next-hop {@link Device}.
      * @param hopCount The number of hops that it takes for the instance to reach the Internet.
      */
-    public synchronized void updateInternetHopsCount(Device device, Instance instance, int hopCount) {
+    public synchronized void updateInternetHopsCount(Device device, int hopCount) {
         final Entry entry = linkMap.get(device);
 
         if (entry == null) {
             Timber.w(
                     "Unable to update i-hops count. Device [%s] was not found in routing table",
                     device
+            );
+            return;
+        }
+
+        if (entry.getLinks().isEmpty()) {
+            Timber.d(
+                    "Ignoring i-hops count update, because the device has not been negotiated with yet"
             );
             return;
         }
@@ -505,7 +510,7 @@ public class RoutingTable {
             entry.setInternetHopCount(HOP_COUNT_INFINITY);
         }
 
-        Timber.d("Updated i-hops count for instance [%s]", instance);
+        Timber.d("Updated i-hops count for device [%s]", device);
     }
 
     /**

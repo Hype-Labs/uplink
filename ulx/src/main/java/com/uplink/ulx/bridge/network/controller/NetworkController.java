@@ -793,7 +793,6 @@ public class NetworkController implements IoController.Delegate,
                 case INTERNET_UPDATE:
                     handleIHopsUpdate(
                             device,
-                            ((InternetUpdatePacket) packet).getOriginator(),
                             ((InternetUpdatePacket) packet).getHopCount()
                     );
                     break;
@@ -856,7 +855,7 @@ public class NetworkController implements IoController.Delegate,
                 1
         );
 
-        handleIHopsUpdate(device, instance, packet.getInternetHops());
+        handleIHopsUpdate(device, packet.getInternetHops());
 
         getRoutingTable().log();
     }
@@ -1164,17 +1163,13 @@ public class NetworkController implements IoController.Delegate,
      * RoutingTable} and notifies other devices about i-hops count update if necessary
      *
      * @param device     the device which has its i-hops count updated
-     * @param instance   the instance hosted by the device
      * @param iHopsCount new i-hops count for the instance
      */
-    private void handleIHopsUpdate(Device device, Instance instance, int iHopsCount) {
-        Timber.d(
-                "Received I-hops update"
-        );
+    private void handleIHopsUpdate(Device device, int iHopsCount) {
+
         synchronized (getRoutingTable()) {
             getRoutingTable().updateInternetHopsCount(
                     device,
-                    instance,
                     iHopsCount
             );
 

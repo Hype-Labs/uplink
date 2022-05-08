@@ -160,7 +160,7 @@ public class IoController implements InputStream.Delegate,
 
     private HashMap<String, Buffer> inputMap;
     private WeakReference<Delegate> delegate;
-    private Serializer serializer;
+    private volatile Serializer serializer;
     /**
      * The {@link Queue} that is managed by the {@link IoController}
      * to keep the order of packets being delivered.
@@ -226,7 +226,7 @@ public class IoController implements InputStream.Delegate,
      */
     private Serializer getSerializer() {
         if (serializer == null) {
-            serializer = new Serializer();
+            final Serializer serializer = new Serializer();
             serializer.register(HandshakePacket.class, new HandshakePacketEncoder(), new HandshakePacketDecoder());
             serializer.register(UpdatePacket.class, new UpdatePacketEncoder(), new UpdatePacketDecoder());
             serializer.register(DataPacket.class, new DataPacketEncoder(), new DataPacketDecoder());
@@ -234,6 +234,7 @@ public class IoController implements InputStream.Delegate,
             serializer.register(InternetPacket.class, new InternetPacketEncoder(), new InternetPacketDecoder());
             serializer.register(InternetResponsePacket.class, new InternetResponsePacketEncoder(), new InternetResponsePacketDecoder());
             serializer.register(InternetUpdatePacket.class, new InternetUpdatePacketEncoder(), new InternetUpdatePacketDecoder());
+            this.serializer = serializer;
         }
         return serializer;
     }
