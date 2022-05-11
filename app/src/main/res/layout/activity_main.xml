@@ -28,44 +28,51 @@
         app:layout_constraintTop_toBottomOf="@id/my_id_label"
         app:layout_constraintBottom_toTopOf="@id/button"/>
 
-    <Button
-        android:id="@+id/button"
+    <LinearLayout
+        android:id="@+id/actions"
+        android:gravity="center"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_marginStart="10dp"
-        android:layout_marginTop="25dp"
-        android:layout_marginEnd="10dp"
-        android:onClick="onProbeClick"
-        android:text="Probe"
-        app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toBottomOf="@id/my_id" />
+        app:layout_constraintTop_toBottomOf="@id/my_id"
+        android:layout_marginTop="15dp">
 
-    <Button
-        android:id="@+id/button2"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:layout_marginStart="10dp"
-        android:layout_marginTop="2dp"
-        android:layout_marginEnd="10dp"
-        android:onClick="onSendMessageClick"
-        android:text="Send Message"
-        app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toBottomOf="@id/button" />
+        <Button
+            android:id="@+id/button"
+            android:layout_width="wrap_content"
+            android:layout_height="50dp"
+            android:layout_marginStart="10dp"
 
-    <Button
-        android:id="@+id/button3"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:layout_marginStart="10dp"
-        android:layout_marginTop="2dp"
-        android:layout_marginEnd="10dp"
-        android:onClick="onSendTransactionClick"
-        android:text="Send Transaction"
-        app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toBottomOf="@id/button2" />
+            android:layout_marginEnd="10dp"
+            android:onClick="onProbeClick"
+            android:text="Probe" />
+
+        <Button
+            android:id="@+id/button2"
+            android:layout_width="wrap_content"
+            android:layout_height="50dp"
+
+            android:layout_marginEnd="10dp"
+            android:onClick="onSendMessageClick"
+            android:text="MSG"
+            app:layout_constraintTop_toTopOf="@id/button"
+            app:layout_constraintEnd_toStartOf="@id/button3"
+            app:layout_constraintStart_toEndOf="@id/button"
+            />
+
+        <Button
+            android:id="@+id/button3"
+            android:layout_width="wrap_content"
+            android:layout_height="50dp"
+            android:onClick="onSendTransactionClick"
+            android:text="TRANS"
+            app:layout_constraintTop_toTopOf="@id/button2"
+            app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintStart_toEndOf="@id/button2" />
+
+    </LinearLayout>
+
+
 
     <TextView
         android:id="@+id/found_instances_label"
@@ -76,16 +83,102 @@
         android:text="FOUND INSTANCES:"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintTop_toBottomOf="@id/button3"/>
+        app:layout_constraintTop_toBottomOf="@id/actions"/>
 
     <androidx.recyclerview.widget.RecyclerView
         android:id="@+id/rvInstances"
         android:padding="10dp"
         android:layout_width="0dp"
-        android:layout_height="0dp"
+        android:layout_height="100dp"
         app:layoutManager="androidx.recyclerview.widget.LinearLayoutManager"
-        app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toBottomOf="@id/found_instances_label" />
+
+    <Button
+        android:id="@+id/app_log_button"
+        android:layout_width="150dp"
+        android:layout_height="60dp"
+        android:layout_marginTop="15dp"
+        android:onClick="onAppLogClick"
+        android:text="Disable App Log"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toStartOf="@id/sdk_log_button"
+        app:layout_constraintTop_toBottomOf="@id/rvInstances" />
+
+    <Button
+        android:id="@+id/sdk_log_button"
+        android:layout_width="150dp"
+        android:layout_height="60dp"
+        android:onClick="onSDKLogClick"
+        android:text="Enable SDK log"
+        app:layout_constraintTop_toTopOf="@id/app_log_button"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toEndOf="@id/app_log_button"
+        />
+
+
+    <TextView
+        android:id="@+id/app_log_title"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="16dp"
+        android:text="App Log"
+        android:textSize="16sp"
+        android:textStyle="bold"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@id/app_log_button" />
+
+
+    <ScrollView
+        android:id="@+id/app_log_scroll_view"
+        android:layout_width="match_parent"
+        android:layout_height="100dp"
+        android:layout_weight="1"
+        android:padding="4dp"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@id/app_log_title">
+
+        <TextView
+            android:id="@+id/app_log_text_view"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:gravity="bottom"
+            android:scrollbars="vertical" />
+
+    </ScrollView>
+
+    <TextView
+        android:id="@+id/log_title"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="16dp"
+        android:text="SDK Log"
+        android:textSize="16sp"
+        android:textStyle="bold"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@id/app_log_scroll_view" />
+
+    <ScrollView
+        android:id="@+id/log_scroll_view"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:padding="4dp"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@id/log_title">
+
+        <TextView
+            android:id="@+id/log_text_view"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:gravity="bottom"
+            android:scrollbars="vertical" />
+
+    </ScrollView>
 </androidx.constraintlayout.widget.ConstraintLayout>
