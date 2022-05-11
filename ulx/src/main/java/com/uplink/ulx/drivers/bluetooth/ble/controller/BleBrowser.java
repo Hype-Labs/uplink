@@ -194,9 +194,12 @@ class BleBrowser extends BrowserCommons implements
         this.knownDevices = new ConcurrentHashMap<>();
     }
 
+    @SuppressLint("MissingPermission")
     @MainThread
     private void updateScannerStatus() {
-        if (isStartScanRequested && connectionsInProgress == 0) {
+        boolean shouldStartScanning = isStartScanRequested && connectionsInProgress == 0 &&
+                bluetoothManager.getAdapter().isEnabled();
+        if (shouldStartScanning) {
             startScanning();
         } else {
             stopScanning();
