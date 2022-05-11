@@ -7,6 +7,8 @@ import android.os.Handler;
 import android.os.Looper;
 
 import com.uplink.ulx.TransportType;
+import com.uplink.ulx.UlxError;
+import com.uplink.ulx.UlxErrorCode;
 import com.uplink.ulx.bridge.Bridge;
 import com.uplink.ulx.bridge.network.controller.NetworkController;
 import com.uplink.ulx.drivers.bluetooth.ble.model.passive.BleDomesticService;
@@ -182,10 +184,30 @@ public class BleDriver extends DriverCommons
         if (hasInternetConnection) {
             // if a valid internet connection is available, start advertising
             getAdvertiser().start();
+            if (getAdvertiser().getState() == Advertiser.State.IDLE) {
+                handleAdvertiserStopped(
+                        new UlxError(
+                                UlxErrorCode.UNKNOWN,
+                                "Failed to start advertiser",
+                                "Reason unidentified",
+                                "Check that Bluetooth is on"
+                        )
+                );
+            }
             getBrowser().stop();
         } else {
             // if internet connection drops, start browsing
             getBrowser().start();
+            if (getBrowser().getState() == Browser.State.IDLE) {
+                handleBrowserStopped(
+                        new UlxError(
+                                UlxErrorCode.UNKNOWN,
+                                "Failed to start scanner",
+                                "Reason unidentified",
+                                "Check that Bluetooth is on"
+                        )
+                );
+            }
             getAdvertiser().stop();
         }
     }
