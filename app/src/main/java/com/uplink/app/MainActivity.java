@@ -1,9 +1,12 @@
 package com.uplink.app;
 
 import android.Manifest;
+import android.annotation.SuppressLint;
 import android.os.Bundle;
 import android.util.Log;
 import android.view.View;
+import android.widget.Button;
+import android.widget.ScrollView;
 import android.widget.TextView;
 
 import com.uplink.ulx.ULX;
@@ -21,25 +24,83 @@ import org.json.JSONObject;
 import java.net.MalformedURLException;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
+import java.text.SimpleDateFormat;
 import java.util.ArrayList;
+import java.util.Date;
 import java.util.HashMap;
 import java.util.LinkedList;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Queue;
 import java.util.Set;
 
 import androidx.activity.result.ActivityResultLauncher;
 import androidx.activity.result.contract.ActivityResultContracts;
+import androidx.annotation.NonNull;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.recyclerview.widget.RecyclerView;
 
+import timber.log.Timber;
+
 public class MainActivity extends AppCompatActivity implements StateObserver, NetworkObserver, MessageObserver {
+
+     class LogTree extends Timber.DebugTree {
+        @Override
+        protected void log(int priority, String tag, @NonNull String message, Throwable t) {
+            if (sdkLogsEnabled) {
+                logSDK(message);
+            }
+        }
+    }
 
     private InstancesAdapter adapter;
 
     private HashMap<String, Instance> instanceMap;
     private Queue<Instance> probeQueue;
     private boolean probing = false;
+    private boolean appLogsEnabled = true;
+    private boolean sdkLogsEnabled = false;
+    private ScrollView logScrollView;
+    private TextView logTextView;
+    private ScrollView appLogScrollView;
+    private TextView appLogTextView;
+    private SimpleDateFormat dateFormatter;
+
+    private void logInfo(String message) {
+        Log.i(getClass().getCanonicalName(), message);
+        if (appLogsEnabled) {
+            logApp(message);
+        }
+    }
+
+    private void logError(String message) {
+        Log.e(getClass().getCanonicalName(), message);
+        if (appLogsEnabled) {
+            logApp(message);
+        }
+    }
+
+    @SuppressLint("SetTextI18n")
+    private void logSDK(String message) {
+        String formattedMessage = String.format("%s: %s", dateFormatter.format(new Date()), message);
+        this.runOnUiThread(() -> {
+            String currentLogText =
+                    logTextView.getText().toString().isEmpty() ? "Beginning of log." : logTextView.getText().toString();
+            logTextView.setText(currentLogText + "\n" + formattedMessage);
+            logScrollView.post(() -> { logScrollView.fullScroll(View.FOCUS_DOWN); });
+        });
+    }
+
+    @SuppressLint("SetTextI18n")
+    private void logApp(String message) {
+        String formattedMessage = String.format("%s: %s", dateFormatter.format(new Date()), message);
+        this.runOnUiThread(() -> {
+            String currentLogText =
+                    appLogTextView.getText().toString().isEmpty() ? "Beginning of log." : appLogTextView.getText().toString();
+            appLogTextView.setText(currentLogText + "\n" + formattedMessage);
+            appLogScrollView.post(() -> { appLogScrollView.fullScroll(View.FOCUS_DOWN); });
+        });
+    }
 
     private HashMap<String, Instance> getInstanceMap() {
         if (this.instanceMap == null) {
@@ -73,7 +134,7 @@ public class MainActivity extends AppCompatActivity implements StateObserver, Ne
 
                     // We'll end up here if the permissions are not accepted.
                     // They must be accepted for the app to behave properly.
-                    Log.e(getClass().getCanonicalName(), "ULX[APP] Permission rejected");
+                    logError( "ULX[APP] Permission rejected");
                 }
             });
 
@@ -84,6 +145,13 @@ public class MainActivity extends AppCompatActivity implements StateObserver, Ne
 
         adapter = new InstancesAdapter();
         this.<RecyclerView>findViewById(R.id.rvInstances).setAdapter(adapter);
+        logTextView = this.findViewById(R.id.log_text_view);
+        logScrollView = this.findViewById(R.id.log_scroll_view);
+        appLogTextView = this.findViewById(R.id.app_log_text_view);
+        appLogScrollView = this.findViewById(R.id.app_log_scroll_view);
+        dateFormatter = new SimpleDateFormat("MMM d, HH:mm:ss", Locale.US);
+
+        Timber.plant(new LogTree());
 
         // Request permissions (ACCESS_COARSE_LOCATION)
         requestPermissionLauncher.launch(Manifest.permission.ACCESS_COARSE_LOCATION);
@@ -91,7 +159,7 @@ public class MainActivity extends AppCompatActivity implements StateObserver, Ne
 
     @Override
     public void onUlxStart() {
-        Log.i(getClass().getCanonicalName(), "ULX[APP] has started. Device ID: " + ULX.getHostInstance().getStringIdentifier());
+        logInfo("ULX[APP] has started. Device ID: " + ULX.getHostInstance().getStringIdentifier());
         runOnUiThread(() -> this.<TextView>findViewById(R.id.my_id).setText(ULX.getHostInstance().getStringIdentifier()));
     }
 
@@ -100,22 +168,23 @@ public class MainActivity extends AppCompatActivity implements StateObserver, Ne
     }
 
     private JSONObject makeObject() throws JSONException {
-        return new JSONObject();
+        JSONObject obj = new JSONObject();
+        return obj;
     }
 
     @Override
     public void onUlxStop(UlxError error) {
-        Log.i(getClass().getCanonicalName(), String.format("ULX[APP] has stopped [%s]", error.toString()));
+        logInfo( String.format("ULX[APP] has stopped [%s]", error.toString()));
     }
 
     @Override
     public void onUlxFailedStarting(UlxError error) {
-        Log.i(getClass().getCanonicalName(), String.format("ULX[APP] has failed starting [%s]", error.toString()));
+        logInfo( String.format("ULX[APP] has failed starting [%s]", error.toString()));
     }
 
     @Override
     public void onUlxReady() {
-        Log.i(getClass().getCanonicalName(), "ULX[APP] became ready");
+        logInfo( "ULX[APP] became ready");
 
         // The adapter was probably turned off and then on again; just keep
         // trying to start for as long as the SDK tells us that we should.
@@ -124,7 +193,7 @@ public class MainActivity extends AppCompatActivity implements StateObserver, Ne
 
     @Override
     public void onUlxInstanceFound(Instance instance) {
-        Log.i(getClass().getCanonicalName(), String.format("ULX[APP] found instance [%s]", instance.getStringIdentifier()));
+        logInfo( String.format("ULX[APP] found instance [%s]", instance.getStringIdentifier()));
 
         //sendMessage(instance);
         getInstanceMap().put(instance.getStringIdentifier(), instance);
@@ -133,11 +202,12 @@ public class MainActivity extends AppCompatActivity implements StateObserver, Ne
 
     @Override
     public void onUlxInstanceLost(Instance instance, UlxError error) {
-        Log.i(getClass().getCanonicalName(), String.format("ULX[APP] lost instance [%s: %s]", instance.getStringIdentifier(), error.toString()));
+        logInfo( String.format("ULX[APP] lost instance [%s: %s]", instance.getStringIdentifier(), error.toString()));
 
         getInstanceMap().remove(instance.getStringIdentifier());
         this.runOnUiThread(() -> adapter.updateInstancesList(new ArrayList<>(getInstanceMap().keySet())));
     }
+
 
     private void sendMessage(Instance instance) {
         String text = "Lorem ipsum dolor sit amet, consectetur adipiscing " +
@@ -179,8 +249,8 @@ public class MainActivity extends AppCompatActivity implements StateObserver, Ne
         // Encode the data using UTF-8
         byte[] data = text.getBytes(StandardCharsets.UTF_8);
 
-        Log.i(getClass().getCanonicalName(), String.format("ULX[APP] is sending %d bytes", text.getBytes().length));
-        Log.i(getClass().getCanonicalName(), "ULX[APP] sending message");
+        logInfo( String.format("ULX[APP] is sending %d bytes", text.getBytes().length));
+        logInfo( "ULX[APP] sending message");
 
         // Send "Hello World"
         ULX.send(data, instance);
@@ -190,24 +260,26 @@ public class MainActivity extends AppCompatActivity implements StateObserver, Ne
     public void onUlxMessageReceived(byte[] data, Instance origin) {
         String text = new String(data, StandardCharsets.UTF_8);
 
-        Log.i(getClass().getCanonicalName(), String.format("ULX[APP] message received: from %s: %s", origin.getStringIdentifier(), text));
+        logInfo( String.format("ULX[APP] message received: from %s: %s", origin.getStringIdentifier(), text));
     }
 
     @Override
     public void onUlxMessageFailedSending(MessageInfo messageInfo, UlxError error) {
-        Log.i(getClass().getCanonicalName(), String.format("ULX[APP] failed to send message [%s]", error.toString()));
+        logInfo( String.format("ULX[APP] failed to send message [%s]", error.toString()));
     }
 
     @Override
     public void onUlxMessageSent(MessageInfo messageInfo) {
-        Log.i(getClass().getCanonicalName(), String.format("ULX[APP] message [%d] was sent", messageInfo.getIdentifier()));
+        if (messageInfo != null) {
+            logInfo( String.format("ULX[APP] message [%d] was sent", messageInfo.getIdentifier()));
+        }
 
         // DO NOT USE THIS METHOD
     }
 
     @Override
     public void onUlxMessageDelivered(MessageInfo messageInfo) {
-        Log.i(getClass().getCanonicalName(), String.format("ULX[APP] message [%d] was delivered", messageInfo.getIdentifier()));
+        logInfo( String.format("ULX[APP] message [%d] was delivered", messageInfo.getIdentifier()));
 
         // Probe?
         dequeue();
@@ -215,17 +287,17 @@ public class MainActivity extends AppCompatActivity implements StateObserver, Ne
 
     @Override
     public void onUlxInternetResponse(int code, String content) {
-        Log.i(getClass().getCanonicalName(), String.format("ULX[APP] got a response from the server: %d", code));
-        Log.i(getClass().getCanonicalName(), String.format("ULX[APP] Server response is: %s", content));
+        logInfo( String.format("ULX[APP] got a response from the server: %d", code));
+        logInfo( String.format("ULX[APP] Server response is: %s", content));
     }
 
     @Override
     public void onUlxInternetResponseFailure(UlxError error) {
-        Log.i(getClass().getCanonicalName(), String.format("ULX[APP] failed sending an Internet request [%s]", error.toString()));
+        logInfo( String.format("ULX[APP] failed sending an Internet request [%s]", error.toString()));
     }
 
     public void onSendTransactionClick(View view) {
-        Log.i(getClass().getCanonicalName(), "ULX[APP] Sending transaction");
+        logInfo( "ULX[APP] Sending transaction");
 
         try {
             ULX.sendInternet(makeUrl(), makeObject(), 2);
@@ -237,7 +309,7 @@ public class MainActivity extends AppCompatActivity implements StateObserver, Ne
     public void onSendMessageClick(View view) {
 
         if (getInstanceMap().isEmpty()) {
-            Log.e(getClass().getCanonicalName(), "ULX[APP] No known instances");
+            logError( "ULX[APP] No known instances");
             return;
         }
 
@@ -245,11 +317,11 @@ public class MainActivity extends AppCompatActivity implements StateObserver, Ne
         Instance instance = getInstanceMap().get(keySet.iterator().next());
 
         if (instance == null) {
-            Log.e(getClass().getCanonicalName(), "ULX[APP] Instance is null");
+            logError( "ULX[APP] Instance is null");
             return;
         }
 
-        Log.i(getClass().getCanonicalName(), String.format("ULX[APP] Sending message to %s", instance.getStringIdentifier()));
+        logInfo( String.format("ULX[APP] Sending message to %s", instance.getStringIdentifier()));
 
         byte[] data = "message".getBytes(StandardCharsets.UTF_8);
 
@@ -268,6 +340,26 @@ public class MainActivity extends AppCompatActivity implements StateObserver, Ne
         dequeue();
     }
 
+    public void onSDKLogClick(View view) {
+        this.sdkLogsEnabled = !this.sdkLogsEnabled;
+
+        if (sdkLogsEnabled) {
+            this.<Button>findViewById(R.id.sdk_log_button).setText("Disable SDK Log");
+        } else {
+            this.<Button>findViewById(R.id.sdk_log_button).setText("Enable SDK Log");
+        }
+    }
+
+    public void onAppLogClick(View view) {
+        this.appLogsEnabled = !this.appLogsEnabled;
+
+        if (appLogsEnabled) {
+            this.<Button>findViewById(R.id.app_log_button).setText("Disable App Log");
+        } else {
+            this.<Button>findViewById(R.id.app_log_button).setText("Enable App Log");
+        }
+    }
+
     private void dequeue() {
 
         if (!probing) {
@@ -277,12 +369,12 @@ public class MainActivity extends AppCompatActivity implements StateObserver, Ne
         Instance instance = getProbeQueue().poll();
 
         if (instance == null) {
-            Log.i(getClass().getCanonicalName(), "ULX[APP] Done probing");
+            logInfo( "ULX[APP] Done probing");
             probing = false;
             return;
         }
 
-        Log.i(getClass().getCanonicalName(), String.format("ULX[APP] Probing instance %s", instance.getStringIdentifier()));
+        logInfo( String.format("ULX[APP] Probing instance %s", instance.getStringIdentifier()));
 
         byte[] data = "probe".getBytes(StandardCharsets.UTF_8);
         ULX.send(data, instance);

@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<network-security-config>
+    <domain-config cleartextTrafficPermitted="true">
+        <!-- allow cleartext http request to POC Server-->
+        <domain includeSubdomains="true">15.237.128.149</domain>
+    </domain-config>
+</network-security-config>
