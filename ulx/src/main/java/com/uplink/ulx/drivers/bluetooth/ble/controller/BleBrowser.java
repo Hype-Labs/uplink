@@ -355,39 +355,52 @@ class BleBrowser extends BrowserCommons implements
         });
     }
 
-    @SuppressLint("MissingPermission")
+
     @MainThread
     private void startScanning() {
         Timber.i("ULX BLE scanner starting");
 
         final BluetoothLeScanner bluetoothLeScanner = getBluetoothLeScanner();
         if (bluetoothLeScanner != null) {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
-                bluetoothLeScanner.startScan(
-                        getScanFilters(),
-                        getScanSettings(),
-                        getScanCallback()
-                );
-            } else {
-                bluetoothLeScanner.startScan(
-                        getScanCallback()
-                );
-            }
+            try {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+                    bluetoothLeScanner.startScan(
+                            getScanFilters(),
+                            getScanSettings(),
+                            getScanCallback()
+                    );
+                } else {
+                    bluetoothLeScanner.startScan(
+                            getScanCallback()
+                    );
+                }
 
-            // Notify the delegate
-            onStart();
+                // Notify the delegate
+                onStart();
+            } catch (Exception e) {
+                handleStartAdapterFailed();
+            }
         } else {
-            onFailedStart(new UlxError(
-                    UlxErrorCode.UNKNOWN,
-                    "Failed to start BLE scanning",
-                    String.format(
-                            Locale.US,
-                            "BT scanner unavailable. BT adapter state: %d",
-                            getBluetoothAdapter().getState()
-                    ),
-                    "Try restarting bluetooth"
-            ));
+            handleStartAdapterFailed();
         }
+    }
+
+    /**
+     * Handles a failure in requesting the adapter to start scanning.
+     * This will create an error and notify the delegate of a failure.
+     */
+    @SuppressLint("MissingPermission")
+    private void handleStartAdapterFailed() {
+        onFailedStart(new UlxError(
+                UlxErrorCode.UNKNOWN,
+                "Failed to start BLE scanning",
+                String.format(
+                        Locale.US,
+                        "BT scanner unavailable. BT adapter state: %d",
+                        getBluetoothAdapter().getState()
+                ),
+                "Try restarting bluetooth"
+        ));
     }
 
     /**
