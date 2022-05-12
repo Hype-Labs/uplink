@@ -531,15 +531,16 @@ public class IoController implements InputStream.Delegate,
         Timber.d("ULX Space available on stream %s", outputStream.getIdentifier());
 
         synchronized (queue) {
+            final IoPacket currentPacket = getCurrentPacket();
             // If this happens, something's wrong
-            assert getCurrentPacket() != null;
-
-            // Notify the delegate
-            notifyOnPacketWritten(outputStream, getCurrentPacket());
+            assert currentPacket != null;
 
             // Set as the now active packet
             setCurrentPacket(null);
         }
+
+        // Notify the delegate
+        notifyOnPacketWritten(outputStream, currentPacket);
 
         // Move on to the next one
         attemptDequeue();
