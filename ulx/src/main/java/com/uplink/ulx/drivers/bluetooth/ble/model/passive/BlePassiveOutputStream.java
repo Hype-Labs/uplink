@@ -115,6 +115,8 @@ public class BlePassiveOutputStream extends OutputStreamCommons {
     @Override
     public IoResult flush(byte[] data) {
 
+        Timber.d("Flushing bytes " + data.length);
+
         // Write to the characteristic and update the remote
         int written = getGattServer().updateCharacteristic(
                 getBluetoothDevice(),
@@ -122,6 +124,8 @@ public class BlePassiveOutputStream extends OutputStreamCommons {
                 true,
                 data
         );
+
+        Timber.d("Flushed bytes. written = " + written);
 
         final UlxError error;
         if (written == 0) {

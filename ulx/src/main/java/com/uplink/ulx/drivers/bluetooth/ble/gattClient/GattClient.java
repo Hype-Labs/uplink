@@ -1129,6 +1129,14 @@ public class GattClient extends BluetoothGattCallback {
                                 notifyOnCharacteristicWriteSuccess();
                                 break;
                             case Timeout:
+                                final UlxError errorT = new UlxError(
+                                        UlxErrorCode.UNKNOWN,
+                                        "Could not send data to the remote device.",
+                                        "Operation timed out when writing to the stream.",
+                                        "Try restarting the Bluetooth adapter."
+                                );
+
+                                notifyOnCharacteristicWriteFailure(errorT);
                                 Timber.i(
                                         "Write Characteristic timed out! Device %s",
                                         bluetoothGatt.getDevice().getAddress()
