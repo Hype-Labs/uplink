@@ -325,23 +325,25 @@ public class IoController implements InputStream.Delegate,
 
                 // Flag the controller as busy, so packets do not overlap
                 setCurrentPacket(ioPacket);
+            }
 
-                device = ioPacket.getDevice();
+            device = ioPacket.getDevice();
 
-                if (device != null && device.getOutputStream().getState() == Stream.State.OPEN) {
-                    // Everything's ok, we can leave the loop and proceed with writing
-                    break;
-                } else {
-                    Timber.e("ULX destination not found");
+            if (device != null && device.getOutputStream().getState() == Stream.State.OPEN) {
+                // Everything's ok, we can leave the loop and proceed with writing
+                break;
+            } else {
+                Timber.e("ULX destination not found");
 
-                    UlxError error = new UlxError(
-                            UlxErrorCode.UNKNOWN,
-                            "Could not send a packet to a destination.",
-                            "The destination is not known or reachable.",
-                            "Try bringing the destination closer to the host " +
-                                    "device or restarting the Bluetooth adapter."
-                    );
+                UlxError error = new UlxError(
+                        UlxErrorCode.UNKNOWN,
+                        "Could not send a packet to a destination.",
+                        "The destination is not known or reachable.",
+                        "Try bringing the destination closer to the host " +
+                                "device or restarting the Bluetooth adapter."
+                );
 
+                synchronized (queue) {
                     // Clear the current packet, so the queue may proceed
                     setCurrentPacket(null);
 
