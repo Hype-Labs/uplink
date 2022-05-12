@@ -126,6 +126,8 @@ public class BleActiveOutputStream extends OutputStreamCommons implements GattCl
 
         byte[] dataToSend = ByteUtils.trimCopyToSize(data, getMtu());
 
+        Timber.d("Flushing bytes " + dataToSend.length);
+
         Timber.i(
                 "ULX writing %d of %d buffered bytes (%d%%) to stream %s",
                 dataToSend.length,
@@ -158,6 +160,8 @@ public class BleActiveOutputStream extends OutputStreamCommons implements GattCl
 
             return new IoResult(0, error);
         }
+
+        Timber.d("Flushed bytes " + dataToSend.length);
 
         // Not sure what it means if these values don't match
         if (dataToSend.length != getOutputCharacteristic().getValue().length) {
