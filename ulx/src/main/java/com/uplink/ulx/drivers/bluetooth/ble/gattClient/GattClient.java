@@ -999,7 +999,7 @@ public class GattClient extends BluetoothGattCallback {
                             Timber.i("Characteristic Subscribe timed out! Device %s", bluetoothGatt.getDevice().getAddress());
                         }
                     }
-                }
+                }, 10_000
 
         );
     }

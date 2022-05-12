@@ -530,8 +530,9 @@ public class IoController implements InputStream.Delegate,
     public void onSpaceAvailable(OutputStream outputStream) {
         Timber.d("ULX Space available on stream %s", outputStream.getIdentifier());
 
+        final IoPacket currentPacket;
         synchronized (queue) {
-            final IoPacket currentPacket = getCurrentPacket();
+            currentPacket = getCurrentPacket();
             // If this happens, something's wrong
             assert currentPacket != null;
 

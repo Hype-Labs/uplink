@@ -633,7 +633,6 @@ public class NetworkController implements IoController.Delegate,
             @Override
             public Device getDevice() {
                 Device device = getBestLinkNextHopDevice(destination, null);
-                assert device != null;
                 return device;
             }
 
