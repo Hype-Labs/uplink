@@ -197,8 +197,7 @@ class BleBrowser extends BrowserCommons implements
     @SuppressLint("MissingPermission")
     @MainThread
     private void updateScannerStatus() {
-        boolean shouldStartScanning = isStartScanRequested && connectionsInProgress == 0 &&
-                bluetoothManager.getAdapter().isEnabled();
+        boolean shouldStartScanning = isStartScanRequested && connectionsInProgress == 0;
         if (shouldStartScanning) {
             startScanning();
         } else {
@@ -747,16 +746,20 @@ class BleBrowser extends BrowserCommons implements
 
         // Since we're having failed connections, we should ask the adapter to
         // restart.
+        boolean restarted = false;
         Delegate delegate = getDelegate();
         if (delegate != null) {
-            delegate.onAdapterRestartRequest(this);
+            restarted = delegate.onAdapterRestartRequest(this);
         }
 
-        Dispatch.post(() -> {
-            connectionsInProgress--;
-            if (connectionsInProgress == 0) { // We went from 1 to 0 - maybe time to start scanning
-                updateScannerStatus();
-            }
-        });
+        if (!restarted) {
+            Dispatch.post(() -> {
+                connectionsInProgress--;
+                if (connectionsInProgress == 0) { // We went from 1 to 0 - maybe time to start scanning
+                    updateScannerStatus();
+                }
+            });
+        }
+
     }
 }
