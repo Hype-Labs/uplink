@@ -167,7 +167,9 @@ public class IoController implements InputStream.Delegate,
      */
     private final Queue<IoPacket> queue;
     @GuardedBy("queue")
-    private IoPacket currentPacket;
+    private volatile IoPacket currentPacket;
+    @GuardedBy("queue")
+    private OutputStream currentOutputStream;
 
     /**
      * Constructor.
@@ -177,7 +179,6 @@ public class IoController implements InputStream.Delegate,
         this.delegate = null;
         this.serializer = null;
         this.queue = new LinkedList<>();
-        this.currentPacket = null;
     }
 
     /**
@@ -260,6 +261,7 @@ public class IoController implements InputStream.Delegate,
         return this.delegate != null ? this.delegate.get() : null;
     }
 
+    @GuardedBy("queue")
     private void setCurrentPacket(IoPacket currentPacket) {
         this.currentPacket = currentPacket;
     }
@@ -331,6 +333,9 @@ public class IoController implements InputStream.Delegate,
 
             if (device != null && device.getOutputStream().getState() == Stream.State.OPEN) {
                 // Everything's ok, we can leave the loop and proceed with writing
+                synchronized (queue) {
+                    currentOutputStream = device.getOutputStream();
+                }
                 break;
             } else {
                 Timber.e("ULX destination not found");
@@ -346,8 +351,9 @@ public class IoController implements InputStream.Delegate,
                 synchronized (queue) {
                     // Clear the current packet, so the queue may proceed
                     setCurrentPacket(null);
+                    currentOutputStream = null;
 
-                    notifyOnPacketWriteFailure(null, ioPacket, error);
+                    notifyOnPacketWriteFailureAndCloseStream(null, ioPacket, error);
                 }
             }
         }
@@ -393,18 +399,23 @@ public class IoController implements InputStream.Delegate,
 
         // An error from the encoder is not considered a programming error
         if (result.getError() != null) {
-            notifyOnPacketWriteFailure(outputStream, ioPacket, result.getError());
+            notifyOnPacketWriteFailureAndCloseStream(outputStream, ioPacket, result.getError());
             return;
         }
 
         // Write the result
         Timber.i("ULX-M writing packet %s", ioPacket.toString());
         final IoResult ioResult = outputStream.write(result.getData());
+
+        if (ioResult.getError() != null) {
+            notifyOnPacketWriteFailureAndCloseStream(outputStream, ioPacket, ioResult.getError());
+            return;
+        }
+
         Timber.d(
-                "Buffered %d bytes from %d. Error: %s",
+                "Buffered %d bytes from %d",
                 ioResult.getByteCount(),
-                result.getData().length,
-                ioResult.getError()
+                result.getData().length
         );
     }
 
@@ -439,15 +450,22 @@ public class IoController implements InputStream.Delegate,
     /**
      * Propagates a notification of an {@link
      * Delegate#onPacketWriteFailure(IoController, OutputStream, IoPacket, UlxError)}
-     * event to the {@link Delegate}.
+     * event to the {@link Delegate} and closes the output stream if it is not {@code null}
      * @param outputStream The {@link OutputStream} that failed to write.
      * @param ioPacket The {@link IoPacket}.
      * @param error An error, describing the cause for the failure.
      */
-    private void notifyOnPacketWriteFailure(OutputStream outputStream, IoPacket ioPacket, UlxError error) {
+    private void notifyOnPacketWriteFailureAndCloseStream(
+            OutputStream outputStream,
+            IoPacket ioPacket,
+            UlxError error
+    ) {
         Delegate delegate = getDelegate();
         if (delegate != null) {
             delegate.onPacketWriteFailure(this, outputStream, ioPacket, Objects.requireNonNull(error));
+        }
+        if (outputStream != null) {
+            outputStream.close(error);
         }
     }
 
@@ -540,6 +558,7 @@ public class IoController implements InputStream.Delegate,
 
             // Set as the now active packet
             setCurrentPacket(null);
+            currentOutputStream = null;
         }
 
         // Notify the delegate
@@ -565,10 +584,19 @@ public class IoController implements InputStream.Delegate,
 
             final Device device = currentPacket != null ? currentPacket.getDevice() : null;
 
-            // Drop current packet if it cannot longer identify its device or
-            // if it belongs to the invalidated stream
             if (device == null || stream.equals(device.getOutputStream())) {
+                // Drop current packet if it cannot longer identify its device or
+                // if it belongs to the invalidated stream
                 setCurrentPacket(null);
+                currentOutputStream = null;
+            } else if (stream.equals(currentOutputStream)) {
+                // The invalidated stream is the current one, but we can still send the packet
+                // via different route (IoPacket.getDevice() resolves to another device.)
+                // In theory, there still is a tiny chance that the packet has already been sent
+                // before the stream got invalidated, but this should be handled by checking the
+                // packet's sequence number on the receiving end
+                currentOutputStream = device.getOutputStream();
+                write(currentPacket, currentOutputStream);
             }
         }
 

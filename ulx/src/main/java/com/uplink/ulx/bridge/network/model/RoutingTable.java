@@ -8,11 +8,11 @@ import com.uplink.ulx.model.Instance;
 import java.lang.ref.WeakReference;
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
-import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 
 import androidx.annotation.GuardedBy;
@@ -286,15 +286,16 @@ public class RoutingTable {
      * which {@link Instance}s are reachable, which means that the system can
      * use this data structure as a foundation for the mesh.
      */
-    @GuardedBy("this")
-    private final Map<Device, Entry> linkMap;
+    @GuardedBy("this") // The lock is needed for consistency of get-then-act operations,
+    // but is not needed for visibility purposes, since it is unnecessary for ConcurrentMap
+    private final ConcurrentMap<Device, Entry> linkMap;
     private WeakReference<Delegate> delegate;
 
     /**
      * Constructor.
      */
      public RoutingTable() {
-         this.linkMap = new HashMap<>();
+         this.linkMap = new ConcurrentHashMap<>();
          this.delegate = null;
      }
 
@@ -344,7 +345,7 @@ public class RoutingTable {
      * @return The {@link Device} registered with the given identifier or {@code
      * null}.
      */
-    public synchronized Device getDevice(String identifier) {
+    public Device getDevice(String identifier) {
         for (final Device device : linkMap.keySet()) {
             if (device.getIdentifier().equals(identifier)) {
                 return device;
@@ -361,14 +362,10 @@ public class RoutingTable {
      * identifier, with {@link Device#getIdentifier()}.
      * @param device The {@link Device} to register.
      */
-    public synchronized void register(@NonNull Device device) {
-
+    public void register(@NonNull Device device) {
         // If the registry already exists, don't proceed. Doing so would erase
         // the current registry, and all known links would be lost.
-        if (!linkMap.containsKey(device)) {
-            // Register a new entry
-            linkMap.put(device, new Entry(device));
-        }
+        linkMap.putIfAbsent(device, new Entry(device));
     }
 
     /**
@@ -601,7 +598,7 @@ public class RoutingTable {
      * @return The best known mesh link to the Internet or {@code null}, if such doesn't exist
      */
     @Nullable
-    public synchronized InternetLink getBestInternetLink(@Nullable Device splitHorizon) {
+    public InternetLink getBestInternetLink(@Nullable Device splitHorizon) {
 
         final List<Entry> entries = new ArrayList<>(this.linkMap.values());
 
@@ -678,10 +675,7 @@ public class RoutingTable {
      * @param splitHorizon
      * @return A {@link List} of {@link Link}s to the given {@link Instance}.
      */
-    private synchronized List<Link> compileLinksTo(
-            Instance instance,
-            @Nullable Device splitHorizon
-    ) {
+    private List<Link> compileLinksTo(Instance instance, @Nullable Device splitHorizon) {
 
         final List<Link> linkList = new ArrayList<>();
 
@@ -769,7 +763,7 @@ public class RoutingTable {
      * in direct link (LoS).
      * @return The list of known {@link Device}s.
      */
-    public synchronized Set<Device> getDeviceList() {
+    public Set<Device> getDeviceList() {
         return linkMap.keySet();
     }
 
@@ -779,7 +773,7 @@ public class RoutingTable {
      * optimized in the future.
      * @return A {@link Set} of all known {@link Instance}s.
      */
-    public synchronized Set<Instance> getInstances() {
+    public Set<Instance> getInstances() {
 
         Set<Instance> instanceSet = new HashSet<>();
 
@@ -792,7 +786,7 @@ public class RoutingTable {
         return instanceSet;
     }
 
-    public synchronized void log() {
+    public void log() {
         Timber.e("ULX-M logging the routing table");
         for (Entry entry : linkMap.values()) {
 
