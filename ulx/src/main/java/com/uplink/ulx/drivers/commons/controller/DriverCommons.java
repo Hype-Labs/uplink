@@ -424,12 +424,18 @@ public abstract class DriverCommons implements
 
     @Override
     public boolean onAdapterRestartRequest(Browser browser) {
-        return handleAdapterRestartRequest();
+        if (browser.getState() == Browser.State.RUNNING) {
+            return handleAdapterRestartRequest();
+        } else {
+            return false;
+        }
     }
 
     @Override
     public void onAdapterRestartRequest(Advertiser advertiser) {
-        handleAdapterRestartRequest();
+        if (advertiser.getState() == Advertiser.State.RUNNING) {
+            handleAdapterRestartRequest();
+        }
     }
 
     /**
