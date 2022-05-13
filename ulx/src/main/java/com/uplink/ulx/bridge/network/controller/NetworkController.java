@@ -632,8 +632,7 @@ public class NetworkController implements IoController.Delegate,
 
             @Override
             public Device getDevice() {
-                Device device = getBestLinkNextHopDevice(destination, null);
-                return device;
+                return getBestLinkNextHopDevice(destination, null);
             }
 
             @Override
@@ -769,7 +768,7 @@ public class NetworkController implements IoController.Delegate,
 
     @Override
     public void onPacketWriteFailure(IoController controller, OutputStream outputStream, IoController.IoPacket ioPacket, UlxError error) {
-        Timber.e("ULX packet could not be written");
+        Timber.e("ULX packet could not be written. %s", error);
         ((NetworkPacket)ioPacket).handleOnWriteFailure(error);
     }
 
