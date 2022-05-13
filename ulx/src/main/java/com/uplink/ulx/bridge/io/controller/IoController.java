@@ -167,7 +167,9 @@ public class IoController implements InputStream.Delegate,
      */
     private final Queue<IoPacket> queue;
     @GuardedBy("queue")
-    private IoPacket currentPacket;
+    private volatile IoPacket currentPacket;
+    @GuardedBy("queue")
+    private OutputStream currentOutputStream;
 
     /**
      * Constructor.
@@ -177,7 +179,6 @@ public class IoController implements InputStream.Delegate,
         this.delegate = null;
         this.serializer = null;
         this.queue = new LinkedList<>();
-        this.currentPacket = null;
     }
 
     /**
@@ -260,6 +261,7 @@ public class IoController implements InputStream.Delegate,
         return this.delegate != null ? this.delegate.get() : null;
     }
 
+    @GuardedBy("queue")
     private void setCurrentPacket(IoPacket currentPacket) {
         this.currentPacket = currentPacket;
     }
@@ -331,6 +333,9 @@ public class IoController implements InputStream.Delegate,
 
             if (device != null && device.getOutputStream().getState() == Stream.State.OPEN) {
                 // Everything's ok, we can leave the loop and proceed with writing
+                synchronized (queue) {
+                    currentOutputStream = device.getOutputStream();
+                }
                 break;
             } else {
                 Timber.e("ULX destination not found");
@@ -346,6 +351,7 @@ public class IoController implements InputStream.Delegate,
                 synchronized (queue) {
                     // Clear the current packet, so the queue may proceed
                     setCurrentPacket(null);
+                    currentOutputStream = null;
 
                     notifyOnPacketWriteFailureAndCloseStream(null, ioPacket, error);
                 }
@@ -552,6 +558,7 @@ public class IoController implements InputStream.Delegate,
 
             // Set as the now active packet
             setCurrentPacket(null);
+            currentOutputStream = null;
         }
 
         // Notify the delegate
@@ -577,10 +584,19 @@ public class IoController implements InputStream.Delegate,
 
             final Device device = currentPacket != null ? currentPacket.getDevice() : null;
 
-            // Drop current packet if it cannot longer identify its device or
-            // if it belongs to the invalidated stream
             if (device == null || stream.equals(device.getOutputStream())) {
+                // Drop current packet if it cannot longer identify its device or
+                // if it belongs to the invalidated stream
                 setCurrentPacket(null);
+                currentOutputStream = null;
+            } else if (stream.equals(currentOutputStream)) {
+                // The invalidated stream is the current one, but we can still send the packet
+                // via different route (IoPacket.getDevice() resolves to another device.)
+                // In theory, there still is a tiny chance that the packet has already been sent
+                // before the stream got invalidated, but this should be handled by checking the
+                // packet's sequence number on the receiving end
+                currentOutputStream = device.getOutputStream();
+                write(currentPacket, currentOutputStream);
             }
         }
 
