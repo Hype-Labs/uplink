@@ -321,11 +321,11 @@ public class IoController implements InputStream.Delegate,
                     return;
                 }
 
-                Timber.i("ULX current packet is %s", ioPacket);
-
                 // Flag the controller as busy, so packets do not overlap
                 setCurrentPacket(ioPacket);
             }
+
+            Timber.i("ULX current packet is %s", ioPacket);
 
             device = ioPacket.getDevice();
 
