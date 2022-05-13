@@ -816,14 +816,12 @@ class BleBrowser extends BrowserCommons implements
             restarted = delegate.onAdapterRestartRequest(this);
         }
 
-        if (!restarted) {
-            Dispatch.post(() -> {
-                connectionsInProgress--;
-                if (connectionsInProgress == 0) { // We went from 1 to 0 - maybe time to start scanning
-                    updateScannerStatus();
-                }
-            });
-        }
-
+        final boolean adapterRestarted = restarted;
+        Dispatch.post(() -> {
+            connectionsInProgress--;
+            if (connectionsInProgress == 0 && !adapterRestarted) { // We went from 1 to 0 - maybe time to start scanning
+                updateScannerStatus();
+            }
+        });
     }
 }
