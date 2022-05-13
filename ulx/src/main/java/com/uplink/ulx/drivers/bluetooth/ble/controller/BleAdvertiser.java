@@ -648,11 +648,24 @@ class BleAdvertiser extends AdvertiserCommons implements
 
         final BluetoothLeAdvertiser advertiser = getBluetoothLeAdvertiser();
         if (advertiser != null) {
-            Dispatch.post(() -> advertiser.startAdvertising(
-                    getAdvertiseSettings(),
-                    getAdvertiseData(),
-                    getAdvertiseCallback()
-            ));
+            Dispatch.post(() -> {
+                try {
+                    advertiser.startAdvertising(
+                            getAdvertiseSettings(),
+                            getAdvertiseData(),
+                            getAdvertiseCallback()
+                    );
+                } catch (Exception e) {
+                    onFailedStart(
+                            new UlxError(
+                                    UlxErrorCode.ADAPTER_DISABLED,
+                                    "Could not start advertising",
+                                    "Bluetooth is turned off",
+                                    "Turn Bluetooth adapter on"
+                            )
+                    );
+                }
+            });
         } else {
             onFailedStart(
                     new UlxError(
