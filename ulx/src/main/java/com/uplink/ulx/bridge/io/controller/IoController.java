@@ -347,7 +347,7 @@ public class IoController implements InputStream.Delegate,
                     // Clear the current packet, so the queue may proceed
                     setCurrentPacket(null);
 
-                    notifyOnPacketWriteFailure(null, ioPacket, error);
+                    notifyOnPacketWriteFailureAndCloseStream(null, ioPacket, error);
                 }
             }
         }
@@ -393,18 +393,23 @@ public class IoController implements InputStream.Delegate,
 
         // An error from the encoder is not considered a programming error
         if (result.getError() != null) {
-            notifyOnPacketWriteFailure(outputStream, ioPacket, result.getError());
+            notifyOnPacketWriteFailureAndCloseStream(outputStream, ioPacket, result.getError());
             return;
         }
 
         // Write the result
         Timber.i("ULX-M writing packet %s", ioPacket.toString());
         final IoResult ioResult = outputStream.write(result.getData());
+
+        if (ioResult.getError() != null) {
+            notifyOnPacketWriteFailureAndCloseStream(outputStream, ioPacket, ioResult.getError());
+            return;
+        }
+
         Timber.d(
-                "Buffered %d bytes from %d. Error: %s",
+                "Buffered %d bytes from %d",
                 ioResult.getByteCount(),
-                result.getData().length,
-                ioResult.getError()
+                result.getData().length
         );
     }
 
@@ -439,15 +444,22 @@ public class IoController implements InputStream.Delegate,
     /**
      * Propagates a notification of an {@link
      * Delegate#onPacketWriteFailure(IoController, OutputStream, IoPacket, UlxError)}
-     * event to the {@link Delegate}.
+     * event to the {@link Delegate} and closes the output stream if it is not {@code null}
      * @param outputStream The {@link OutputStream} that failed to write.
      * @param ioPacket The {@link IoPacket}.
      * @param error An error, describing the cause for the failure.
      */
-    private void notifyOnPacketWriteFailure(OutputStream outputStream, IoPacket ioPacket, UlxError error) {
+    private void notifyOnPacketWriteFailureAndCloseStream(
+            OutputStream outputStream,
+            IoPacket ioPacket,
+            UlxError error
+    ) {
         Delegate delegate = getDelegate();
         if (delegate != null) {
             delegate.onPacketWriteFailure(this, outputStream, ioPacket, Objects.requireNonNull(error));
+        }
+        if (outputStream != null) {
+            outputStream.close(error);
         }
     }
 
