@@ -2,6 +2,6 @@
 <network-security-config>
     <domain-config cleartextTrafficPermitted="true">
         <!-- allow cleartext http request to POC Server-->
-        <domain includeSubdomains="true">15.237.128.149</domain>
+        <domain includeSubdomains="true">18.230.194.252</domain>
     </domain-config>
 </network-security-config>
