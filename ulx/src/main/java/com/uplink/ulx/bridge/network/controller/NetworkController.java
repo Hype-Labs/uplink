@@ -1,6 +1,7 @@
 package com.uplink.ulx.bridge.network.controller;
 
 import android.content.Context;
+import android.os.CountDownTimer;
 
 import com.uplink.ulx.UlxError;
 import com.uplink.ulx.bridge.SequenceGenerator;
@@ -24,6 +25,7 @@ import com.uplink.ulx.drivers.model.OutputStream;
 import com.uplink.ulx.model.Instance;
 import com.uplink.ulx.threading.Dispatch;
 import com.uplink.ulx.threading.ExecutorPool;
+import com.uplink.ulx.utils.NonTickingTimer;
 
 import org.json.JSONObject;
 
@@ -56,6 +58,8 @@ public class NetworkController implements IoController.Delegate,
 
     private static final int INTERNET_CONNECT_TIMEOUT_MS = 10_000;
     private static final int INTERNET_READ_TIMEOUT_MS = 10_000;
+    // Timeout for internet request - including mesh relay
+    private static final long INTERNET_REQUEST_TIMEOUT_MS = 40_000;
 
     /**
      * The {@link NetworkController} delegate receives notifications from the
@@ -204,7 +208,7 @@ public class NetworkController implements IoController.Delegate,
     private final Instance hostInstance;
 
     private Delegate delegate;
-    private InternetRequestDelegate internetRequestDelegate;
+    private volatile InternetRequestDelegate internetRequestDelegate;
 
     // This identifier is used to give a sequence number to packets as they are
     // being dispatched. The sequence begins in 0 and resets at 65535.
@@ -223,6 +227,11 @@ public class NetworkController implements IoController.Delegate,
     private final ConcurrentMap<Device, Integer> sentIHops;
 
     private NetworkStateListener networkStateListener;
+
+    /**
+     * Maps sequence numbers to internet request timeout timers
+     */
+    private final ConcurrentMap<Integer, CountDownTimer> internetTimeouts = new ConcurrentHashMap<>();
 
     public static NetworkController newInstance(Instance hostInstance, Context context) {
         final NetworkController instance = new NetworkController(hostInstance, context);
@@ -1019,22 +1028,57 @@ public class NetworkController implements IoController.Delegate,
     private void handleInternetResponsePacketReceived(Device device, InternetResponsePacket packet) {
 
         if (getHostInstance().equals(packet.getOriginator())) {
-            // It was our request that failed
 
             if (packet.getCode() != InternetResponsePacket.CODE_IO_GENERIC_FAILURE) {
-                notifyOnInternetResponse(
-                        getInternetRequestDelegate(),
+                localNotifyOnInternetResponse(
+                        packet.getSequenceIdentifier(),
                         packet.getCode(),
                         packet.getData()
                 );
             } else {
                 // The request has failed
-                notifyOnInternetRequestFailure(getInternetRequestDelegate(), packet.getData());
+                localNotifyOnInternetRequestFailure(
+                        packet.getSequenceIdentifier(),
+                        packet.getData()
+                );
             }
         } else {
             // Forward the response
             forwardInternetResponsePacket(packet, device);
         }
+    }
+
+    /**
+     * Notify local request delegate about internet request failure
+     *
+     * @param sequence sequence number used to create a request
+     * @param data     http response body
+     */
+    private void localNotifyOnInternetRequestFailure(int sequence, String data) {
+        final CountDownTimer timer = internetTimeouts.remove(sequence);
+        if (timer != null) {
+            timer.cancel();
+            notifyOnInternetRequestFailure(getInternetRequestDelegate(), data);
+        } // else timeout has already been triggered
+    }
+
+    /**
+     * Notify local request delegate about internet request success
+     *
+     * @param sequence sequence number used to create a request
+     * @param code     http response code
+     * @param data     http response body
+     */
+    private void localNotifyOnInternetResponse(int sequence, int code, String data) {
+        final CountDownTimer timer = internetTimeouts.remove(sequence);
+        if (timer != null) {
+            timer.cancel();
+            notifyOnInternetResponse(
+                    getInternetRequestDelegate(),
+                    code,
+                    data
+            );
+        } // else timeout has already been triggered
     }
 
     private void forwardMeshPacket(DataPacket packet, Device splitHorizon) {
@@ -1526,6 +1570,9 @@ public class NetworkController implements IoController.Delegate,
         final Instance originator = getHostInstance();
         final String data = jsonObject.toString();
         final int seqNumber = getSequenceGenerator().generate();
+
+        setInternetRequestTimeout(seqNumber);
+
         // I'm not a fan of the pattern of passing the InternetRequestDelegate
         // through the stack, but this will work as a work around for now.
         makeInternetRequest(
@@ -1539,10 +1586,7 @@ public class NetworkController implements IoController.Delegate,
 
             @Override
             public void onInternetResponse(NetworkController networkController, int code, String message) {
-                final InternetRequestDelegate requestDelegate = getInternetRequestDelegate();
-                if (requestDelegate != null) {
-                    requestDelegate.onInternetResponse(networkController, code, message);
-                }
+                localNotifyOnInternetResponse(seqNumber, code, message);
             }
 
             @Override
@@ -1565,10 +1609,27 @@ public class NetworkController implements IoController.Delegate,
                             0 // will be incremented by the next hop
                     );
                 } else {
-                    notifyOnInternetRequestFailure(getInternetRequestDelegate(), errorMessage);
+                    localNotifyOnInternetRequestFailure(seqNumber, errorMessage);
                 }
             }
         });
+    }
+
+    private void setInternetRequestTimeout(int seqNumber) {
+        internetTimeouts.put(seqNumber, new NonTickingTimer(INTERNET_REQUEST_TIMEOUT_MS) {
+            @Override
+            public void onFinish() {
+                if (internetTimeouts.remove(seqNumber, this)) {
+                    final InternetRequestDelegate requestDelegate = getInternetRequestDelegate();
+                    if (requestDelegate != null) {
+                        requestDelegate.onInternetRequestFailure(
+                                NetworkController.this,
+                                "Request timed out"
+                        );
+                    }
+                }// else the response was already handled
+            }
+        }.start());
     }
 
     /**
@@ -1699,10 +1760,7 @@ public class NetworkController implements IoController.Delegate,
                 String errorMessage = error.getDescription();
                 if (originator.equals(getHostInstance())) {
                     // It was our request that failed
-                    notifyOnInternetRequestFailure(
-                            getInternetRequestDelegate(),
-                            errorMessage
-                    );
+                    localNotifyOnInternetRequestFailure(sequence, errorMessage);
                 } else {
                     // Forward the failure to the originator
                     final InternetResponsePacket responsePacket = new InternetResponsePacket(
