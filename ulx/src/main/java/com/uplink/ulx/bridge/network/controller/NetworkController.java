@@ -924,11 +924,12 @@ public class NetworkController implements IoController.Delegate,
         final String data = packet.getData();
         final int test = packet.getTest();
         int hopCount = packet.getHopCount() + 1;
+        final int seqNumber = packet.getSequenceIdentifier();
         // I'm not a fan of the pattern of passing the InternetRequestDelegate
         // through the stack, but this will work as a work around for now.
         makeInternetRequest(
                 originator,
-                packet.getSequenceIdentifier(),
+                seqNumber,
                 url,
                 data,
                 test,
@@ -940,7 +941,7 @@ public class NetworkController implements IoController.Delegate,
                 Timber.i("ULX is redirecting an Internet response packet");
 
                 final InternetResponsePacket responsePacket = new InternetResponsePacket(
-                        getSequenceGenerator().generate(),
+                        seqNumber,
                         code,
                         message,
                         originator
@@ -987,7 +988,7 @@ public class NetworkController implements IoController.Delegate,
                 final Device nextHop = getBestInternetLinkNextHopDevice(device);
                 if (nextHop != null && hopCount < RoutingTable.MAXIMUM_HOP_COUNT) {
                     makeMeshInternetRequest(
-                            getSequenceGenerator().generate(),
+                            seqNumber,
                             originator,
                             url,
                             data,
@@ -997,7 +998,7 @@ public class NetworkController implements IoController.Delegate,
                 } else {
                     // Forward the failure to the originator
                     final InternetResponsePacket responsePacket = new InternetResponsePacket(
-                            getSequenceGenerator().generate(),
+                            seqNumber,
                             InternetResponsePacket.CODE_IO_GENERIC_FAILURE,
                             errorMessage,
                             originator
@@ -1704,7 +1705,7 @@ public class NetworkController implements IoController.Delegate,
                 } else {
                     // Forward the failure to the originator
                     final InternetResponsePacket responsePacket = new InternetResponsePacket(
-                            getSequenceGenerator().generate(),
+                            sequence,
                             InternetResponsePacket.CODE_IO_GENERIC_FAILURE,
                             errorMessage,
                             originator
