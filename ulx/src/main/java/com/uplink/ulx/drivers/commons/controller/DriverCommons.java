@@ -209,9 +209,7 @@ public abstract class DriverCommons implements
      * @param error The error that will be used to report a failed start.
      */
     private void handleFailedStart(UlxError error) {
-        if (getAdvertiserError() != null && getBrowserError() != null) {
-            getStateManager().notifyFailedStart(error);
-        }
+        getStateManager().notifyFailedStart(error);
     }
 
     /**
