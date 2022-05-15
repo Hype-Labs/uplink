@@ -435,7 +435,7 @@ class BleBrowser extends BrowserCommons implements
         onFailedStart(error);
 
         // Restart the adapter
-        getBluetoothAdapter().enable();
+        enableAdapter();
     }
 
     @SuppressLint("MissingPermission")
@@ -593,8 +593,18 @@ class BleBrowser extends BrowserCommons implements
         connector.removeInvalidationCallback(this);
     }
 
+    @SuppressLint("MissingPermission")
+    private void enableAdapter() {
+        if (getBluetoothAdapter().isEnabled()) {
+            onAdapterEnabled(null);
+        } else {
+            getBluetoothAdapter().enable();
+        }
+    }
+
     @Override
     public void onAdapterEnabled(BluetoothStateListener bluetoothStateListener) {
+        Timber.i("ULX BLE adapter enabled");
         if (getState() != Browser.State.RUNNING) {
             onReady();
         }
@@ -621,7 +631,8 @@ class BleBrowser extends BrowserCommons implements
 
         // Enable
         Timber.i("ULX is enabling the BLE adapter");
-        getBluetoothAdapter().enable();
+
+        enableAdapter();
     }
 
     private void notifyAllDevicesAsDisconnected() {
