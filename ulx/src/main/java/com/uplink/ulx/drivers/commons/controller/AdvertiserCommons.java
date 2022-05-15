@@ -59,7 +59,7 @@ public abstract class AdvertiserCommons implements
     }
 
     @CallSuper
-    protected void initialize() {
+    protected void initialize(String className) {
         stateManager.setRef(new StateManager(new StateManager.Delegate() {
             @Override
             public void requestStart(StateManager stateManager) {
@@ -102,7 +102,7 @@ public abstract class AdvertiserCommons implements
                     stateDelegate.onStateChange(AdvertiserCommons.this);
                 }
             }
-        }));
+        }, className));
     }
 
     /**
@@ -224,12 +224,20 @@ public abstract class AdvertiserCommons implements
     }
 
     protected void onStop(UlxError error) {
-        Timber.i("ULX advertiser stopped");
+        String info = "ULX advertiser stopped.  ";
+        if (error != null) {
+            info = info + error;
+        }
+        Timber.i(info);
         getStateManager().notifyStop(error);
     }
 
     protected void onFailedStart(UlxError error) {
-        Timber.i("ULX advertiser failed to start");
+        String info = "ULX advertiser failed to start. ";
+        if (error != null) {
+            info = info + error;
+        }
+        Timber.i(info);
         getStateManager().notifyFailedStart(error);
     }
 

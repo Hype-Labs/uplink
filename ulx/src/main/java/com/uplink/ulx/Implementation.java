@@ -142,7 +142,7 @@ public class Implementation implements
                 public void onStateChange(StateManager stateManager) {
                     notifyStateChange();
                 }
-            });
+            }, this.getClass().getSimpleName());
         }
         return this.stateManager;
     }
@@ -356,6 +356,7 @@ public class Implementation implements
      * method is called for the first time.
      */
     public synchronized void start() {
+        Timber.i("ULX is starting");
         getStateManager().start();
     }
 

@@ -38,7 +38,7 @@ public class BleActiveConnector extends ConnectorCommons implements GattClient.C
             GattClient gattClient
     ) {
         final BleActiveConnector instance = new BleActiveConnector(identifier, gattClient);
-        instance.initialize();
+        instance.initialize(instance.getClass().getSimpleName());
 
         // Assume the delegate
         gattClient.setConnectorDelegate(instance);

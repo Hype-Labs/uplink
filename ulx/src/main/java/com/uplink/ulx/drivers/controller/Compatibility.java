@@ -3,9 +3,7 @@ package com.uplink.ulx.drivers.controller;
 import android.bluetooth.BluetoothManager;
 import android.content.Context;
 import android.content.pm.PackageManager;
-
 import com.uplink.ulx.TransportType;
-
 import timber.log.Timber;
 
 /**

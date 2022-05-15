@@ -51,7 +51,7 @@ public class BleDriver extends DriverCommons
      */
     public static BleDriver newInstance(String identifier, @NonNull Context context) {
         final BleDriver instance = new BleDriver(identifier, context);
-        instance.initialize();
+        instance.initialize(instance.getClass().getSimpleName());
         
         Bridge.getInstance().setInternetConnectionCallback(instance);
 
@@ -180,6 +180,7 @@ public class BleDriver extends DriverCommons
 
     @Override
     public void onInternetConnectionUpdated(NetworkController networkController, boolean hasInternetConnection) {
+        Timber.d("Internet Connection Callback received! hasInternet = " + hasInternetConnection);
         this.hasInternetConnection = hasInternetConnection;
         if (hasInternetConnection) {
             // if a valid internet connection is available, start advertising

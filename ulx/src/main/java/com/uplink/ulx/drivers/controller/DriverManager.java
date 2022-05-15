@@ -17,6 +17,8 @@ import java.util.concurrent.TimeUnit;
 
 import androidx.annotation.NonNull;
 
+import timber.log.Timber;
+
 /**
  * A DriverManager is a collection of drivers that also behaves as a driver
  * itself. For example, when the driver manager is requested to start, all of
@@ -145,7 +147,7 @@ public class DriverManager implements Driver, Driver.NetworkDelegate, Driver.Sta
                     public void requestStop(StateManager stateManager) {
                         requestAllDriversToStop();
                     }
-                }));
+                }, this.getClass().getSimpleName()));
 
         driverFactory.setRef(new DriverFactory(getContext(), this, this));
     }
@@ -324,6 +326,8 @@ public class DriverManager implements Driver, Driver.NetworkDelegate, Driver.Sta
      * will be notified.
      */
     private void requestAllDriversToStart() {
+
+        Timber.i("Requesting all drivers to start!");
 
         // This error is a bit too generic for the purpose that it serves. It
         // just so happens that this method does not have a lot of information

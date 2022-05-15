@@ -201,7 +201,7 @@ class BleAdvertiser extends AdvertiserCommons implements
                 context,
                 operationsManager
         );
-        instance.initialize();
+        instance.initialize(instance.getClass().getSimpleName());
         return instance;
     }
 
@@ -224,8 +224,8 @@ class BleAdvertiser extends AdvertiserCommons implements
     }
 
     @Override
-    protected void initialize() {
-        super.initialize();
+    protected void initialize(String className) {
+        super.initialize(this.getClass().getSimpleName());
         BluetoothStateListener.addObserver(this);
     }
 
@@ -386,6 +386,7 @@ class BleAdvertiser extends AdvertiserCommons implements
 
     @Override
     public void onAdapterEnabled(BluetoothStateListener bluetoothStateListener) {
+        Timber.i("ULX BLE adapter enabled");
         if (getState() != Advertiser.State.RUNNING) {
             onReady();
         }
@@ -393,7 +394,7 @@ class BleAdvertiser extends AdvertiserCommons implements
 
     @Override
     public void onAdapterDisabled(BluetoothStateListener bluetoothStateListener) {
-
+        Timber.i("ULX BLE adapter disabled");
         if (getState() == Advertiser.State.RUNNING || getState() == Advertiser.State.STARTING) {
 
             UlxError error = new UlxError(

@@ -31,7 +31,7 @@ public class BlePassiveConnector extends ConnectorCommons {
                 bluetoothDevice,
                 domesticService
         );
-        instance.initialize();
+        instance.initialize(instance.getClass().getSimpleName());
         return instance;
     }
 

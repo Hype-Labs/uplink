@@ -362,6 +362,7 @@ public class Service extends android.app.Service implements
      * call to all underlying drivers.
      */
     public void start() {
+        Timber.i("Starting ULX service!");
         getDriverManager().start();
     }
 
@@ -391,6 +392,7 @@ public class Service extends android.app.Service implements
 
     @Override
     public void onInitialization(Bridge bridge, Instance hostInstance) {
+        Timber.i("ULX initialized. Instance ID = " + hostInstance.getStringIdentifier());
         StateDelegate stateDelegate = getStateDelegate();
         if (stateDelegate != null) {
             stateDelegate.onInitialization(this, hostInstance);

@@ -17,7 +17,7 @@ public class BlePassiveInputStream extends InputStreamCommons {
 
     public static BlePassiveInputStream newInstance(String identifier) {
         final BlePassiveInputStream instance = new BlePassiveInputStream(identifier);
-        instance.initialize();
+        instance.initialize(instance.getClass().getSimpleName());
         return instance;
     }
 

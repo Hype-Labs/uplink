@@ -38,7 +38,7 @@ public class BlePassiveOutputStream extends OutputStreamCommons {
                 bluetoothDevice,
                 characteristic
         );
-        instance.initialize();
+        instance.initialize(instance.getClass().getSimpleName());
         return instance;
     }
 
