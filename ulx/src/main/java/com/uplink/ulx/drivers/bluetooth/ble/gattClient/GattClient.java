@@ -31,6 +31,7 @@ import java.util.Objects;
 import java.util.UUID;
 
 import androidx.annotation.MainThread;
+import androidx.annotation.Nullable;
 import timber.log.Timber;
 
 /**
@@ -288,7 +289,11 @@ public class GattClient extends BluetoothGattCallback {
                                 // on or even needing to reboot the device to fix it.
                                 operationsManager.enqueue(completable -> {
                                     if (bluetoothGatt != null) {
-                                        bluetoothGatt.close();
+                                        try {
+                                            bluetoothGatt.close();
+                                        } catch (Exception e) {
+                                            Timber.w(e, "Failed to close BluetoothGatt");
+                                        }
                                     }
                                     completable.markAsComplete();
                                 });
@@ -455,6 +460,7 @@ public class GattClient extends BluetoothGattCallback {
      * @return The Bluetooth GATT profile abstraction.
      */
     @MainThread
+    @Nullable
     private BluetoothGatt getBluetoothGatt() {
 
         // Make sure we're on the main thread
@@ -504,7 +510,7 @@ public class GattClient extends BluetoothGattCallback {
                     public void run(Completable completable) {
                         BluetoothGatt bluetoothGatt = getBluetoothGatt();
 
-                        if (bluetoothGatt.connect()) {
+                        if (bluetoothGatt != null && bluetoothGatt.connect()) {
                             Timber.i(
                                     "ULX connection request for native device %s accepted",
                                     getBluetoothDevice().getAddress()
