@@ -10,6 +10,8 @@ import java.util.Objects;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 
+import timber.log.Timber;
+
 /**
  * A StateManager is the entity responsible for managing the state of many
  * classes through the SDK implementation. Each stateful class (e.g. Connector,
@@ -99,6 +101,7 @@ public class StateManager {
 
     private State state;
     private State requestedState;
+    private String className;
     private final Delegate delegate;
 
 
@@ -108,10 +111,11 @@ public class StateManager {
      *
      * @param delegate The state manager's delegate.
      */
-    public StateManager(Delegate delegate) {
+    public StateManager(Delegate delegate, String className) {
 
         Objects.requireNonNull(delegate);
 
+        this.className = className;
         this.state = State.IDLE;
         this.requestedState = State.IDLE;
         this.delegate = delegate;
@@ -136,6 +140,9 @@ public class StateManager {
 
         // Don't keep the lock during the delegate call
         if (triggerDelegate) {
+            // TODO: this log is here for debugging purposes. It might be creating a lot of logs
+            // unnecessarily. Uncomment only when needed
+            //Timber.i("State for " + className + " changed to " + state.toString());
             getDelegate().onStateChange(this);
         }
     }

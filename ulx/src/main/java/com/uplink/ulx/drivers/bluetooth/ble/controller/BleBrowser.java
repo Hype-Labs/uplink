@@ -174,7 +174,7 @@ class BleBrowser extends BrowserCommons implements
                 operationsManager,
                 context
         );
-        browser.initialize();
+        browser.initialize(browser.getClass().getSimpleName());
         BluetoothStateListener.addObserver(browser);
         return browser;
     }

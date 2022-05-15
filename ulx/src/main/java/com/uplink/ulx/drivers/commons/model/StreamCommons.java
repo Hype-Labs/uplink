@@ -59,7 +59,7 @@ public abstract class StreamCommons implements
         this.invalidationCallbacks = new CopyOnWriteArrayList<>();
     }
     
-    protected void initialize() {
+    protected void initialize(String className) {
         stateManager.setRef(new StateManager(new StateManager.Delegate(){
             @Override
             public void requestStart(StateManager stateManager) {
@@ -106,7 +106,7 @@ public abstract class StreamCommons implements
                     stateDelegate.onStateChange(StreamCommons.this);
                 }
             }
-        }));
+        }, this.getClass().getSimpleName()));
     }
 
     /**

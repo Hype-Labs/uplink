@@ -28,7 +28,7 @@ import timber.log.Timber;
  * the Stream's InvalidationCallback methods for the child class to implement.
  * <br>
  * CONTRACT: subclasses must hide their constructors, create a factory method(s) and
- * call {@link ConnectorCommons#initialize()} before returning the new instance
+ * call {@link ConnectorCommons#initialize(String className)} before returning the new instance
  */
 public abstract class ConnectorCommons implements
         Connector {
@@ -51,7 +51,7 @@ public abstract class ConnectorCommons implements
         this.transportType = transportType;
     }
 
-    protected void initialize() {
+    protected void initialize(String className) {
         stateManager.setRef(new StateManager(new StateManager.Delegate() {
             @Override
             public void requestStart(StateManager stateManager) {
@@ -97,7 +97,7 @@ public abstract class ConnectorCommons implements
                     stateDelegate.onStateChange(ConnectorCommons.this);
                 }
             }
-        }));
+        }, className));
     }
 
     /**

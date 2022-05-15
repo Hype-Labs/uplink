@@ -311,7 +311,7 @@ public class GattClient extends BluetoothGattCallback {
             public void onStateChange(StateManager stateManager) {
                 StateManager.Delegate.super.onStateChange(stateManager);
             }
-        }));
+        }, this.getClass().getSimpleName()));
     }
 
     /**

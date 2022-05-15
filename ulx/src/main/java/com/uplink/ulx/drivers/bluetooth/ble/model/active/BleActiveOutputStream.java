@@ -50,7 +50,7 @@ public class BleActiveOutputStream extends OutputStreamCommons implements GattCl
                 gattClient,
                 outputCharacteristic
         );
-        instance.initialize();
+        instance.initialize(instance.getClass().getSimpleName());
         return instance;
     }
 

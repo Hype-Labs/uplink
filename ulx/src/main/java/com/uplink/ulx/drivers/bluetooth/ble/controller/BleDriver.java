@@ -7,6 +7,10 @@ import android.os.Handler;
 import android.os.Looper;
 
 import com.uplink.ulx.TransportType;
+import com.uplink.ulx.UlxError;
+import com.uplink.ulx.UlxErrorCode;
+import com.uplink.ulx.bridge.Bridge;
+import com.uplink.ulx.bridge.network.controller.NetworkController;
 import com.uplink.ulx.drivers.bluetooth.ble.model.passive.BleDomesticService;
 import com.uplink.ulx.drivers.bluetooth.commons.BluetoothStateListener;
 import com.uplink.ulx.drivers.commons.controller.DriverCommons;
@@ -30,9 +34,10 @@ public class BleDriver extends DriverCommons implements Driver {
 
     private BluetoothManager bluetoothManager;
     private BleDomesticService bleDomesticService;
-    private Advertiser advertiser;
-    private Browser browser;
+    private final Advertiser advertiser;
+    private final Browser browser;
     private final SerialOperationsManager operationsManager;
+    private volatile boolean hasInternetConnection;
 
     /**
      * Factory method. Initializes with the given parameters. It also makes sure
@@ -44,7 +49,16 @@ public class BleDriver extends DriverCommons implements Driver {
      */
     public static BleDriver newInstance(String identifier, @NonNull Context context) {
         final BleDriver instance = new BleDriver(identifier, context);
-        instance.initialize();
+        instance.initialize(instance.getClass().getSimpleName());
+
+        instance.browser.setDelegate(instance);
+        instance.browser.setStateDelegate(instance);
+        instance.browser.setNetworkDelegate(instance);
+
+        instance.advertiser.setDelegate(instance);
+        instance.advertiser.setStateDelegate(instance);
+        instance.advertiser.setNetworkDelegate(instance);
+        
         return instance;
     }
 
@@ -56,6 +70,24 @@ public class BleDriver extends DriverCommons implements Driver {
         operationsManager = new SerialOperationsManager(
                 ExecutorCompat.create(new Handler(Looper.getMainLooper()))
         );
+
+        browser = BleBrowser.newInstance(
+                getIdentifier(),
+                getBluetoothManager(),
+                getDomesticService(),
+                operationsManager,
+                getContext()
+        );
+
+        advertiser = BleAdvertiser.newInstance(
+                getIdentifier(),
+                getBluetoothManager(),
+                getDomesticService(),
+                operationsManager,
+                getContext()
+        );
+
+        hasInternetConnection = false;
     }
 
     /**
@@ -89,35 +121,11 @@ public class BleDriver extends DriverCommons implements Driver {
 
     @Override
     public Advertiser getAdvertiser() {
-        if (this.advertiser == null) {
-            this.advertiser = BleAdvertiser.newInstance(
-                    getIdentifier(),
-                    getBluetoothManager(),
-                    getDomesticService(),
-                    operationsManager,
-                    getContext()
-            );
-            this.advertiser.setDelegate(this);
-            this.advertiser.setStateDelegate(this);
-            this.advertiser.setNetworkDelegate(this);
-        }
         return this.advertiser;
     }
 
     @Override
     public Browser getBrowser() {
-        if (this.browser == null) {
-            this.browser = BleBrowser.newInstance(
-                    getIdentifier(),
-                    getBluetoothManager(),
-                    getDomesticService(),
-                    operationsManager,
-                    getContext()
-            );
-            this.browser.setDelegate(this);
-            this.browser.setStateDelegate(this);
-            this.browser.setNetworkDelegate(this);
-        }
         return this.browser;
     }
 

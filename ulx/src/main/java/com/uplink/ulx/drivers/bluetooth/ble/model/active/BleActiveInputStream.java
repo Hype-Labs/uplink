@@ -34,7 +34,7 @@ public class BleActiveInputStream extends InputStreamCommons implements GattClie
                 gattClient,
                 inputCharacteristic
         );
-        instance.initialize();
+        instance.initialize(instance.getClass().getSimpleName());
         return instance;
     }
 

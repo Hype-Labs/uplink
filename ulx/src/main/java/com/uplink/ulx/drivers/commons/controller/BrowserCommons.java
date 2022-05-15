@@ -58,7 +58,7 @@ public abstract class BrowserCommons implements
         this.context = new WeakReference<>(context);
     }
     
-    protected void initialize() {
+    protected void initialize(String className) {
         stateManager.setRef(new StateManager(new StateManager.Delegate() {
             @Override
             public void requestStart(StateManager stateManager) {
@@ -101,7 +101,7 @@ public abstract class BrowserCommons implements
                     stateDelegate.onStateChange(BrowserCommons.this);
                 }
             }
-        }));
+        }, className));
     }
 
     /**
@@ -213,12 +213,20 @@ public abstract class BrowserCommons implements
     }
 
     protected void onStop(UlxError error) {
-        Timber.i("ULX browser stopped");
+        String info = "ULX browser stopped.  ";
+        if (error != null) {
+            info = info + error;
+        }
+        Timber.i(info);
         getStateManager().notifyStop(error);
     }
 
     protected void onFailedStart(UlxError error) {
-        Timber.i("ULX browser failed to start");
+        String info = "ULX browser failed to start. ";
+        if (error != null) {
+            info = info + error;
+        }
+        Timber.i(info);
         getStateManager().notifyFailedStart(error);
     }
 

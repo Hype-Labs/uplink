@@ -12,6 +12,8 @@ import java.util.concurrent.CopyOnWriteArrayList;
 
 import androidx.annotation.NonNull;
 
+import timber.log.Timber;
+
 /**
  * This class is shared by all Bluetooth implementations (Bluetooth Classic and
  * Bluetooth Low Energy) in order to assert whether the Bluetooth adapter is on
@@ -105,6 +107,7 @@ public class BluetoothStateListener extends AbstractStateListener implements Bro
      * @see Observer
      */
     public static void addObserver(Observer observer) {
+        Timber.d("Added bluetooth state observer!");
         getInstance().observers.addIfAbsent(observer);
     }
 
@@ -135,6 +138,7 @@ public class BluetoothStateListener extends AbstractStateListener implements Bro
 
     @Override
     public void onAdapterEnabled(BroadcastReceiver broadcastReceiver) {
+        Timber.d("Bluetooth Adapter enabled!");
         for (final Observer observer : observers) {
             observer.onAdapterEnabled(BluetoothStateListener.this);
         }
@@ -142,6 +146,7 @@ public class BluetoothStateListener extends AbstractStateListener implements Bro
 
     @Override
     public void onAdapterDisabled(BroadcastReceiver broadcastReceiver) {
+        Timber.d("Bluetooth Adapter disabled!");
         for (final Observer observer : observers) {
             observer.onAdapterDisabled(BluetoothStateListener.this);
         }

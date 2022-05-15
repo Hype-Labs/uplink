@@ -78,7 +78,7 @@ public abstract class DriverCommons implements
         this.advertiserError = null;
     }
 
-    protected void initialize() {
+    protected void initialize(String className) {
         stateManager.setRef(new StateManager(new StateManager.Delegate() {
             @Override
             public void requestStart(StateManager stateManager) {
@@ -127,7 +127,7 @@ public abstract class DriverCommons implements
                     delegate.onStateChange(DriverCommons.this);
                 }
             }
-        }));
+        }, className));
     }
 
     /**
@@ -252,6 +252,7 @@ public abstract class DriverCommons implements
 
         // Don't proceed when IDLE
         if (getState() != State.IDLE) {
+            Timber.i("Not issuing ready Because state was Idle!");
             return;
         }
 
