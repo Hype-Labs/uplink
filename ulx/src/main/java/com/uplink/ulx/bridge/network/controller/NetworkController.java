@@ -1525,11 +1525,12 @@ public class NetworkController implements IoController.Delegate,
     public void sendInternet(URL url, JSONObject jsonObject, int test) {
         final Instance originator = getHostInstance();
         final String data = jsonObject.toString();
+        final int seqNumber = getSequenceGenerator().generate();
         // I'm not a fan of the pattern of passing the InternetRequestDelegate
         // through the stack, but this will work as a work around for now.
         makeInternetRequest(
                 originator,
-                getSequenceGenerator().generate(),
+                seqNumber,
                 url,
                 data,
                 test,
@@ -1556,7 +1557,7 @@ public class NetworkController implements IoController.Delegate,
                 final Device nextHop = getBestInternetLinkNextHopDevice(null);
                 if (nextHop != null && 0 < RoutingTable.MAXIMUM_HOP_COUNT) {
                     makeMeshInternetRequest(
-                            getSequenceGenerator().generate(),
+                            seqNumber,
                             originator,
                             url,
                             data,
