@@ -64,6 +64,7 @@ public class MainActivity extends AppCompatActivity implements StateObserver, Ne
     private TextView logTextView;
     private ScrollView appLogScrollView;
     private TextView appLogTextView;
+    private TextView foundInstancesTextView;
     private SimpleDateFormat dateFormatter;
 
     private void logInfo(String message) {
@@ -149,6 +150,7 @@ public class MainActivity extends AppCompatActivity implements StateObserver, Ne
         logScrollView = this.findViewById(R.id.log_scroll_view);
         appLogTextView = this.findViewById(R.id.app_log_text_view);
         appLogScrollView = this.findViewById(R.id.app_log_scroll_view);
+        foundInstancesTextView = this.findViewById(R.id.found_instances_label);
         dateFormatter = new SimpleDateFormat("MMM d, HH:mm:ss", Locale.US);
 
         Timber.plant(new LogTree());
@@ -197,7 +199,10 @@ public class MainActivity extends AppCompatActivity implements StateObserver, Ne
 
         //sendMessage(instance);
         getInstanceMap().put(instance.getStringIdentifier(), instance);
-        this.runOnUiThread(() -> adapter.updateInstancesList(new ArrayList<>(getInstanceMap().keySet())));
+        this.runOnUiThread(() -> {
+            adapter.updateInstancesList(new ArrayList<>(getInstanceMap().keySet()));
+            foundInstancesTextView.setText("FOUND INSTANCES (" + instanceMap.size() + ")");
+        });
     }
 
     @Override
