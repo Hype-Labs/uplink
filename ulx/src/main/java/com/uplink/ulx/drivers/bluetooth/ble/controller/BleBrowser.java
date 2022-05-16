@@ -598,7 +598,9 @@ class BleBrowser extends BrowserCommons implements
         if (getBluetoothAdapter().isEnabled()) {
             onAdapterEnabled(null);
         } else {
-            getBluetoothAdapter().enable();
+            Dispatch.postDelayed(() -> {
+                getBluetoothAdapter().enable();
+            }, 3_000L);
         }
     }
 

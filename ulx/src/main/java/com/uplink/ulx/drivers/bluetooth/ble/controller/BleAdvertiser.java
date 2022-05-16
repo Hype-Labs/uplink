@@ -315,7 +315,12 @@ class BleAdvertiser extends AdvertiserCommons implements
     @Override
     public void requestAdapterToStart() {
 
-        Dispatch.post(() -> {
+        // Close existing connections, if any. This is only for the advertiser/internet approach,
+        // because starting the advertiser with existing connections will mess up, as the BT adapter
+        // gets a new address and the connections are maintained. It requires a cleanup.
+        closeExistingConnections();
+
+        Dispatch.postDelayed(() -> {
 
             // Is BLE advertiser available?
             final BluetoothLeAdvertiser advertiser = getBluetoothAdapter().getBluetoothLeAdvertiser();
@@ -330,7 +335,7 @@ class BleAdvertiser extends AdvertiserCommons implements
 
             // Start the service
             getGattServer().addService();
-        });
+        }, 5_000L);
     }
 
     /**
@@ -474,7 +479,8 @@ class BleAdvertiser extends AdvertiserCommons implements
         }
 
         if (device == null) {
-            Timber.w("ULX Device not found. Ignoring disconnection event");
+            Timber.w("ULX Device not found. Canceling connection on gatt server!");
+            getGattServer().cancelConnection(bluetoothDevice);
             return;
         }
 
@@ -799,6 +805,13 @@ class BleAdvertiser extends AdvertiserCommons implements
         Advertiser.Delegate delegate = getDelegate();
         if (delegate != null) {
             delegate.onAdapterRestartRequest(this);
+        }
+    }
+
+    private void closeExistingConnections() {
+        for (Device device : deviceRegistry.values()) {
+            Timber.i("Closing existing connection!");
+            ((BlePassiveConnector)device.getConnector()).disconnect();
         }
     }
 

@@ -1,5 +1,6 @@
 package com.uplink.ulx.drivers.bluetooth.ble.gattServer;
 
+import android.annotation.SuppressLint;
 import android.annotation.TargetApi;
 import android.bluetooth.BluetoothDevice;
 import android.bluetooth.BluetoothGatt;
@@ -21,6 +22,7 @@ import com.uplink.ulx.utils.Completable;
 import com.uplink.ulx.utils.SerialOperationsManager;
 
 import java.lang.ref.WeakReference;
+import java.util.List;
 import java.util.Objects;
 
 import androidx.annotation.Nullable;
@@ -695,20 +697,67 @@ public class GattServer extends BluetoothGattServerCallback {
         }
     }
 
+    public void cancelConnection(BluetoothDevice bluetoothDevice) {
+        final BluetoothGattServer gattServer = getBluetoothGattServer();
+        if (gattServer != null) {
+            gattServer.cancelConnection(bluetoothDevice);
+        }
+    }
+
     /**
      * Disconnects from the given device
      *
      * @param bluetoothDevice device to disconnect from
      */
     public void disconnect(BluetoothDevice bluetoothDevice) {
-        operationsManager.enqueue(completable -> {
-            final BluetoothGattServer gattServer = getBluetoothGattServer();
-            if (gattServer != null) {
-                gattServer.cancelConnection(bluetoothDevice);
-                completable.markAsComplete(true);
-            } else {
-                completable.markAsComplete(false);
+        final GattServer gattSrv = this;
+        operationsManager.enqueue(new SerialOperationsManager.Task() {
+            @Override
+            public void run(Completable completable) {
+                final BluetoothGattServer gattServer = getBluetoothGattServer();
+                if (gattServer != null) {
+                    gattServer.cancelConnection(bluetoothDevice);
+                    completable.markAsComplete(true);
+                } else {
+                    completable.markAsComplete(false);
+                }
+            }
+
+            @SuppressLint("MissingPermission")
+            @Override
+            public void onComplete(SerialOperationsManager.Status status) {
+                final BluetoothGattServer gattServer = getBluetoothGattServer();
+
+                if (status == SerialOperationsManager.Status.Success) {
+                    final UlxError error = new UlxError(
+                            UlxErrorCode.UNKNOWN,
+                            "Remote device was disconnected on advertiser restart",
+                            "The connection has been lost",
+                            "Let's hope the device will connect again"
+                    );
+
+                    delegate.onDeviceDisconnected(gattSrv, bluetoothDevice, error);
+                    notifyOnInvalidation(bluetoothDevice, null);
+
+                    if (gattServer != null) {
+                        List<BluetoothDevice> devices = bluetoothManager.getConnectedDevices(BluetoothProfile.GATT_SERVER);
+                        Timber.e("Logging connected devices " + devices.toString());
+                        if (gattSrv != null && devices.isEmpty()) {
+                            Timber.e("Closing gatt server. No devices connected ");
+                            gattSrv.close();
+                        }
+                    }
+
+
+                }
             }
         });
+    }
+
+    public void close() {
+        if (bluetoothGattServer != null) {
+            bluetoothGattServer.close();
+            bluetoothGattServer = null;
+        }
     }
 }

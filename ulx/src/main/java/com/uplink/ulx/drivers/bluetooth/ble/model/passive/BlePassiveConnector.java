@@ -10,6 +10,8 @@ import java.util.Objects;
 
 import androidx.annotation.NonNull;
 
+import timber.log.Timber;
+
 /**
  *
  */
@@ -71,8 +73,8 @@ public class BlePassiveConnector extends ConnectorCommons {
 
     @Override
     public void requestAdapterToDisconnect() {
-        throw new RuntimeException("Can't request a passive connector to " +
-                "disconnect because the protocol to request activity from the " +
-                "central is not implemented yet.");
+        Timber.i("Connector requested to disconnect!");
+        getGattServer().disconnect(getBluetoothDevice());
+        onDisconnection(null);
     }
 }

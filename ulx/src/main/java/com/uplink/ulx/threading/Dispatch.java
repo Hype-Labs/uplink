@@ -14,6 +14,8 @@ public class Dispatch {
         mainHandler.post(runnable);
     }
 
+    public static void postDelayed(Runnable runnable, Long delayMillis) { mainHandler.postDelayed(runnable,delayMillis); }
+
     public static void cancel(Runnable runnable) {
         mainHandler.removeCallbacks(runnable);
     }

@@ -208,6 +208,14 @@ public abstract class ConnectorCommons implements
         getStateManager().notifyStart();
     }
 
+    public void disconnect() {
+        Timber.i(
+                "ULX connector %s being requested to connect",
+                getIdentifier()
+        );
+        getStateManager().stop();
+    }
+
     public void onDisconnection(UlxError error) {
         Timber.e(
                 "ULX connector %s disconnected with error %s",
