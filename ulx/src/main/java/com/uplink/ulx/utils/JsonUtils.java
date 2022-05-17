@@ -13,7 +13,7 @@ public class JsonUtils {
     public static void minifyInternetRequestData(JSONObject jsonObject) {
         try {
             JSONObject filtered = removeEmptyJsonFields(jsonObject, Constants.getTransactionDataTemplate());
-            Timber.d("Minified JSON : " + filtered.toString(4));
+            Timber.d("Minified JSON : " + filtered.toString());
         } catch (Exception e) {
             e.printStackTrace();
         }
@@ -63,7 +63,7 @@ public class JsonUtils {
         try {
             object = new JSONObject(data);
             fillEmptyResponseFields(object, Constants.getTransactionResponseTemplate());
-            Timber.d("Full-Response JSON : " + object.toString(4));
+            Timber.d("Full-Response JSON : " + object);
             result = object.toString();
         } catch (Exception e) {
             e.printStackTrace();
