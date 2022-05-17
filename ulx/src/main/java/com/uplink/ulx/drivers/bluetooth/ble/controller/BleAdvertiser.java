@@ -622,6 +622,7 @@ class BleAdvertiser extends AdvertiserCommons implements
                     "ULX received characteristic write request from an unknown device: %s. Ignoring.",
                     bluetoothDevice.getAddress()
             );
+            getGattServer().cancelConnection(bluetoothDevice);
             return;
         }
 
