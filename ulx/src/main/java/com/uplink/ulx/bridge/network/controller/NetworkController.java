@@ -25,6 +25,7 @@ import com.uplink.ulx.drivers.model.OutputStream;
 import com.uplink.ulx.model.Instance;
 import com.uplink.ulx.threading.Dispatch;
 import com.uplink.ulx.threading.ExecutorPool;
+import com.uplink.ulx.utils.JsonUtils;
 import com.uplink.ulx.utils.NonTickingTimer;
 
 import org.json.JSONObject;
@@ -1117,10 +1118,11 @@ public class NetworkController implements IoController.Delegate,
         final CountDownTimer timer = internetTimeouts.remove(sequence);
         if (timer != null) {
             timer.cancel();
+            String fullResponse = JsonUtils.fillGapsInternetResponseData(data);
             notifyOnInternetResponse(
                     getInternetRequestDelegate(),
                     code,
-                    data
+                    fullResponse
             );
         } // else timeout has already been triggered
     }
@@ -1447,7 +1449,7 @@ public class NetworkController implements IoController.Delegate,
             Timber.v(
                     "InternetUpdate packet with i-hops count %d won't be sent to [%s], because it is already up-to-date",
                     packet.getHopCount(),
-                    device
+                    device.getIdentifier()
             );
             return;
         }
@@ -1623,6 +1625,9 @@ public class NetworkController implements IoController.Delegate,
      */
     public void sendInternet(URL url, JSONObject jsonObject, int test) {
         final Instance originator = getHostInstance();
+
+        JsonUtils.minifyInternetRequestData(jsonObject);
+
         final String data = jsonObject.toString();
         final int seqNumber = getSequenceGenerator().generate();
 
