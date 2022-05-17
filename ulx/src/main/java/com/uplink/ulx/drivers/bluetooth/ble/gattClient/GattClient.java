@@ -19,6 +19,7 @@ import com.uplink.ulx.UlxErrorCode;
 import com.uplink.ulx.drivers.bluetooth.ble.gattServer.MtuRegistry;
 import com.uplink.ulx.drivers.bluetooth.ble.model.active.BleForeignService;
 import com.uplink.ulx.drivers.bluetooth.ble.model.passive.BleDomesticService;
+import com.uplink.ulx.drivers.bluetooth.commons.BluetoothConnectionState;
 import com.uplink.ulx.drivers.commons.StateManager;
 import com.uplink.ulx.model.State;
 import com.uplink.ulx.utils.Completable;
@@ -569,11 +570,12 @@ public class GattClient extends BluetoothGattCallback {
     @Override
     public void onConnectionStateChange(BluetoothGatt bluetoothGatt, int status, int newState) {
         Timber.i(
-                "ULX connection changed for native device %s with status %d. New state: %d",
+                "ULX connection changed for native device %s with status %s. New state: %s",
                 bluetoothGatt.getDevice().getAddress(),
-                status,
-                newState
+                BluetoothConnectionState.fromValue(status).toString(),
+                BluetoothConnectionState.fromValue(newState).toString()
         );
+        ;
 
         //  hex	    Decimal	    reason
         //  0x08	8	        connection timeout

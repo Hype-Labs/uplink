@@ -287,8 +287,7 @@ public class MainActivity extends AppCompatActivity implements StateObserver, Ne
 
     @Override
     public void onUlxInternetResponse(int code, String content) {
-        logInfo( String.format("ULX[APP] got a response from the server: %d", code));
-        logInfo( String.format("ULX[APP] Server response is: %s", content));
+        logInfo( String.format("ULX[APP] Server response is: %s  code: %d ", content, code));
     }
 
     @Override

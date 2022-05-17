@@ -18,6 +18,7 @@ import android.os.Looper;
 import com.uplink.ulx.UlxError;
 import com.uplink.ulx.UlxErrorCode;
 import com.uplink.ulx.drivers.bluetooth.ble.model.passive.BleDomesticService;
+import com.uplink.ulx.drivers.bluetooth.commons.BluetoothConnectionState;
 import com.uplink.ulx.utils.Completable;
 import com.uplink.ulx.utils.SerialOperationsManager;
 
@@ -329,10 +330,10 @@ public class GattServer extends BluetoothGattServerCallback {
     @Override
     public void onConnectionStateChange(BluetoothDevice device, int status, int newState) {
         Timber.i(
-                "ULX device %s state changed. Status: %d. New state: %d",
+                "ULX device %s state changed. Status: %s. New state: %s",
                 device.getAddress(),
-                status,
-                newState
+                BluetoothConnectionState.fromValue(status).toString(),
+                BluetoothConnectionState.fromValue(newState).toString()
         );
 
         if (newState == BluetoothProfile.STATE_DISCONNECTED) {
