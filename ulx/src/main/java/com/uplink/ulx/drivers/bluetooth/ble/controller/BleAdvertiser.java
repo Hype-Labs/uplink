@@ -6,6 +6,7 @@ import android.bluetooth.BluetoothAdapter;
 import android.bluetooth.BluetoothDevice;
 import android.bluetooth.BluetoothGattService;
 import android.bluetooth.BluetoothManager;
+import android.bluetooth.BluetoothProfile;
 import android.bluetooth.le.AdvertiseCallback;
 import android.bluetooth.le.AdvertiseData;
 import android.bluetooth.le.AdvertiseSettings;
@@ -39,6 +40,7 @@ import com.uplink.ulx.threading.Dispatch;
 import com.uplink.ulx.utils.SerialOperationsManager;
 
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
@@ -69,6 +71,7 @@ class BleAdvertiser extends AdvertiserCommons implements
     private AdvertiseSettings advertiseSettings;
     private AdvertiseCallback advertiseCallback;
     private GattServer gattServer;
+    private boolean requestedToCloseAllConnections = false;
 
     /**
      * The connector registry that keeps mappings of {@link BluetoothDevice}s to {@link Connector}s
@@ -505,6 +508,16 @@ class BleAdvertiser extends AdvertiserCommons implements
                 forgetBtDevice(bluetoothDevice);
             }
         }
+
+        if (gattServer != null) {
+            @SuppressLint("MissingPermission") List<BluetoothDevice> devices = bluetoothManager.getConnectedDevices(BluetoothProfile.GATT_SERVER);
+            Timber.e("Logging connected devices " + devices.toString());
+            if (devices.isEmpty() && requestedToCloseAllConnections) {
+                requestedToCloseAllConnections = false;
+                Timber.e("Closing gatt server, since existing connections were requested to close and no devices are connected");
+                gattServer.close();
+            }
+        }
     }
 
     /**
@@ -812,6 +825,7 @@ class BleAdvertiser extends AdvertiserCommons implements
         for (Device device : deviceRegistry.values()) {
             Timber.i("Closing existing connection!");
             ((BlePassiveConnector)device.getConnector()).disconnect();
+            requestedToCloseAllConnections = true;
         }
     }
 

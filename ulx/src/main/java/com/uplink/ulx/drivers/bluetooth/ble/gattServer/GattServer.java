@@ -739,17 +739,6 @@ public class GattServer extends BluetoothGattServerCallback {
 
                     delegate.onDeviceDisconnected(gattSrv, bluetoothDevice, error);
                     notifyOnInvalidation(bluetoothDevice, null);
-
-                    if (gattServer != null) {
-                        List<BluetoothDevice> devices = bluetoothManager.getConnectedDevices(BluetoothProfile.GATT_SERVER);
-                        Timber.e("Logging connected devices " + devices.toString());
-                        if (gattSrv != null && devices.isEmpty()) {
-                            Timber.e("Closing gatt server. No devices connected ");
-                            gattSrv.close();
-                        }
-                    }
-
-
                 }
             }
         });
