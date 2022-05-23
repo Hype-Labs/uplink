@@ -38,23 +38,37 @@
         android:layout_marginTop="15dp">
 
         <Button
-            android:id="@+id/button"
-            android:layout_width="wrap_content"
+            android:id="@+id/printRouting"
+            android:layout_width="60dp"
             android:layout_height="50dp"
             android:layout_marginStart="10dp"
+            android:onClick="onPrintRoutingTableClick"
+            android:text="R" />
 
+        <Button
+            android:id="@+id/printConnected"
+            android:layout_width="60dp"
+            android:layout_height="50dp"
+            android:layout_marginStart="10dp"
+            android:onClick="onPrintConnectedDevicesClick"
+            android:text="C" />
+
+        <Button
+            android:id="@+id/button"
+            android:layout_width="60dp"
+            android:layout_height="50dp"
+            android:layout_marginStart="10dp"
             android:layout_marginEnd="10dp"
             android:onClick="onProbeClick"
-            android:text="Probe" />
+            android:text="P" />
 
         <Button
             android:id="@+id/button2"
-            android:layout_width="wrap_content"
+            android:layout_width="60dp"
             android:layout_height="50dp"
-
             android:layout_marginEnd="10dp"
             android:onClick="onSendMessageClick"
-            android:text="MSG"
+            android:text="M"
             app:layout_constraintTop_toTopOf="@id/button"
             app:layout_constraintEnd_toStartOf="@id/button3"
             app:layout_constraintStart_toEndOf="@id/button"

@@ -718,6 +718,7 @@ public class GattServer extends BluetoothGattServerCallback {
                 final BluetoothGattServer gattServer = getBluetoothGattServer();
                 if (gattServer != null) {
                     gattServer.cancelConnection(bluetoothDevice);
+                    Timber.i("Canceled connection to BT Device " + bluetoothDevice.getAddress());
                     completable.markAsComplete(true);
                 } else {
                     completable.markAsComplete(false);

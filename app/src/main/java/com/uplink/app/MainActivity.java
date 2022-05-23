@@ -2,6 +2,10 @@ package com.uplink.app;
 
 import android.Manifest;
 import android.annotation.SuppressLint;
+import android.bluetooth.BluetoothDevice;
+import android.bluetooth.BluetoothManager;
+import android.bluetooth.BluetoothProfile;
+import android.content.Context;
 import android.os.Bundle;
 import android.util.Log;
 import android.view.View;
@@ -11,6 +15,7 @@ import android.widget.TextView;
 
 import com.uplink.ulx.ULX;
 import com.uplink.ulx.UlxError;
+import com.uplink.ulx.bridge.Bridge;
 import com.uplink.ulx.model.Instance;
 import com.uplink.ulx.model.MessageInfo;
 import com.uplink.ulx.observers.MessageObserver;
@@ -29,6 +34,7 @@ import java.util.ArrayList;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.LinkedList;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Queue;
@@ -52,6 +58,8 @@ public class MainActivity extends AppCompatActivity implements StateObserver, Ne
             }
         }
     }
+
+    private BluetoothManager bluetoothManager;
 
     private InstancesAdapter adapter;
 
@@ -150,6 +158,7 @@ public class MainActivity extends AppCompatActivity implements StateObserver, Ne
         appLogTextView = this.findViewById(R.id.app_log_text_view);
         appLogScrollView = this.findViewById(R.id.app_log_scroll_view);
         dateFormatter = new SimpleDateFormat("MMM d, HH:mm:ss", Locale.US);
+        bluetoothManager = (BluetoothManager) getApplicationContext().getSystemService(Context.BLUETOOTH_SERVICE);
 
         Timber.plant(new LogTree());
 
@@ -337,6 +346,16 @@ public class MainActivity extends AppCompatActivity implements StateObserver, Ne
         }
 
         dequeue();
+    }
+
+    public void onPrintConnectedDevicesClick(View view) {
+        @SuppressLint("MissingPermission") List<BluetoothDevice> devices = bluetoothManager.getConnectedDevices(BluetoothProfile.GATT_SERVER);
+        logApp("Logging connected devices " + devices.toString());
+    }
+
+    public void onPrintRoutingTableClick(View view) {
+        @SuppressLint("MissingPermission") List<BluetoothDevice> devices = bluetoothManager.getConnectedDevices(BluetoothProfile.GATT_SERVER);
+        Bridge.getInstance().printRoutingTable();
     }
 
     public void onSDKLogClick(View view) {

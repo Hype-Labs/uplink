@@ -28,12 +28,14 @@ import com.uplink.ulx.drivers.bluetooth.ble.model.active.BleActiveConnector;
 import com.uplink.ulx.drivers.bluetooth.ble.model.active.BleActiveInputStream;
 import com.uplink.ulx.drivers.bluetooth.ble.model.active.BleActiveOutputStream;
 import com.uplink.ulx.drivers.bluetooth.ble.model.passive.BleDomesticService;
+import com.uplink.ulx.drivers.bluetooth.ble.model.passive.BlePassiveConnector;
 import com.uplink.ulx.drivers.bluetooth.commons.BluetoothPermissionChecker;
 import com.uplink.ulx.drivers.bluetooth.commons.BluetoothStateListener;
 import com.uplink.ulx.drivers.commons.controller.BrowserCommons;
 import com.uplink.ulx.drivers.controller.Browser;
 import com.uplink.ulx.drivers.model.Channel;
 import com.uplink.ulx.drivers.model.Connector;
+import com.uplink.ulx.drivers.model.Device;
 import com.uplink.ulx.drivers.model.Transport;
 import com.uplink.ulx.threading.Dispatch;
 import com.uplink.ulx.utils.SerialOperationsManager;
@@ -69,7 +71,8 @@ class BleBrowser extends BrowserCommons implements
      * devices that have been found by the implementation. This will prevent devices from being
      * found multiples times.
      */
-    private final ConcurrentMap<String, BluetoothDevice> knownDevices;
+    private final ConcurrentMap<String, BluetoothDevice> knownBtDevices;
+    private final ConcurrentMap<String, BleDevice> knownDevices;
 
     private final SerialOperationsManager operationsManager;
 
@@ -86,8 +89,10 @@ class BleBrowser extends BrowserCommons implements
 
         @Override
         public void onScanResult(int callbackType, final ScanResult scanResult) {
-            if (knownDevices.containsKey(scanResult.getDevice().getAddress())) {
-                //Log.i(getClass().getCanonicalName(), String.format("ULX BLE browser ignoring device %s because it's already known", scanResult.getDevice().getAddress()));
+            Timber.i(String.format("ULX ScanResult %s", scanResult.getDevice().getAddress()));
+
+            if (knownBtDevices.containsKey(scanResult.getDevice().getAddress())) {
+                Timber.i(String.format("ULX BLE browser ignoring device %s because it's already known", scanResult.getDevice().getAddress()));
                 return;
             }
 
@@ -191,6 +196,7 @@ class BleBrowser extends BrowserCommons implements
 
         this.scanCallback = new BLEScannerCallback();
 
+        this.knownBtDevices = new ConcurrentHashMap<>();
         this.knownDevices = new ConcurrentHashMap<>();
     }
 
@@ -478,7 +484,7 @@ class BleBrowser extends BrowserCommons implements
         //Log.i(BleBrowser.this.getClass().getCanonicalName(), String.format("ULX BLE browser found native device %s", bluetoothDevice.getAddress()));
 
         // Do not proceed if the address was already registered
-        if (this.knownDevices.putIfAbsent(bluetoothDevice.getAddress(), bluetoothDevice) != null) {
+        if (this.knownBtDevices.putIfAbsent(bluetoothDevice.getAddress(), bluetoothDevice) != null) {
             //Log.i(getClass().getCanonicalName(), String.format("ULX BLE browser ignoring device %s because it's already known", bluetoothDevice.getAddress()));
             return;
         }
@@ -581,6 +587,14 @@ class BleBrowser extends BrowserCommons implements
             }
         });
         connector.connect();
+        connector.connect();
+    }
+
+    private void closeExistingConnections() {
+        for (BleDevice device : knownDevices.values()) {
+            Timber.i("Closing existing connection!");
+            ((BlePassiveConnector)device.getConnector()).disconnect();
+        }
     }
 
     @Override
@@ -655,6 +669,7 @@ class BleBrowser extends BrowserCommons implements
             }
 
             final BleDevice device = createDevice((BleActiveConnector)connector);
+            //this.knownDevices.putIfAbsent(connector.getIdentifier(), device);
 
             // Propagate to the delegate
             super.onDeviceFound(this, device);
@@ -737,7 +752,8 @@ class BleBrowser extends BrowserCommons implements
             final String address = ((BleActiveConnector) connector).getGattClient().getBluetoothDevice().getAddress();
 
             // Remove the device from the list, so that we can connect to it again in the future
-            this.knownDevices.remove(address);
+            this.knownBtDevices.remove(address);
+            //this.knownDevices.remove(connector.getIdentifier());
         }
     }
 
@@ -754,7 +770,8 @@ class BleBrowser extends BrowserCommons implements
 
         // Remove from the registry; when the device is seen again, the
         // connection should be retried
-        this.knownDevices.remove(bluetoothDevice.getAddress());
+        this.knownBtDevices.remove(bluetoothDevice.getAddress());
+        //this.knownDevices.remove(bleActiveConnector.getIdentifier());
         Timber.d("Device %s removed from registry", bluetoothDevice.getAddress());
 
         // Since we're having failed connections, we should ask the adapter to

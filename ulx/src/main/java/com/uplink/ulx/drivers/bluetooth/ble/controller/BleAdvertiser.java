@@ -403,6 +403,10 @@ class BleAdvertiser extends AdvertiserCommons implements
     @Override
     public void onAdapterDisabled(BluetoothStateListener bluetoothStateListener) {
         Timber.i("ULX BLE adapter disabled");
+
+        // if bluetooth adapter is disabled, we also need to remove connected devices from the routing table
+        closeExistingConnections();
+
         if (getState() == Advertiser.State.RUNNING || getState() == Advertiser.State.STARTING) {
 
             UlxError error = new UlxError(
@@ -424,6 +428,8 @@ class BleAdvertiser extends AdvertiserCommons implements
     @Override
     public void onDeviceConnected(GattServer gattServer, BluetoothDevice bluetoothDevice) {
         Timber.i("ULX bluetooth device connected %s", bluetoothDevice.getAddress());
+        @SuppressLint("MissingPermission") List<BluetoothDevice> devices = bluetoothManager.getConnectedDevices(BluetoothProfile.GATT_SERVER);
+        Timber.e("Logging connected devices " + devices.toString());
         BlePassiveConnector connector;
 
         synchronized (connectorRegistry) {

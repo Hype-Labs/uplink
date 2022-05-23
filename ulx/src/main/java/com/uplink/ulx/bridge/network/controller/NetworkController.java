@@ -1872,6 +1872,10 @@ public class NetworkController implements IoController.Delegate,
         }
     }
 
+    public void logRoutingTable() {
+        getRoutingTable().log();
+    }
+
     /**
      * Cleans up allocated resources
      */

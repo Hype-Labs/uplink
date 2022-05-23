@@ -511,6 +511,10 @@ public class Bridge implements
         getNetworkController().removeDevice(device, error);
     }
 
+    public void printRoutingTable() {
+        getNetworkController().logRoutingTable();
+    }
+
     @Override
     public void onConnectionFailure(@NonNull Connector connector, UlxError error) {
         Timber.e("ULX connection failed");
@@ -629,6 +633,13 @@ public class Bridge implements
      */
     public boolean hasActiveDevices() {
         return !southRegistry.isEmpty();
+    }
+
+    /**
+     * @return whether the bridge knows about any device(s)
+     */
+    public Map<String, Device> getActiveDevices() {
+        return southRegistry;
     }
 
     @Override
