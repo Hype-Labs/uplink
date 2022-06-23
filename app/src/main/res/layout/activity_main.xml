@@ -76,10 +76,10 @@
 
         <Button
             android:id="@+id/button3"
-            android:layout_width="wrap_content"
+            android:layout_width="60dp"
             android:layout_height="50dp"
             android:onClick="onSendTransactionClick"
-            android:text="TRANS"
+            android:text="T"
             app:layout_constraintTop_toTopOf="@id/button2"
             app:layout_constraintEnd_toEndOf="parent"
             app:layout_constraintStart_toEndOf="@id/button2" />

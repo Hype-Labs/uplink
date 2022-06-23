@@ -57,7 +57,6 @@ import timber.log.Timber;
  * BLE framework to manage the Bluetooth adapter and publish a BLE service,
  * as defined by BleDomesticService.
  */
-@TargetApi(Build.VERSION_CODES.LOLLIPOP)
 class BleAdvertiser extends AdvertiserCommons implements
         GattServer.Delegate,
         BluetoothStateListener.Observer,
@@ -828,6 +827,15 @@ class BleAdvertiser extends AdvertiserCommons implements
         }
     }
 
+    /**
+     * Closes existing connections on this Advertiser session.
+     * This will clear all the connections when the advertiser is stopped, making sure we don't
+     * keep invalid connections that are unknown to the SDK later on, when the advertiser restarts.
+     * On the advertiser side, the framework method to cancel/close a specific connection is known
+     * to not teardown the connection entirely, being necessary to also send a disconnect request
+     * to the client device, so that his GattClient can gracefully disconnect. Otherwise, the device
+     * can never be lost on the client side.
+     */
     private void closeExistingConnections() {
         for (Device device : deviceRegistry.values()) {
             Timber.i("Closing existing connection!");
